@@ -1,0 +1,6 @@
+{
+  "name": "NGL",
+  "description": "A comprehensive league management platform for the NGL, featuring player and club management, match scheduling, and statistics. Includes role-based access for League Admins and individual Club Managers.",
+  "requestFramePermissions": [],
+  "prompt": ""
+}
