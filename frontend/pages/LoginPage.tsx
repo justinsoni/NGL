@@ -19,6 +19,7 @@ const LoginPage: React.FC = () => {
     const [resetEmailSent, setResetEmailSent] = useState(false);
     const [emailVerificationSent, setEmailVerificationSent] = useState(false);
     const [pendingRegistration, setPendingRegistration] = useState<{ email: string; password: string; name: string } | null>(null);
+    const [name, setName] = useState('');
     const navigate = useNavigate();
 
     // Firebase authentication hooks
@@ -133,6 +134,11 @@ const LoginPage: React.FC = () => {
         
         if (!isLogin && !isForgotPassword && !confirmPassword) {
             setError('Please confirm your password to continue.');
+            return;
+        }
+
+        if (!isForgotPassword && !name) {
+            setError('Please enter your full name to continue.');
             return;
         }
         
@@ -258,7 +264,7 @@ const LoginPage: React.FC = () => {
                     try {
                         // Firebase Registration with email verification requirement
                         const result = await firebaseRegister({
-                            name: email.split('@')[0],
+                            name,
                             email,
                             password,
                             role: 'registeredUser' // This maps to 'user' in the backend
@@ -270,7 +276,7 @@ const LoginPage: React.FC = () => {
                             setPendingRegistration({
                                 email,
                                 password,
-                                name: email.split('@')[0]
+                                name
                             });
                             toast.success('Registration email sent! Please check your inbox and verify your email to complete registration.');
                             return;
@@ -570,6 +576,19 @@ const LoginPage: React.FC = () => {
                         )}
 
                         <div className="rounded-md shadow-sm space-y-4">
+                            {/* Name field for both login and register */}
+                            {(!isLogin || isLogin) && !isForgotPassword && (
+                                <input
+                                    id="name"
+                                    name="name"
+                                    type="text"
+                                    value={name}
+                                    onChange={e => setName(e.target.value)}
+                                    required={!isLogin ? true : false}
+                                    className={commonInputClasses}
+                                    placeholder="Full Name"
+                                />
+                            )}
                             <input id="email-address" name="email" type="email" value={email} onChange={e => setEmail(e.target.value)} required className={commonInputClasses} placeholder="Email address" />
 
                             {!isForgotPassword && (
