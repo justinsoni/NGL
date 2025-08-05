@@ -64,11 +64,11 @@ const MatchesPage: React.FC<MatchesPageProps> = ({ matchesData }) => {
       <PageBanner title="Matches" subtitle={stageFilter !== 'All' ? stageFilter : 'All Matches'} />
       <div className="container mx-auto p-4 md:p-6">
         {/* Filters and Controls */}
-        <div className="bg-theme-page-bg rounded-lg p-3 mb-6 flex items-center justify-center flex-wrap gap-2 shadow-md">
+        <div className="bg-gradient-to-r from-theme-primary/10 to-theme-accent/10 rounded-lg p-3 mb-6 flex items-center justify-center flex-wrap gap-2 shadow-md border border-theme-primary/20">
           <div className="flex items-center bg-theme-secondary-bg p-1 rounded-lg">
              <button
                 onClick={() => setStageFilter('All')}
-                className={`px-4 py-1.5 text-sm font-semibold rounded-md ${stageFilter === 'All' ? 'bg-theme-primary text-theme-dark shadow' : 'text-theme-text-secondary hover:bg-theme-light'}`}
+                className={`px-4 py-1.5 text-sm font-semibold rounded-md ${stageFilter === 'All' ? 'bg-gradient-to-r from-theme-primary to-theme-accent text-white shadow' : 'text-theme-text-secondary hover:bg-theme-light'}`}
              >
                 All
              </button>
@@ -76,7 +76,7 @@ const MatchesPage: React.FC<MatchesPageProps> = ({ matchesData }) => {
               <button
                 key={stage}
                 onClick={() => setStageFilter(stage)}
-                className={`px-4 py-1.5 text-sm font-semibold rounded-md ${stageFilter === stage ? 'bg-theme-primary text-theme-dark shadow' : 'text-theme-text-secondary hover:bg-theme-light'}`}
+                className={`px-4 py-1.5 text-sm font-semibold rounded-md ${stageFilter === stage ? 'bg-gradient-to-r from-theme-primary to-theme-accent text-white shadow' : 'text-theme-text-secondary hover:bg-theme-light'}`}
               >
                 {stage}
               </button>

@@ -41,7 +41,7 @@ const Navbar: React.FC<NavbarProps> = ({ isLoggedIn, userRole, onLogout }) => {
   }, [isMenuOpen]);
 
   const navLinkClass = ({ isActive }: { isActive: boolean }) =>
-    `relative text-theme-dark uppercase tracking-wider font-semibold text-sm pb-1 after:content-[''] after:absolute after:bottom-0 after:left-0 after:w-full after:h-[2px] after:bg-theme-primary after:transition-transform after:duration-300 ${isActive ? 'after:scale-x-100' : 'after:scale-x-0'} hover:after:scale-x-100`;
+    `relative text-theme-dark uppercase tracking-wider font-semibold text-sm pb-1 after:content-[''] after:absolute after:bottom-0 after:left-0 after:w-full after:h-[2px] after:bg-theme-accent after:transition-transform after:duration-300 ${isActive ? 'after:scale-x-100' : 'after:scale-x-0'} hover:after:scale-x-100`;
   
   const mobileNavLinkClass = ({ isActive }: { isActive: boolean }) =>
     `block py-2 px-4 text-sm rounded ${isActive ? 'bg-theme-primary-dark' : ''}`;

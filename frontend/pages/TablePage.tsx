@@ -41,7 +41,7 @@ const TablePage: React.FC<TablePageProps> = ({ tableData }) => {
                     onClick={() => setActiveGroup(group)}
                     className={`px-4 sm:px-6 py-2 text-sm font-semibold rounded-md transition-colors ${
                         activeGroup === group
-                            ? 'bg-theme-primary text-theme-dark shadow'
+                            ? 'bg-gradient-to-r from-theme-primary to-theme-accent text-white shadow'
                             : 'text-theme-text-secondary hover:bg-theme-secondary-bg'
                     }`}
                 >
@@ -52,7 +52,7 @@ const TablePage: React.FC<TablePageProps> = ({ tableData }) => {
 
         <div className="overflow-x-auto shadow-2xl rounded-lg">
           <table className="min-w-full bg-theme-page-bg text-theme-dark">
-            <thead className="bg-theme-secondary-bg uppercase text-sm text-theme-text-secondary">
+            <thead className="bg-gradient-to-r from-theme-primary to-theme-accent uppercase text-sm text-white">
               <tr>
                 <th colSpan={2} className="py-4 px-2 md:px-4 text-left">Club</th>
                 <th className="py-4 px-2 md:px-4 text-center">Pl</th>

@@ -581,12 +581,12 @@ const LoginPage: React.FC = () => {
                             )}
                         </div>
 
-                        {error && <p className="text-sm text-red-400 text-center bg-red-900/20 border border-red-500/30 rounded-md p-3">{error}</p>}
+                        {error && <p className="text-sm text-red-600 text-center bg-red-50 border border-red-200 rounded-md p-3">{error}</p>}
 
                         {/* Google User Warning */}
                         {isGoogleUser && isLogin && !isForgotPassword && (
-                            <div className="p-3 bg-blue-900/20 border border-blue-500/30 rounded-md">
-                                <p className="text-sm text-blue-300 text-center">
+                            <div className="p-3 bg-blue-50 border border-blue-200 rounded-md">
+                                <p className="text-sm text-blue-700 text-center">
                                     <strong>Google Account Detected:</strong> This email is associated with a Google account. 
                                     Please use "Continue with Google" for a seamless sign-in experience.
                                 </p>
@@ -597,7 +597,7 @@ const LoginPage: React.FC = () => {
                             <button
                                 type="submit"
                                 disabled={loading}
-                                className="group relative w-full flex justify-center py-3 px-4 border border-transparent text-sm font-medium rounded-md text-theme-dark bg-theme-primary hover:bg-theme-primary-dark focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-theme-page-bg focus:ring-theme-primary disabled:opacity-50 disabled:cursor-not-allowed"
+                                className="group relative w-full flex justify-center py-3 px-4 border border-transparent text-sm font-medium rounded-md text-theme-dark bg-theme-primary hover:bg-theme-primary-dark focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-theme-page-bg focus:ring-theme-accent disabled:opacity-50 disabled:cursor-not-allowed"
                             >
                                 {loading ? (
                                     <div className="flex items-center">
@@ -614,8 +614,8 @@ const LoginPage: React.FC = () => {
                     /* Reset Email Sent Success Screen */
                     <div className="mt-8 space-y-6">
                         <div className="text-center">
-                            <div className="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-theme-accent/20">
-                                <svg className="h-6 w-6 text-theme-accent" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <div className="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-green-100">
+                                <svg className="h-6 w-6 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                                 </svg>
                             </div>
@@ -628,7 +628,7 @@ const LoginPage: React.FC = () => {
                         <div className="space-y-3">
                             <button
                                 onClick={handleBackToLogin}
-                                className="w-full flex justify-center py-3 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-theme-dark bg-theme-primary hover:bg-theme-primary-dark focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-theme-primary"
+                                className="w-full flex justify-center py-3 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-theme-dark bg-theme-primary hover:bg-theme-primary-dark focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-theme-accent"
                             >
                                 Back to Sign In
                             </button>
@@ -650,8 +650,8 @@ const LoginPage: React.FC = () => {
                     /* Email Verification Sent Success Screen */
                     <div className="mt-8 space-y-6">
                         <div className="text-center">
-                            <div className="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-theme-primary/20">
-                                <svg className="h-6 w-6 text-theme-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <div className="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-blue-100">
+                                <svg className="h-6 w-6 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 4.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
                                 </svg>
                             </div>
@@ -665,7 +665,7 @@ const LoginPage: React.FC = () => {
                             <button
                                 onClick={handleCompleteRegistration}
                                 disabled={loading}
-                                className="w-full flex justify-center py-3 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-theme-dark bg-theme-primary hover:bg-theme-primary-dark focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-theme-primary disabled:opacity-50 disabled:cursor-not-allowed"
+                                className="w-full flex justify-center py-3 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-theme-dark bg-theme-primary hover:bg-theme-primary-dark focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-theme-accent disabled:opacity-50 disabled:cursor-not-allowed"
                             >
                                 {loading ? (
                                     <div className="flex items-center">
@@ -696,7 +696,7 @@ const LoginPage: React.FC = () => {
                             {isLogin && !isGoogleUser && (
                                 <button
                                     onClick={handleForgotPassword}
-                                    className="font-medium text-white hover:text-gray-200 block w-full"
+                                    className="font-medium text-theme-primary hover:text-theme-primary-dark block w-full"
                                 >
                                     Forgot your password?
                                 </button>
@@ -709,7 +709,7 @@ const LoginPage: React.FC = () => {
                             {isLogin && (
                                 <button
                                     onClick={handlePlayerRegistrationClick}
-                                    className="font-medium text-white hover:text-gray-200 block w-full"
+                                    className="font-medium text-theme-primary hover:text-theme-primary-dark block w-full"
                                 >
                                     Are you a player? Register here
                                 </button>

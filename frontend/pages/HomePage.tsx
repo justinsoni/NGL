@@ -58,7 +58,7 @@ const HeroSection = () => {
                         }}
                     ></div>
                 ))}
-                <div className="absolute inset-0 bg-gradient-to-t from-theme-light via-theme-light/60 to-transparent"></div>
+                <div className="absolute inset-0 bg-gradient-to-t from-theme-primary/80 via-theme-primary-dark/40 to-transparent"></div>
             </div>
             <div className="relative z-10 h-full flex flex-col justify-center items-center text-center p-4">
                 <div className="opacity-0 animate-fadeInUp">
@@ -89,7 +89,7 @@ const HeroSection = () => {
 
 const GroupStandingsCard: React.FC<{groupName: GroupName, tableData: TableEntry[]}> = ({ groupName, tableData}) => (
     <div className="bg-theme-page-bg rounded-lg shadow-lg overflow-hidden">
-        <h3 className="text-xl font-bold bg-theme-secondary-bg text-theme-dark p-3 text-center">Group {groupName}</h3>
+        <h3 className="text-xl font-bold bg-gradient-to-r from-theme-primary to-theme-accent text-white p-3 text-center">Group {groupName}</h3>
         <div className="overflow-x-auto">
             <table className="min-w-full text-sm">
                 <thead className="bg-theme-secondary-bg uppercase text-xs text-theme-text-secondary">
@@ -165,7 +165,7 @@ const HomePage: React.FC<HomePageProps> = ({ matchesData, tableData, competition
                     <div className="relative rounded-lg overflow-hidden h-72 shadow-lg">
                         <img src={item.imageUrl} alt={item.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
                         <div className="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent"></div>
-                        <span className="absolute top-2 left-2 bg-theme-primary text-theme-dark text-xs font-bold px-2 py-1 rounded">New</span>
+                        <span className="absolute top-2 left-2 bg-theme-accent text-white text-xs font-bold px-2 py-1 rounded">New</span>
                         <div className="absolute bottom-0 left-0 p-3 text-theme-dark">
                             <h3 className="font-semibold leading-tight">{item.title} {item.icon}</h3>
                         </div>
@@ -210,7 +210,7 @@ const HomePage: React.FC<HomePageProps> = ({ matchesData, tableData, competition
                         <div className="relative rounded-lg overflow-hidden h-72 shadow-lg">
                             <img src={item.imageUrl} alt={item.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
                             <div className="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent"></div>
-                            <span className="absolute top-2 left-2 bg-theme-primary text-theme-dark text-xs font-bold px-2 py-1 rounded">New</span>
+                            <span className="absolute top-2 left-2 bg-theme-accent text-white text-xs font-bold px-2 py-1 rounded">New</span>
                             <div className="absolute bottom-0 left-0 p-3 text-theme-dark">
                                 <h3 className="font-semibold leading-tight">{item.title}</h3>
                             </div>
@@ -249,7 +249,7 @@ const HomePage: React.FC<HomePageProps> = ({ matchesData, tableData, competition
                               onClick={() => setActiveStat(stat.statUnit)}
                               className={`px-4 py-2 text-sm font-semibold rounded-md transition-colors ${
                                   activeStat === stat.statUnit
-                                      ? 'bg-theme-primary text-theme-dark shadow'
+                                      ? 'bg-theme-accent text-white shadow'
                                       : 'text-theme-text-secondary hover:bg-theme-secondary-bg'
                               }`}
                           >
