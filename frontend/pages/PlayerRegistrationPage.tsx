@@ -83,248 +83,332 @@ const PlayerRegistrationPage: React.FC<PlayerRegistrationPageProps> = ({ onSubmi
             alert('Registration submitted successfully! You will be notified once your application is reviewed.');
             navigate('/');
         } catch (error) {
-            setError('Failed to submit registration. Please try again.');
+            setError('Unable to submit your registration at this time. Please try again or contact support if the issue persists.');
         } finally {
             setIsSubmitting(false);
         }
     };
 
     return (
-        <div className="min-h-screen bg-theme-light py-8">
-            <div className="max-w-4xl mx-auto px-4">
-                <div className="bg-theme-page-bg rounded-lg shadow-lg p-8">
-                    <h1 className="text-3xl font-bold text-theme-dark mb-6 text-center">Player Registration</h1>
-                    <p className="text-theme-text-secondary text-center mb-8">
-                        Join the National Gaming League by registering with your preferred club. 
-                        Your application will be reviewed by the club management.
-                    </p>
+        <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 py-12">
+            <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
+                <div className="bg-white rounded-2xl shadow-2xl overflow-hidden">
+                    {/* Header */}
+                    <div className="bg-gradient-to-r from-blue-600 to-purple-600 px-8 py-8 text-white">
+                        <h1 className="text-4xl font-bold text-center mb-2">Player Registration</h1>
+                        <p className="text-center text-blue-100 text-lg">
+                            Join the National Gaming League and showcase your skills with your preferred club
+                        </p>
+                    </div>
 
-                    <form onSubmit={handleSubmit} className="space-y-6">
-                        {/* Personal Information */}
-                        <div className="bg-theme-secondary-bg p-6 rounded-lg">
-                            <h2 className="text-xl font-semibold text-theme-dark mb-4">Personal Information</h2>
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                <div>
-                                    <label className="block text-sm font-medium text-theme-dark mb-1">
-                                        Full Name *
-                                    </label>
-                                    <input
-                                        type="text"
-                                        name="name"
-                                        value={formData.name}
-                                        onChange={handleInputChange}
-                                        required
-                                        className="w-full px-3 py-2 border border-theme-border rounded-md focus:outline-none focus:ring-2 focus:ring-theme-primary"
-                                    />
+                    <div className="p-8">
+                        <form onSubmit={handleSubmit} className="space-y-8">
+                            {/* Personal Information */}
+                            <div className="bg-gray-50 rounded-xl p-8 border border-gray-200">
+                                <div className="flex items-center mb-6">
+                                    <div className="w-10 h-10 bg-blue-600 rounded-full flex items-center justify-center mr-4">
+                                        <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                                        </svg>
+                                    </div>
+                                    <h2 className="text-2xl font-bold text-gray-800">Personal Information</h2>
                                 </div>
-                                <div>
-                                    <label className="block text-sm font-medium text-theme-dark mb-1">
-                                        Email Address *
-                                    </label>
-                                    <input
-                                        type="email"
-                                        name="email"
-                                        value={formData.email}
-                                        onChange={handleInputChange}
-                                        required
-                                        className="w-full px-3 py-2 border border-theme-border rounded-md focus:outline-none focus:ring-2 focus:ring-theme-primary"
-                                    />
-                                </div>
-                                <div>
-                                    <label className="block text-sm font-medium text-theme-dark mb-1">
-                                        Phone Number *
-                                    </label>
-                                    <input
-                                        type="tel"
-                                        name="phone"
-                                        value={formData.phone}
-                                        onChange={handleInputChange}
-                                        required
-                                        className="w-full px-3 py-2 border border-theme-border rounded-md focus:outline-none focus:ring-2 focus:ring-theme-primary"
-                                    />
-                                </div>
-                                <div>
-                                    <label className="block text-sm font-medium text-theme-dark mb-1">
-                                        Date of Birth *
-                                    </label>
-                                    <input
-                                        type="date"
-                                        name="dob"
-                                        value={formData.dob}
-                                        onChange={handleInputChange}
-                                        required
-                                        className="w-full px-3 py-2 border border-theme-border rounded-md focus:outline-none focus:ring-2 focus:ring-theme-primary"
-                                    />
-                                </div>
-                                <div>
-                                    <label className="block text-sm font-medium text-theme-dark mb-1">
-                                        Nationality *
-                                    </label>
-                                    <input
-                                        type="text"
-                                        name="nationality"
-                                        value={formData.nationality}
-                                        onChange={handleInputChange}
-                                        required
-                                        className="w-full px-3 py-2 border border-theme-border rounded-md focus:outline-none focus:ring-2 focus:ring-theme-primary"
-                                    />
-                                </div>
-                            </div>
-                        </div>
-
-                        {/* Gaming Information */}
-                        <div className="bg-theme-secondary-bg p-6 rounded-lg">
-                            <h2 className="text-xl font-semibold text-theme-dark mb-4">Gaming Information</h2>
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                <div>
-                                    <label className="block text-sm font-medium text-theme-dark mb-1">
-                                        Preferred Position *
-                                    </label>
-                                    <select
-                                        name="position"
-                                        value={formData.position}
-                                        onChange={handleInputChange}
-                                        required
-                                        className="w-full px-3 py-2 border border-theme-border rounded-md focus:outline-none focus:ring-2 focus:ring-theme-primary"
-                                    >
-                                        {POSITIONS.map(position => (
-                                            <option key={position} value={position}>{position}</option>
-                                        ))}
-                                    </select>
-                                </div>
-                                <div>
-                                    <label className="block text-sm font-medium text-theme-dark mb-1">
-                                        Preferred Club *
-                                    </label>
-                                    <select
-                                        name="clubId"
-                                        value={formData.clubId}
-                                        onChange={handleInputChange}
-                                        required
-                                        className="w-full px-3 py-2 border border-theme-border rounded-md focus:outline-none focus:ring-2 focus:ring-theme-primary"
-                                    >
-                                        {CLUBS.map(club => (
-                                            <option key={club.id} value={club.id}>{club.name}</option>
-                                        ))}
-                                    </select>
-                                </div>
-                                <div className="md:col-span-2">
-                                    <label className="block text-sm font-medium text-theme-dark mb-1">
-                                        Previous Club
-                                    </label>
-                                    <input
-                                        type="text"
-                                        name="previousClub"
-                                        value={formData.previousClub}
-                                        onChange={handleInputChange}
-                                        placeholder="Enter your previous club (if any)"
-                                        className="w-full px-3 py-2 border border-theme-border rounded-md focus:outline-none focus:ring-2 focus:ring-theme-primary"
-                                    />
-                                </div>
-                            </div>
-                        </div>
-
-                        {/* Leagues Played */}
-                        <div className="bg-theme-secondary-bg p-6 rounded-lg">
-                            <h2 className="text-xl font-semibold text-theme-dark mb-4">Leagues Played</h2>
-                            <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-                                {LEAGUES.map(league => (
-                                    <label key={league} className="flex items-center space-x-2">
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                    <div>
+                                        <label className="block text-sm font-semibold text-gray-700 mb-2">
+                                            Full Name *
+                                        </label>
                                         <input
-                                            type="checkbox"
-                                            checked={formData.leaguesPlayed.includes(league)}
-                                            onChange={(e) => handleLeagueChange(league, e.target.checked)}
-                                            className="rounded border-theme-border text-theme-primary focus:ring-theme-primary"
+                                            type="text"
+                                            name="name"
+                                            value={formData.name}
+                                            onChange={handleInputChange}
+                                            required
+                                            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
+                                            placeholder="Enter your full name"
                                         />
-                                        <span className="text-sm text-theme-dark">{league}</span>
-                                    </label>
-                                ))}
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm font-semibold text-gray-700 mb-2">
+                                            Email Address *
+                                        </label>
+                                        <input
+                                            type="email"
+                                            name="email"
+                                            value={formData.email}
+                                            onChange={handleInputChange}
+                                            required
+                                            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
+                                            placeholder="your.email@example.com"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm font-semibold text-gray-700 mb-2">
+                                            Phone Number *
+                                        </label>
+                                        <input
+                                            type="tel"
+                                            name="phone"
+                                            value={formData.phone}
+                                            onChange={handleInputChange}
+                                            required
+                                            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
+                                            placeholder="+1 (555) 123-4567"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm font-semibold text-gray-700 mb-2">
+                                            Date of Birth *
+                                        </label>
+                                        <input
+                                            type="date"
+                                            name="dob"
+                                            value={formData.dob}
+                                            onChange={handleInputChange}
+                                            required
+                                            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm font-semibold text-gray-700 mb-2">
+                                            Nationality *
+                                        </label>
+                                        <input
+                                            type="text"
+                                            name="nationality"
+                                            value={formData.nationality}
+                                            onChange={handleInputChange}
+                                            required
+                                            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
+                                            placeholder="e.g., United States"
+                                        />
+                                    </div>
+                                </div>
                             </div>
-                        </div>
 
-                        {/* File Uploads */}
-                        <div className="bg-theme-secondary-bg p-6 rounded-lg">
-                            <h2 className="text-xl font-semibold text-theme-dark mb-4">Documents & Photo</h2>
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                <div>
-                                    <label className="block text-sm font-medium text-theme-dark mb-1">
-                                        Profile Photo
-                                    </label>
-                                    <input
-                                        type="file"
-                                        accept="image/*"
-                                        onChange={(e) => {
-                                            const file = e.target.files?.[0];
-                                            if (file) handleFileUpload('imageUrl', file);
-                                        }}
-                                        className="w-full px-3 py-2 border border-theme-border rounded-md focus:outline-none focus:ring-2 focus:ring-theme-primary"
-                                    />
-                                    {formData.imageUrl && (
-                                        <p className="text-xs text-green-600 mt-1">✓ Photo uploaded</p>
-                                    )}
+                            {/* Gaming Information */}
+                            <div className="bg-gray-50 rounded-xl p-8 border border-gray-200">
+                                <div className="flex items-center mb-6">
+                                    <div className="w-10 h-10 bg-green-600 rounded-full flex items-center justify-center mr-4">
+                                        <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.828 14.828a4 4 0 01-5.656 0M9 10h1m4 0h1m-6 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                        </svg>
+                                    </div>
+                                    <h2 className="text-2xl font-bold text-gray-800">Gaming Information</h2>
+                                </div>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                    <div>
+                                        <label className="block text-sm font-semibold text-gray-700 mb-2">
+                                            Preferred Position *
+                                        </label>
+                                        <select
+                                            name="position"
+                                            value={formData.position}
+                                            onChange={handleInputChange}
+                                            required
+                                            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 bg-white text-black"
+                                        >
+                                            {POSITIONS.map(position => (
+                                                <option key={position} value={position} className="text-black">{position}</option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm font-semibold text-gray-700 mb-2">
+                                            Preferred Club *
+                                        </label>
+                                        <select
+                                            name="clubId"
+                                            value={formData.clubId}
+                                            onChange={handleInputChange}
+                                            required
+                                            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 bg-white text-black"
+                                        >
+                                            {CLUBS.map(club => (
+                                                <option key={club.id} value={club.id} className="text-black">{club.name}</option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                    <div className="md:col-span-2">
+                                        <label className="block text-sm font-semibold text-gray-700 mb-2">
+                                            Previous Club
+                                        </label>
+                                        <input
+                                            type="text"
+                                            name="previousClub"
+                                            value={formData.previousClub}
+                                            onChange={handleInputChange}
+                                            placeholder="Enter your previous club (if any)"
+                                            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
+                                        />
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Leagues Played */}
+                            <div className="bg-gray-50 rounded-xl p-8 border border-gray-200">
+                                <div className="flex items-center mb-6">
+                                    <div className="w-10 h-10 bg-purple-600 rounded-full flex items-center justify-center mr-4">
+                                        <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+                                        </svg>
+                                    </div>
+                                    <h2 className="text-2xl font-bold text-gray-800">Leagues Played</h2>
+                                </div>
+                                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                                    {LEAGUES.map(league => (
+                                        <label key={league} className="flex items-center p-3 bg-white rounded-lg border border-gray-200 hover:border-blue-300 transition-all duration-200 cursor-pointer">
+                                            <input
+                                                type="checkbox"
+                                                checked={formData.leaguesPlayed.includes(league)}
+                                                onChange={(e) => handleLeagueChange(league, e.target.checked)}
+                                                className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                                            />
+                                            <span className="ml-3 text-sm font-medium text-gray-700">{league}</span>
+                                        </label>
+                                    ))}
+                                </div>
+                            </div>
+
+                            {/* File Uploads */}
+                            <div className="bg-gray-50 rounded-xl p-8 border border-gray-200">
+                                <div className="flex items-center mb-6">
+                                    <div className="w-10 h-10 bg-orange-600 rounded-full flex items-center justify-center mr-4">
+                                        <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                                        </svg>
+                                    </div>
+                                    <h2 className="text-2xl font-bold text-gray-800">Documents & Photo</h2>
+                                </div>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                    <div>
+                                        <label className="block text-sm font-semibold text-gray-700 mb-2">
+                                            Profile Photo
+                                        </label>
+                                        <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-blue-400 transition-colors">
+                                            <input
+                                                type="file"
+                                                accept="image/*"
+                                                onChange={(e) => {
+                                                    const file = e.target.files?.[0];
+                                                    if (file) handleFileUpload('imageUrl', file);
+                                                }}
+                                                className="hidden"
+                                                id="profile-photo"
+                                            />
+                                            <label htmlFor="profile-photo" className="cursor-pointer">
+                                                <svg className="mx-auto h-12 w-12 text-gray-400" stroke="currentColor" fill="none" viewBox="0 0 48 48">
+                                                    <path d="M28 8H12a4 4 0 00-4 4v20m32-12v8m0 0v8a4 4 0 01-4 4H12a4 4 0 01-4-4v-4m32-4l-3.172-3.172a4 4 0 00-5.656 0L28 28M8 32l9.172-9.172a4 4 0 015.656 0L28 28m0 0l4 4m4-24h8m-4-4v8m-12 4h.02" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+                                                </svg>
+                                                <p className="mt-2 text-sm text-gray-600">Click to upload profile photo</p>
+                                            </label>
+                                        </div>
+                                        {formData.imageUrl && (
+                                            <p className="text-sm text-green-600 mt-2 flex items-center">
+                                                <svg className="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                                                    <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                                                </svg>
+                                                Photo uploaded successfully
+                                            </p>
+                                        )}
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm font-semibold text-gray-700 mb-2">
+                                            Identity Card / Player Card *
+                                        </label>
+                                        <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-blue-400 transition-colors">
+                                            <input
+                                                type="file"
+                                                accept="image/*,.pdf"
+                                                onChange={(e) => {
+                                                    const file = e.target.files?.[0];
+                                                    if (file) handleFileUpload('identityCardUrl', file);
+                                                }}
+                                                required
+                                                className="hidden"
+                                                id="identity-card"
+                                            />
+                                            <label htmlFor="identity-card" className="cursor-pointer">
+                                                <svg className="mx-auto h-12 w-12 text-gray-400" stroke="currentColor" fill="none" viewBox="0 0 48 48">
+                                                    <path d="M28 8H12a4 4 0 00-4 4v20m32-12v8m0 0v8a4 4 0 01-4 4H12a4 4 0 01-4-4v-4m32-4l-3.172-3.172a4 4 0 00-5.656 0L28 28M8 32l9.172-9.172a4 4 0 015.656 0L28 28m0 0l4 4m4-24h8m-4-4v8m-12 4h.02" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+                                                </svg>
+                                                <p className="mt-2 text-sm text-gray-600">Click to upload identity document</p>
+                                            </label>
+                                        </div>
+                                        {formData.identityCardUrl && (
+                                            <p className="text-sm text-green-600 mt-2 flex items-center">
+                                                <svg className="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                                                    <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                                                </svg>
+                                                Identity document uploaded successfully
+                                            </p>
+                                        )}
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Bio */}
+                            <div className="bg-gray-50 rounded-xl p-8 border border-gray-200">
+                                <div className="flex items-center mb-6">
+                                    <div className="w-10 h-10 bg-indigo-600 rounded-full flex items-center justify-center mr-4">
+                                        <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                                        </svg>
+                                    </div>
+                                    <h2 className="text-2xl font-bold text-gray-800">About You</h2>
                                 </div>
                                 <div>
-                                    <label className="block text-sm font-medium text-theme-dark mb-1">
-                                        Identity Card / Player Card *
+                                    <label className="block text-sm font-semibold text-gray-700 mb-2">
+                                        Bio / Description
                                     </label>
-                                    <input
-                                        type="file"
-                                        accept="image/*,.pdf"
-                                        onChange={(e) => {
-                                            const file = e.target.files?.[0];
-                                            if (file) handleFileUpload('identityCardUrl', file);
-                                        }}
-                                        required
-                                        className="w-full px-3 py-2 border border-theme-border rounded-md focus:outline-none focus:ring-2 focus:ring-theme-primary"
+                                    <textarea
+                                        name="bio"
+                                        value={formData.bio}
+                                        onChange={handleInputChange}
+                                        rows={6}
+                                        placeholder="Tell us about your gaming experience, achievements, and why you want to join this club..."
+                                        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 resize-none"
                                     />
-                                    {formData.identityCardUrl && (
-                                        <p className="text-xs text-green-600 mt-1">✓ Identity document uploaded</p>
-                                    )}
                                 </div>
                             </div>
-                        </div>
 
-                        {/* Bio */}
-                        <div className="bg-theme-secondary-bg p-6 rounded-lg">
-                            <h2 className="text-xl font-semibold text-theme-dark mb-4">About You</h2>
-                            <div>
-                                <label className="block text-sm font-medium text-theme-dark mb-1">
-                                    Bio / Description
-                                </label>
-                                <textarea
-                                    name="bio"
-                                    value={formData.bio}
-                                    onChange={handleInputChange}
-                                    rows={4}
-                                    placeholder="Tell us about your gaming experience, achievements, and why you want to join this club..."
-                                    className="w-full px-3 py-2 border border-theme-border rounded-md focus:outline-none focus:ring-2 focus:ring-theme-primary"
-                                />
+                            {error && (
+                                <div className="bg-red-50 border border-red-200 text-red-700 px-6 py-4 rounded-lg flex items-center">
+                                    <svg className="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                                        <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                                    </svg>
+                                    {error}
+                                </div>
+                            )}
+
+                            <div className="flex gap-4 pt-4">
+                                <button
+                                    type="button"
+                                    onClick={() => navigate('/')}
+                                    className="flex-1 bg-gray-500 text-white py-4 px-6 rounded-lg hover:bg-gray-600 transition-colors font-semibold"
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    type="submit"
+                                    disabled={isSubmitting}
+                                    className="flex-1 bg-gradient-to-r from-blue-600 to-purple-600 text-white py-4 px-6 rounded-lg hover:from-blue-700 hover:to-purple-700 transition-all duration-200 font-semibold disabled:opacity-50 disabled:cursor-not-allowed shadow-lg"
+                                >
+                                    {isSubmitting ? (
+                                        <div className="flex items-center justify-center">
+                                            <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                            </svg>
+                                            Submitting...
+                                        </div>
+                                    ) : (
+                                        'Submit Registration'
+                                    )}
+                                </button>
                             </div>
-                        </div>
-
-                        {error && (
-                            <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">
-                                {error}
-                            </div>
-                        )}
-
-                        <div className="flex gap-4">
-                            <button
-                                type="button"
-                                onClick={() => navigate('/')}
-                                className="flex-1 bg-gray-500 text-white py-3 px-6 rounded-md hover:bg-gray-600 transition-colors"
-                            >
-                                Cancel
-                            </button>
-                            <button
-                                type="submit"
-                                disabled={isSubmitting}
-                                className="flex-1 bg-theme-primary text-theme-dark py-3 px-6 rounded-md hover:bg-theme-primary-dark transition-colors disabled:opacity-50"
-                            >
-                                {isSubmitting ? 'Submitting...' : 'Submit Registration'}
-                            </button>
-                        </div>
-                    </form>
+                        </form>
+                    </div>
                 </div>
             </div>
         </div>

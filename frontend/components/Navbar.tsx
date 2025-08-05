@@ -78,11 +78,11 @@ const Navbar: React.FC<NavbarProps> = ({ isLoggedIn, userRole, onLogout }) => {
               <>
                 {userRole === 'admin' && <Link to="/admin" className="text-theme-dark font-semibold hover:opacity-80 transition">Admin</Link>}
                 {userRole === 'coach' && <Link to="/coach" className="text-theme-dark font-semibold hover:opacity-80 transition">Coach</Link>}
-                {userRole === 'club-manager' && <Link to="/club-manager" className="text-theme-dark font-semibold hover:opacity-80 transition">My Club</Link>}
+                {userRole === 'manager' && <Link to="/club-manager" className="text-theme-dark font-semibold hover:opacity-80 transition">My Club</Link>}
                 <LogoutButton onLocalLogout={onLogout} />
               </>
             ) : (
-              <Link to="/login" className="bg-theme-primary text-theme-dark px-4 py-2 rounded-md font-semibold hover:bg-theme-primary-dark transition-colors">Login</Link>
+              <Link to="/login" className="bg-theme-primary text-theme-dark px-4 py-2 rounded-md font-semibold hover:bg-theme-primary-dark transition-colors">Login/Registration</Link>
             )}
           </div>
           
@@ -108,7 +108,7 @@ const Navbar: React.FC<NavbarProps> = ({ isLoggedIn, userRole, onLogout }) => {
                 <>
                   {userRole === 'admin' && <Link to="/admin" className="text-theme-dark font-semibold block py-2 px-4" onClick={() => setIsMenuOpen(false)}>Admin</Link>}
                   {userRole === 'coach' && <Link to="/coach" className="text-theme-dark font-semibold block py-2 px-4" onClick={() => setIsMenuOpen(false)}>Coach</Link>}
-                  {userRole === 'club-manager' && <Link to="/club-manager" className="text-theme-dark font-semibold block py-2 px-4" onClick={() => setIsMenuOpen(false)}>My Club</Link>}
+                  {userRole === 'manager' && <Link to="/club-manager" className="text-theme-dark font-semibold block py-2 px-4" onClick={() => setIsMenuOpen(false)}>My Club</Link>}
                   <LogoutButton
                     onLocalLogout={() => { onLogout(); setIsMenuOpen(false); }}
                     className="bg-theme-primary text-theme-dark w-full text-left px-4 py-2 rounded-md font-semibold hover:bg-theme-primary-dark transition-colors"

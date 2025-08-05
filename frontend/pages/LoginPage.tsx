@@ -39,6 +39,15 @@ const LoginPage: React.FC = () => {
                     if (response.ok) {
                         const data = await response.json();
                         setIsGoogleUser(data.isGoogleUser);
+                    } else if (response.status === 404) {
+                        // User not found in backend - could be a Google user who hasn't been registered yet
+                        // For security, we'll assume it's a Google user to prevent password reset abuse
+                        console.warn('User not found in backend, assuming Google user for security');
+                        setIsGoogleUser(true);
+                    } else {
+                        // Other API errors - assume email/password user
+                        console.warn('Failed to check auth method, assuming email/password user');
+                        setIsGoogleUser(false);
                     }
                 } catch (error) {
                     console.error('Error checking current user auth method:', error);
@@ -71,8 +80,13 @@ const LoginPage: React.FC = () => {
                     if (response.ok) {
                         const data = await response.json();
                         setIsGoogleUser(data.isGoogleUser);
+                    } else if (response.status === 404) {
+                        // User not found in backend - could be a Google user who hasn't been registered yet
+                        // For security, we'll assume it's a Google user to prevent password reset abuse
+                        console.warn('User not found in backend, assuming Google user for security');
+                        setIsGoogleUser(true);
                     } else {
-                        // If API call fails, assume it's not a Google user
+                        // Other API errors - assume email/password user
                         console.warn('Failed to check auth method, assuming email/password user');
                         setIsGoogleUser(false);
                     }
@@ -142,6 +156,13 @@ const LoginPage: React.FC = () => {
         const attemptAuth = async (): Promise<void> => {
             try {
                 if (isForgotPassword) {
+                    // Email validation for forgot password
+                    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+                    if (!emailRegex.test(email)) {
+                        setError('Please enter a valid email address (e.g., user@example.com).');
+                        return;
+                    }
+
                     // Check if user is Google user
                     if (isGoogleUser) {
                         setError('This account was created with Google. Please use "Continue with Google" to access your account, or contact support if you need assistance.');
@@ -150,6 +171,25 @@ const LoginPage: React.FC = () => {
 
                     // Handle forgot password for email/password users
                     try {
+                        setLoading(true); // Add loading state
+                        
+                        // Additional security check: Try to get user from Firebase
+                        // If user exists in Firebase but not in backend, they're likely a Google user
+                        try {
+                            const { getAuth, fetchSignInMethodsForEmail } = await import('firebase/auth');
+                            const auth = getAuth();
+                            const methods = await fetchSignInMethodsForEmail(auth, email);
+                            
+                            // If user has Google sign-in method, prevent password reset
+                            if (methods.includes('google.com')) {
+                                setError('This account was created with Google. Please use "Continue with Google" to access your account, or contact support if you need assistance.');
+                                return;
+                            }
+                        } catch (firebaseCheckError) {
+                            // If Firebase check fails, proceed with backend check result
+                            console.warn('Firebase auth method check failed:', firebaseCheckError);
+                        }
+                        
                         await resetPassword(email);
                         toast.success('Password reset email sent! Please check your inbox and follow the instructions.');
                         setResetEmailSent(true);
@@ -159,10 +199,16 @@ const LoginPage: React.FC = () => {
                             setError('No account found with this email address. Please check your email or create a new account.');
                         } else if (resetError.message.includes('network') || resetError.message.includes('timeout')) {
                             throw new Error('network_error');
+                        } else if (resetError.message.includes('too-many-requests')) {
+                            setError('Too many password reset attempts. Please wait a few minutes before trying again.');
+                        } else if (resetError.message.includes('invalid-email')) {
+                            setError('Please enter a valid email address.');
                         } else {
                             setError('Unable to send reset email at this time. Please try again or contact support if the issue persists.');
                         }
                         return;
+                    } finally {
+                        setLoading(false); // Ensure loading state is reset
                     }
                 }
 
@@ -263,7 +309,7 @@ const LoginPage: React.FC = () => {
                     }
                 } else {
                     console.error('Authentication error:', error);
-                    setError(error.message || 'An error occurred. Please try again.');
+                    setError(error.message || 'Authentication failed. Please check your credentials and try again.');
                 }
             }
         };
@@ -423,6 +469,12 @@ const LoginPage: React.FC = () => {
     };
 
     const handleForgotPassword = () => {
+        // Prevent action while checking Google user status
+        if (isCheckingGoogleUser) {
+            setError('Please wait while we check your account type...');
+            return;
+        }
+        
         if (isGoogleUser) {
             setError('This account was created with Google. Please use "Continue with Google" to access your account, or contact support if you need assistance.');
             return;
@@ -430,6 +482,7 @@ const LoginPage: React.FC = () => {
         setIsForgotPassword(true);
         setError('');
         setResetEmailSent(false);
+        setLoading(false); // Fix: Reset loading state
     };
 
     const handleBackToLogin = () => {
@@ -438,7 +491,7 @@ const LoginPage: React.FC = () => {
         setResetEmailSent(false);
         setEmailVerificationSent(false);
         setPendingRegistration(null);
-        setEmail('');
+        // Don't clear email to preserve user input
     };
     
     const commonInputClasses = "appearance-none relative block w-full px-3 py-3 bg-theme-secondary-bg border border-theme-border placeholder-theme-text-secondary text-theme-dark rounded-md focus:outline-none focus:ring-theme-primary focus:border-theme-primary sm:text-sm";
@@ -528,12 +581,12 @@ const LoginPage: React.FC = () => {
                             )}
                         </div>
 
-                        {error && <p className="text-sm text-red-600 text-center">{error}</p>}
+                        {error && <p className="text-sm text-red-400 text-center bg-red-900/20 border border-red-500/30 rounded-md p-3">{error}</p>}
 
                         {/* Google User Warning */}
                         {isGoogleUser && isLogin && !isForgotPassword && (
-                            <div className="p-3 bg-blue-50 border border-blue-200 rounded-md">
-                                <p className="text-sm text-blue-600 text-center">
+                            <div className="p-3 bg-blue-900/20 border border-blue-500/30 rounded-md">
+                                <p className="text-sm text-blue-300 text-center">
                                     <strong>Google Account Detected:</strong> This email is associated with a Google account. 
                                     Please use "Continue with Google" for a seamless sign-in experience.
                                 </p>
@@ -561,8 +614,8 @@ const LoginPage: React.FC = () => {
                     /* Reset Email Sent Success Screen */
                     <div className="mt-8 space-y-6">
                         <div className="text-center">
-                            <div className="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-green-100">
-                                <svg className="h-6 w-6 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <div className="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-theme-accent/20">
+                                <svg className="h-6 w-6 text-theme-accent" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                                 </svg>
                             </div>
@@ -584,10 +637,12 @@ const LoginPage: React.FC = () => {
                                 onClick={() => {
                                     setResetEmailSent(false);
                                     setError('');
+                                    setLoading(false);
                                 }}
-                                className="w-full flex justify-center py-3 px-4 border border-theme-border rounded-md shadow-sm text-sm font-medium text-theme-dark bg-theme-secondary-bg hover:bg-theme-border focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-theme-primary"
+                                disabled={loading}
+                                className="w-full flex justify-center py-3 px-4 border border-theme-border rounded-md shadow-sm text-sm font-medium text-theme-dark bg-theme-secondary-bg hover:bg-theme-border focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-theme-primary disabled:opacity-50 disabled:cursor-not-allowed"
                             >
-                                Send Another Email
+                                {loading ? 'Sending...' : 'Send Another Email'}
                             </button>
                         </div>
                     </div>
@@ -595,8 +650,8 @@ const LoginPage: React.FC = () => {
                     /* Email Verification Sent Success Screen */
                     <div className="mt-8 space-y-6">
                         <div className="text-center">
-                            <div className="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-blue-100">
-                                <svg className="h-6 w-6 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <div className="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-theme-primary/20">
+                                <svg className="h-6 w-6 text-theme-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 4.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
                                 </svg>
                             </div>
@@ -645,6 +700,11 @@ const LoginPage: React.FC = () => {
                                 >
                                     Forgot your password?
                                 </button>
+                            )}
+                            {isLogin && isGoogleUser && (
+                                <div className="text-xs text-theme-text-secondary italic">
+                                    Google account detected - use "Continue with Google" to sign in
+                                </div>
                             )}
                             {isLogin && (
                                 <button

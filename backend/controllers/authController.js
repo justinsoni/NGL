@@ -368,7 +368,8 @@ const checkAuthMethod = async (req, res) => {
             return res.status(404).json({ 
                 success: false, 
                 message: 'User not found',
-                isGoogleUser: false
+                isGoogleUser: null, // null indicates unknown - frontend should check Firebase
+                userNotFound: true
             });
         }
 

@@ -280,31 +280,37 @@ class AuthService {
         const authUser: AuthUser = { ...apiUser, firebaseUser };
         this.currentUser = authUser;
         return authUser;
-      } catch (error) {
-        // User doesn't exist in backend, check if this is a new registration or existing user
-        // First, try to check if user exists with this email in our database
-        const userExists = await this.checkUserExists(firebaseUser.email!);
-        
-        if (userExists) {
-          // User exists but not linked to Firebase account
-          await signOut(auth);
-          throw new Error('An account with this email already exists. Please use email/password login instead.');
+      } catch (error: any) {
+        // Check if this is a 404 error (user not found) or other error
+        if (error.response?.status === 404) {
+          // User doesn't exist in backend, check if this is a new registration or existing user
+          // First, try to check if user exists with this email in our database
+          const userExists = await this.checkUserExists(firebaseUser.email!);
+          
+          if (userExists) {
+            // User exists but not linked to Firebase account
+            await signOut(auth);
+            throw new Error('An account with this email already exists. Please use email/password login instead.');
+          }
+
+          // User doesn't exist, create new profile
+          const registerData: RegisterUserData = {
+            firebaseUid: firebaseUser.uid,
+            name: firebaseUser.displayName || 'User',
+            email: firebaseUser.email!,
+            role: 'registeredUser',
+            authMethod: 'google'
+          };
+
+          const apiUser = await apiService.registerUser(registerData);
+          const authUser: AuthUser = { ...apiUser, firebaseUser };
+          this.currentUser = authUser;
+          
+          return authUser;
+        } else {
+          // Other error (not 404), re-throw it
+          throw error;
         }
-
-        // User doesn't exist, create new profile
-        const registerData: RegisterUserData = {
-          firebaseUid: firebaseUser.uid,
-          name: firebaseUser.displayName || 'User',
-          email: firebaseUser.email!,
-          role: 'registeredUser',
-          authMethod: 'google'
-        };
-
-        const apiUser = await apiService.registerUser(registerData);
-        const authUser: AuthUser = { ...apiUser, firebaseUser };
-        this.currentUser = authUser;
-        
-        return authUser;
       }
 
     } catch (error: any) {
@@ -341,9 +347,17 @@ class AuthService {
         throw new Error('No account found with this email address.');
       } else if (error.code === 'auth/invalid-email') {
         throw new Error('Please enter a valid email address.');
+      } else if (error.code === 'auth/too-many-requests') {
+        throw new Error('Too many password reset attempts. Please wait a few minutes before trying again.');
+      } else if (error.code === 'auth/network-request-failed') {
+        throw new Error('Network error. Please check your connection and try again.');
+      } else if (error.code === 'auth/operation-not-allowed') {
+        throw new Error('Password reset is not enabled for this application. Please contact support.');
+      } else if (error.code === 'auth/quota-exceeded') {
+        throw new Error('Service temporarily unavailable. Please try again later.');
       }
       
-      throw new Error(error.message || 'Failed to send password reset email.');
+      throw new Error(error.message || 'Unable to send password reset email. Please try again or contact support if the issue persists.');
     }
   }
 
@@ -378,7 +392,7 @@ class AuthService {
 
     } catch (error: any) {
       console.error('Profile update error:', error);
-      throw new Error(error.message || 'Failed to update profile.');
+      throw new Error(error.message || 'Unable to update your profile at this time. Please try again or contact support if the issue persists.');
     }
   }
 

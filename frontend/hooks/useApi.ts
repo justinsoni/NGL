@@ -110,7 +110,7 @@ export const useUpdateProfile = () => {
       },
       onError: (error) => {
         console.error('Failed to update profile:', error);
-        toast.error('Failed to update profile. Please try again.');
+        toast.error('Unable to update your profile at this time. Please try again or contact support if the issue persists.');
       }
     }
   );
@@ -154,7 +154,7 @@ export const useUpdateUserRole = () => {
       },
       onError: (error) => {
         console.error('Failed to update user role:', error);
-        toast.error('Failed to update user role. Please try again.');
+        toast.error('Unable to update user role at this time. Please try again or contact support if the issue persists.');
       }
     }
   );
@@ -189,7 +189,7 @@ export const useDeactivateUser = () => {
       },
       onError: (error) => {
         console.error('Failed to deactivate user:', error);
-        toast.error('Failed to deactivate user. Please try again.');
+        toast.error('Unable to deactivate user at this time. Please try again or contact support if the issue persists.');
       }
     }
   );

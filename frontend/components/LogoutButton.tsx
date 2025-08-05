@@ -28,7 +28,7 @@ const LogoutButton: React.FC<LogoutButtonProps> = ({
       }
     } catch (error: any) {
       console.error('Logout error:', error);
-      toast.error('Logout failed. Please try again.');
+      toast.error('Unable to sign out at this time. Please try again or refresh the page.');
       
       // Fallback to local logout if Firebase logout fails
       if (onLocalLogout) {
