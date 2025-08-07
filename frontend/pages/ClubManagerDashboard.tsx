@@ -11,7 +11,7 @@ interface ClubManagerDashboardProps {
     onAddPlayer: (player: Player) => void;
     onEditPlayer: (player: Player) => void;
     onDeletePlayer: (playerId: number) => void;
-    competitionStage: 'Group Stage' | 'Semi-Finals' | 'Final' | 'Finished';
+    competitionStage: 'League Stage' | 'Semi-Finals' | 'Final' | 'Finished';
     onPlayerSelect: (playerId: number) => void;
     coaches: CreatedUser[];
     onCreateCoach: (coach: Omit<CreatedUser, 'password' | 'id'>) => CreatedUser;

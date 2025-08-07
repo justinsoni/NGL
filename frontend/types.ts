@@ -101,17 +101,20 @@ export interface Match {
 }
 
 export interface TableEntry {
+  id: number;
   pos: number;
   club: string;
   logo: string;
-  played: number;
-  won: number;
-  drawn: number;
-  lost: number;
-  goalsFor: number;
-  goalsAgainst: number;
-  goalDifference: number;
-  points: number;
+  p: number; // played
+  w: number; // won
+  d: number; // drawn
+  l: number; // lost
+  gf: number; // goals for
+  ga: number; // goals against
+  gd: number; // goal difference
+  pts: number; // points
+  form?: string[];
+  matchHistory?: any[];
 }
 
 export interface LeaderStat {
@@ -121,6 +124,7 @@ export interface LeaderStat {
     playerName: string;
     value: number;
     club: string;
+    clubLogo: string;
   }>;
 }
 

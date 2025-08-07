@@ -9,14 +9,14 @@ interface MatchesPageProps {
   matchesData: Match[];
 }
 
-type StageFilter = 'All' | 'Group Stage' | 'Semi-Final' | 'Final';
+type StageFilter = 'All' | 'League Stage' | 'Semi-Final' | 'Final';
 
 const MatchesPage: React.FC<MatchesPageProps> = ({ matchesData }) => {
   const [stageFilter, setStageFilter] = useState<StageFilter>('All');
 
   const availableStages = useMemo(() => {
     const stages = new Set(matchesData.map(m => m.stage));
-    const result: StageFilter[] = ['Group Stage'];
+    const result: StageFilter[] = ['League Stage'];
     if (stages.has('Semi-Final')) result.push('Semi-Final');
     if (stages.has('Final')) result.push('Final');
     return result;
@@ -29,7 +29,7 @@ const MatchesPage: React.FC<MatchesPageProps> = ({ matchesData }) => {
 
 
   const groupedMatches = filteredMatches.reduce((acc, match) => {
-    const groupKey = match.stage === 'Group Stage' ? match.date : match.stage;
+    const groupKey = match.stage === 'League Stage' ? match.date : match.stage;
     (acc[groupKey] = acc[groupKey] || []).push(match);
     return acc;
   }, {} as Record<string, typeof matchesData>);

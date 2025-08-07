@@ -48,7 +48,7 @@ const App = () => {
 
   const [matchesData, setMatchesData] = useState<MatchType[]>(MATCHES);
   const [tableData, setTableData] = useState<Record<GroupName, TableEntry[]>>(TABLE_DATA);
-  const [competitionStage, setCompetitionStage] = useState<'Group Stage' | 'Semi-Finals' | 'Final' | 'Finished'>('Group Stage');
+  const [competitionStage, setCompetitionStage] = useState<'League Stage' | 'Semi-Finals' | 'Final' | 'Finished'>('League Stage');
   
   const [players, setPlayers] = useState<Player[]>(PLAYERS);
   const [leaderStats, setLeaderStats] = useState<LeaderStat[]>([]);
@@ -323,8 +323,8 @@ const App = () => {
     
     let newTableData = {...tableData};
     
-    // Update table only for group stage matches
-    if(finishedMatch.stage === 'Group Stage' && finishedMatch.group) {
+    // Update table only for league stage matches
+    if(finishedMatch.stage === 'League Stage' && finishedMatch.group) {
       const groupName = finishedMatch.group;
       const homeTeamName = finishedMatch.homeTeam;
       const awayTeamName = finishedMatch.awayTeam;
@@ -399,10 +399,10 @@ const App = () => {
     setMatchesData(updatedMatches);
 
     // Check for competition stage progression
-    const groupStageMatches = updatedMatches.filter(m => m.stage === 'Group Stage');
-    const allGroupMatchesFinished = groupStageMatches.every(m => m.status === 'finished');
+    const leagueStageMatches = updatedMatches.filter(m => m.stage === 'League Stage');
+    const allLeagueMatchesFinished = leagueStageMatches.every(m => m.status === 'finished');
 
-    if (competitionStage === 'Group Stage' && allGroupMatchesFinished && groupStageMatches.length > 0) {
+    if (competitionStage === 'League Stage' && allLeagueMatchesFinished && leagueStageMatches.length > 0) {
         generateSemiFinals(newTableData);
     }
     

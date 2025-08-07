@@ -14,15 +14,15 @@ import MediaHighlights from '../components/MediaHighlights';
 import SectionHeader from '../components/SectionHeader';
 import { GROUPS } from '../constants';
 
-// Import local images from assets
-import image103 from '@/src/assets/images/103.jpg';
-import footballStadium from '@/src/assets/images/football_stadium_2-wallpaper-2560x1024.jpg';
-import pexelsImage from '@/src/assets/images/pexels-pixabay-274422.jpg';
+// Using local images from assets - using correct asset paths
+const image103 = new URL('../src/assets/images/103.jpg', import.meta.url).href;
+const footballStadium = new URL('../src/assets/images/football_stadium_2-wallpaper-2560x1024.jpg', import.meta.url).href;
+const pexelsImage = new URL('../src/assets/images/pexels-pixabay-274422.jpg', import.meta.url).href;
 
 interface HomePageProps {
   matchesData: Match[];
   tableData: Record<GroupName, TableEntry[]>;
-  competitionStage: 'Group Stage' | 'Semi-Finals' | 'Final' | 'Finished';
+  competitionStage: 'League Stage' | 'Semi-Finals' | 'Final' | 'Finished';
   leaderStats: LeaderStat[];
   onPlayerSelect: (playerId: number) => void;
 }
@@ -87,39 +87,53 @@ const HeroSection = () => {
     );
 };
 
-const GroupStandingsCard: React.FC<{groupName: GroupName, tableData: TableEntry[]}> = ({ groupName, tableData}) => (
+// LeagueTable component for single league standings
+type LeagueTableProps = { tableData: Record<GroupName, TableEntry[]> };
+const LeagueTable: React.FC<LeagueTableProps> = ({ tableData }) => {
+  // Get all teams from group A (single league)
+  const allTeams = tableData['A'] || [];
+  // Sort by points, then goal difference, then goals for
+  const sortedTeams = [...allTeams].sort((a, b) => {
+    if (b.pts !== a.pts) return b.pts - a.pts;
+    if (b.gd !== a.gd) return b.gd - a.gd;
+    if (b.gf !== a.gf) return b.gf - a.gf;
+    return a.club.localeCompare(b.club);
+  });
+  return (
     <div className="bg-theme-page-bg rounded-lg shadow-lg overflow-hidden">
-        <h3 className="text-xl font-bold bg-gradient-to-r from-theme-primary to-theme-accent text-white p-3 text-center">Group {groupName}</h3>
-        <div className="overflow-x-auto">
-            <table className="min-w-full text-sm">
-                <thead className="bg-theme-secondary-bg uppercase text-xs text-theme-text-secondary">
-                    <tr>
-                        <th colSpan={2} className="py-2 px-2 text-left">Club</th>
-                        <th className="py-2 px-2 text-center">Pl</th>
-                        <th className="py-2 px-2 text-center">GD</th>
-                        <th className="py-2 px-2 text-center font-bold">Pts</th>
-                    </tr>
-                </thead>
-                <tbody className="text-theme-dark">
-                    {tableData.map((team, index) => (
-                        <tr key={team.id} className={`border-t border-theme-border ${index % 2 === 0 ? 'bg-theme-page-bg' : 'bg-theme-secondary-bg'}`}>
-                            <td className="py-2 px-2 whitespace-nowrap font-semibold">{team.pos}</td>
-                            <td className="py-2 px-2">
-                                <Link to={`/clubs/${team.id}`} className="flex items-center hover:opacity-80">
-                                    <img src={team.logo} alt={`${team.club} logo`} className="w-5 h-5 mr-2" />
-                                    <span className="font-bold text-xs sm:text-sm">{team.club}</span>
-                                </Link>
-                            </td>
-                            <td className="py-2 px-2 text-center">{team.p}</td>
-                            <td className="py-2 px-2 text-center">{team.gd > 0 ? `+${team.gd}` : team.gd}</td>
-                            <td className="py-2 px-2 text-center font-bold">{team.pts}</td>
-                        </tr>
-                    ))}
-                </tbody>
-            </table>
-        </div>
+      <h3 className="text-xl font-bold bg-gradient-to-r from-theme-primary to-theme-accent text-white p-3 text-center">League Table</h3>
+      <div className="overflow-x-auto">
+        <table className="min-w-full text-sm">
+          <thead className="bg-theme-secondary-bg uppercase text-xs text-theme-text-secondary">
+            <tr>
+              <th className="py-2 px-2 text-left">Pos</th>
+              <th className="py-2 px-2 text-left">Club</th>
+              <th className="py-2 px-2 text-center">Pl</th>
+              <th className="py-2 px-2 text-center">GD</th>
+              <th className="py-2 px-2 text-center font-bold">Pts</th>
+            </tr>
+          </thead>
+          <tbody className="text-theme-dark">
+            {sortedTeams.map((team, index) => (
+              <tr key={team.id} className={`border-t border-theme-border ${index % 2 === 0 ? 'bg-theme-page-bg' : 'bg-theme-secondary-bg'}`}>
+                <td className="py-2 px-2 whitespace-nowrap font-semibold">{index + 1}</td>
+                <td className="py-2 px-2">
+                  <Link to={`/clubs/${team.id}`} className="flex items-center hover:opacity-80">
+                    <img src={team.logo} alt={`${team.club} logo`} className="w-5 h-5 mr-2" />
+                    <span className="font-bold text-xs sm:text-sm">{team.club}</span>
+                  </Link>
+                </td>
+                <td className="py-2 px-2 text-center">{team.p}</td>
+                <td className="py-2 px-2 text-center">{team.gd > 0 ? `+${team.gd}` : team.gd}</td>
+                <td className="py-2 px-2 text-center font-bold">{team.pts}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </div>
-);
+  );
+};
 
 
 const HomePage: React.FC<HomePageProps> = ({ matchesData, tableData, competitionStage, leaderStats, onPlayerSelect }) => {
@@ -261,13 +275,13 @@ const HomePage: React.FC<HomePageProps> = ({ matchesData, tableData, competition
                   <div className="max-w-lg mx-auto bg-theme-page-bg rounded-lg shadow-lg p-4 sm:p-6">
                       {activeLeaderStat ? (
                           <ul className="space-y-3">
-                              {activeLeaderStat.leaderboard.map((player) => (
-                                  <li key={`${player.rank}-${player.name}`}>
-                                    <button onClick={() => onPlayerSelect(player.id)} className="w-full flex items-center justify-between p-3 rounded-lg transition-colors hover:bg-theme-secondary-bg text-left">
+                              {activeLeaderStat.leaderboard.map((player, index) => (
+                                  <li key={`${player.playerId}-${player.playerName}`}>
+                                    <button onClick={() => onPlayerSelect(player.playerId)} className="w-full flex items-center justify-between p-3 rounded-lg transition-colors hover:bg-theme-secondary-bg text-left">
                                       <div className="flex items-center gap-4">
-                                          <span className="font-bold text-theme-text-secondary text-lg w-6 text-center">{player.rank}.</span>
+                                          <span className="font-bold text-theme-text-secondary text-lg w-6 text-center">{index + 1}.</span>
                                           <img src={player.clubLogo} alt="Club Logo" className="w-6 h-6"/>
-                                          <span className="font-semibold text-theme-dark uppercase">{player.name}</span>
+                                          <span className="font-semibold text-theme-dark uppercase">{player.playerName}</span>
                                       </div>
                                       <span className="font-bold text-xl text-theme-primary">{player.value}</span>
                                     </button>
@@ -294,7 +308,7 @@ const HomePage: React.FC<HomePageProps> = ({ matchesData, tableData, competition
       </section>
 
       {/* Road to the Final Section */}
-      {competitionStage !== 'Group Stage' &&
+      {competitionStage !== 'League Stage' &&
         <section className="py-16 bg-theme-page-bg/50">
           <div className="container mx-auto px-4">
              <h2 className="text-3xl font-extrabold text-theme-dark mb-8 text-center uppercase tracking-wider">Road to the Final</h2>
@@ -310,22 +324,14 @@ const HomePage: React.FC<HomePageProps> = ({ matchesData, tableData, competition
           <div className="container mx-auto px-4">
               <SectionHeader 
                   title="League Standings"
-                  subtitle="An overview of the group stage tables"
+                  subtitle="The league table for all clubs"
               />
-              
-              <div className="mt-8 grid grid-cols-1 md:grid-cols-2 gap-8">
-                  {GROUPS.map(groupName => (
-                    <GroupStandingsCard 
-                        key={groupName}
-                        groupName={groupName}
-                        tableData={tableData[groupName]}
-                    />
-                  ))}
+              <div className="mt-8">
+                <LeagueTable tableData={tableData} />
               </div>
-
               <div className="text-center mt-12">
                   <Link to="/table" className="bg-theme-secondary-bg hover:bg-opacity-80 text-theme-dark font-bold py-3 px-8 rounded-lg transition-transform duration-300 hover:scale-105 shadow-lg">
-                      View Full Tables
+                      View Full Table
                   </Link>
               </div>
           </div>
