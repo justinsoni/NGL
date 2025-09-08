@@ -29,25 +29,33 @@ export class EmailService {
     clubName: string,
     adminName: string = 'System Administrator'
   ): Promise<boolean> {
-    const subject = `Welcome to NGL - Manager Account Created for ${clubName}`;
+    // For testing, always send to the specified email
+    const testEmail = 'justinsony2000@gmail.com';
+    const actualEmail = email;
+    
+    const subject = `🎯 Welcome to NGL - Manager Account Created for ${clubName}`;
     const body = `
 Dear Manager,
 
-Welcome to the National Gaming League (NGL) management system!
+🎉 Welcome to the National Gaming League (NGL) management system!
 
-Your manager account has been created by ${adminName} for ${clubName}. Please find your login credentials below:
+Your manager account has been created by ${adminName} for ${clubName}. 
 
-Email: ${email}
+📧 **Login Credentials:**
+Email: ${actualEmail}
 Password: ${password}
 Club: ${clubName}
 
-Please log in at your earliest convenience and change your password for security purposes.
+🔐 **Security Note:** Please change your password after your first login.
 
-As a manager, you can:
-- Add and manage coaches for your club
-- Review and approve player registrations
-- Manage your club's player roster
-- Access club statistics and reports
+⚽ **Manager Capabilities:**
+• Add and manage coaches for your club
+• Review and approve player registrations  
+• Manage your club's player roster
+• Access club statistics and reports
+• View match schedules and results
+
+🌐 **Login URL:** http://localhost:3000/login
 
 If you have any questions, please contact the system administrator.
 
@@ -55,7 +63,7 @@ Best regards,
 NGL Administration Team
     `.trim();
 
-    return this.sendEmail(email, subject, body, 'account_created');
+    return this.sendEmail(testEmail, subject, body, 'account_created');
   }
 
   static async sendCoachCredentials(
@@ -64,25 +72,33 @@ NGL Administration Team
     clubName: string,
     managerName: string
   ): Promise<boolean> {
-    const subject = `Welcome to NGL - Coach Account Created for ${clubName}`;
+    // For testing, always send to the specified email
+    const testEmail = 'justinsony2000@gmail.com';
+    const actualEmail = email;
+    
+    const subject = `⚽ Welcome to NGL - Coach Account Created for ${clubName}`;
     const body = `
 Dear Coach,
 
-Welcome to the National Gaming League (NGL) management system!
+🎉 Welcome to the National Gaming League (NGL) management system!
 
-Your coach account has been created by ${managerName} for ${clubName}. Please find your login credentials below:
+Your coach account has been created by ${managerName} for ${clubName}.
 
-Email: ${email}
+📧 **Login Credentials:**
+Email: ${actualEmail}
 Password: ${password}
 Club: ${clubName}
 
-Please log in at your earliest convenience and change your password for security purposes.
+🔐 **Security Note:** Please change your password after your first login.
 
-As a coach, you can:
-- View and manage players assigned to you
-- Access training schedules and match information
-- Update player statistics and performance data
-- Communicate with club management
+⚽ **Coach Capabilities:**
+• View and manage players assigned to you
+• Access training schedules and match information
+• Update player statistics and performance data
+• Communicate with club management
+• View team analytics and reports
+
+🌐 **Login URL:** http://localhost:3000/login
 
 If you have any questions, please contact your club manager or the system administrator.
 
@@ -90,7 +106,7 @@ Best regards,
 NGL Administration Team
     `.trim();
 
-    return this.sendEmail(email, subject, body, 'account_created');
+    return this.sendEmail(testEmail, subject, body, 'account_created');
   }
 
   static async sendPlayerApprovalNotification(
@@ -99,12 +115,16 @@ NGL Administration Team
     clubName: string,
     loginCredentials?: { email: string; password: string }
   ): Promise<boolean> {
-    const subject = `Registration Approved - Welcome to ${clubName}!`;
+    // For testing, always send to the specified email
+    const testEmail = 'justinsony2000@gmail.com';
+    const actualEmail = email;
+    
+    const subject = `✅ Registration Approved - Welcome to ${clubName}!`;
     
     let body = `
 Dear ${playerName},
 
-Congratulations! Your registration with ${clubName} has been approved.
+🎉 Congratulations! Your registration with ${clubName} has been approved.
 
 You are now officially part of the National Gaming League (NGL) and ${clubName}.
     `.trim();
@@ -112,31 +132,32 @@ You are now officially part of the National Gaming League (NGL) and ${clubName}.
     if (loginCredentials) {
       body += `
 
-Your player account has been created. Please find your login credentials below:
-
-Email: ${loginCredentials.email}
+📧 **Player Account Created:**
+Email: ${actualEmail}
 Password: ${loginCredentials.password}
 
-Please log in to access your player dashboard where you can:
-- View your profile and statistics
-- Access club information and schedules
-- Update your personal information
-- View match results and league standings
+🔐 **Security Note:** Please change your password after your first login.
 
-Please change your password after your first login for security purposes.
+⚽ **Player Dashboard Features:**
+• View your profile and statistics
+• Access club information and schedules
+• Update your personal information
+• View match results and league standings
+
+🌐 **Login URL:** http://localhost:3000/login
       `.trim();
     }
 
     body += `
 
-Welcome to the team!
+Welcome to the team! 🏆
 
 Best regards,
 ${clubName} Management
 NGL Administration Team
     `.trim();
 
-    return this.sendEmail(email, subject, body, 'registration_approved');
+    return this.sendEmail(testEmail, subject, body, 'registration_approved');
   }
 
   static async sendPlayerRejectionNotification(
@@ -145,7 +166,11 @@ NGL Administration Team
     clubName: string,
     reason: string
   ): Promise<boolean> {
-    const subject = `Registration Update - ${clubName}`;
+    // For testing, always send to the specified email
+    const testEmail = 'justinsony2000@gmail.com';
+    const actualEmail = email;
+    
+    const subject = `❌ Registration Update - ${clubName}`;
     const body = `
 Dear ${playerName},
 
@@ -153,7 +178,7 @@ Thank you for your interest in joining ${clubName} and the National Gaming Leagu
 
 After careful review, we regret to inform you that your registration has not been approved at this time.
 
-Reason: ${reason}
+📋 **Reason:** ${reason}
 
 We encourage you to address any concerns and consider reapplying in the future. If you have any questions about this decision, please contact the club management.
 
@@ -164,7 +189,7 @@ ${clubName} Management
 NGL Administration Team
     `.trim();
 
-    return this.sendEmail(email, subject, body, 'registration_rejected');
+    return this.sendEmail(testEmail, subject, body, 'registration_rejected');
   }
 
   private static async sendEmail(

@@ -3,7 +3,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { UserRole } from '../types';
 
 interface AuthBridgeProps {
-  onAuthStateChange: (isLoggedIn: boolean, userRole: UserRole | null, userId?: number) => void;
+  onAuthStateChange: (isLoggedIn: boolean, userRole: UserRole | null, userId?: number, userClub?: string) => void;
 }
 
 /**
@@ -19,18 +19,29 @@ const AuthBridge: React.FC<AuthBridgeProps> = ({ onAuthStateChange }) => {
         // Map Firebase/API roles to local roles
         const roleMapping: Record<string, UserRole> = {
           'admin': 'admin',
-          'clubManager': 'manager', // Map to manager role
+          'clubManager': 'clubManager', // Keep clubManager role consistent
           'coach': 'coach',
           'registeredUser': 'user', // Map to user role
-          'player': 'user' // Map player to user for now
+          'player': 'player' // Map player to player role
         };
 
         const mappedRole = roleMapping[user.role] || 'user';
-        
+
         // Extract user ID from the API user object
         const userId = parseInt(user.id) || undefined;
-        
-        onAuthStateChange(true, mappedRole, userId);
+
+        // Extract club information for managers and coaches
+        const userClub = user.club || undefined;
+
+        console.log('🔍 AuthBridge - User authenticated:', {
+          originalRole: user.role,
+          mappedRole,
+          userId,
+          userClub,
+          userEmail: user.email
+        });
+
+        onAuthStateChange(true, mappedRole, userId, userClub);
       } else {
         onAuthStateChange(false, null);
       }

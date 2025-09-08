@@ -19,6 +19,7 @@ const {
 // Import routes
 const authRoutes = require('./routes/auth');
 const clubRoutes = require('./routes/clubs');
+const playerRoutes = require('./routes/player');
 
 // Initialize Express app
 const app = express();
@@ -59,6 +60,7 @@ app.get('/health', (req, res) => {
 // API routes
 app.use('/api/auth', authRoutes);
 app.use('/api/clubs', clubRoutes);
+app.use('/api/players', playerRoutes);
 
 // 404 handler for undefined routes
 app.use('*', (req, res) => {
@@ -79,7 +81,12 @@ app.use('*', (req, res) => {
       'GET /api/clubs/:id',
       'POST /api/clubs',
       'PUT /api/clubs/:id',
-      'DELETE /api/clubs/:id'
+      'DELETE /api/clubs/:id',
+      'POST /api/players/register',
+      'GET /api/players',
+      'POST /api/players/:registrationId/approve',
+      'POST /api/players/:registrationId/reject',
+      'GET /api/players/approved',
     ]
   });
 });

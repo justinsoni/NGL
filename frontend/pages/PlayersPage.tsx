@@ -1,9 +1,10 @@
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { POSITIONS } from '../constants';
 import { Position, Player } from '../types';
 import PageBanner from '../components/PageBanner';
 import { SearchIcon, ChevronRightIcon } from '../components/icons';
+import { playerService } from '../services/playerService';
 
 interface PlayersPageProps {
   players: Player[];
@@ -14,17 +15,62 @@ const PlayersPage: React.FC<PlayersPageProps> = ({ players, onPlayerSelect }) =>
   const [positionFilter, setPositionFilter] = useState<Position | 'All'>('All');
   const [clubFilter, setClubFilter] = useState<string>('All');
   const [searchQuery, setSearchQuery] = useState('');
+  const [approvedFromApi, setApprovedFromApi] = useState<Player[]>([]);
 
-  const clubs = useMemo(() => ['All', ...Array.from(new Set(players.map(p => p.club)))], [players]);
+  useEffect(() => {
+    const fetchApproved = async () => {
+      try {
+        const res = await playerService.getApprovedPlayers();
+        if (res.success) {
+          // Map API players to UI Player shape safely
+          const mapped: Player[] = res.data.map((p: any) => ({
+            id: p._id || Date.now(),
+            name: p.name,
+            email: p.email,
+            phone: p.phone,
+            dob: p.dob,
+            position: p.position,
+            nationality: p.nationality,
+            flag: '🏳️',
+            club: p.clubId?.name || 'Unknown',
+            clubLogo: '',
+            previousClub: p.previousClub || 'Free Agent',
+            leaguesPlayed: p.leaguesPlayed || [],
+            imageUrl: p.imageUrl || `https://picsum.photos/seed/${p.name}/400/400`,
+            identityCardUrl: p.identityCardUrl || '',
+            bio: p.bio || '',
+            isVerified: true,
+            addedBy: 0,
+            stats: { matches: 0, goals: 0, assists: 0, yellowCards: 0, redCards: 0 }
+          }));
+          setApprovedFromApi(mapped);
+        }
+      } catch (e) {
+        // silent fail keeps page usable with local players
+      }
+    };
+    fetchApproved();
+  }, []);
+
+  const combinedPlayers = useMemo(() => {
+    // Combine local players (if any) with approved ones from API without duplicates by email
+    const byEmail = new Map<string, Player>();
+    [...players, ...approvedFromApi].forEach(p => {
+      byEmail.set(p.email, p);
+    });
+    return Array.from(byEmail.values());
+  }, [players, approvedFromApi]);
+
+  const clubs = useMemo(() => ['All', ...Array.from(new Set(combinedPlayers.map(p => p.club)))], [combinedPlayers]);
 
   const filteredPlayers = useMemo(() => {
-    return players.filter(player => {
+    return combinedPlayers.filter(player => {
       const positionMatch = positionFilter === 'All' || player.position === positionFilter;
       const clubMatch = clubFilter === 'All' || player.club === clubFilter;
       const searchMatch = player.name.toLowerCase().includes(searchQuery.toLowerCase());
       return positionMatch && clubMatch && searchMatch;
     });
-  }, [players, positionFilter, clubFilter, searchQuery]);
+  }, [combinedPlayers, positionFilter, clubFilter, searchQuery]);
   
   const PlayerRow = ({ player }: { player: Player }) => (
     <div onClick={() => onPlayerSelect(player.id)} className="flex items-center p-3 text-theme-dark hover:bg-theme-secondary-bg rounded-lg transition-colors duration-200 cursor-pointer">

@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Professional Coach Management Form Preview</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .theme-primary { background-color: #10b981; }
+        .theme-secondary-bg { background-color: #f3f4f6; }
+        .theme-page-bg { background-color: #ffffff; }
+        .theme-dark { color: #1f2937; }
+        .theme-text-secondary { color: #6b7280; }
+        .theme-border { border-color: #d1d5db; }
+    </style>
+</head>
+<body class="bg-gray-100 p-8">
+    <div class="max-w-6xl mx-auto">
+        <h1 class="text-3xl font-bold mb-8 text-center text-gray-800">Professional Coach Management System</h1>
+
+        <div class="text-center mb-8">
+            <h2 class="text-2xl font-semibold text-gray-800">Add Professional Coach</h2>
+            <p class="text-gray-600 mt-2">Create a comprehensive professional coach profile with qualifications, experience, and achievements</p>
+        </div>
+
+        <!-- Professional Coach Form Preview -->
+        <div class="bg-white p-8 rounded-xl shadow-xl">
+            <h2 class="text-2xl font-semibold mb-6 text-gray-800 text-center">Create Professional Coach Profile</h2>
+            
+            <!-- Basic Information Section -->
+            <div class="mb-8 p-6 bg-gray-50 rounded-lg border-l-4 border-blue-500">
+                <h3 class="text-xl font-semibold mb-6 text-gray-800 flex items-center">
+                    <span class="text-2xl mr-3">👤</span>
+                    Basic Information
+                </h3>
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-600 mb-2">Full Name *</label>
+                        <input type="text" class="w-full border-2 border-gray-300 rounded-lg py-3 px-4 focus:border-blue-500" placeholder="John Doe">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-600 mb-2">Email *</label>
+                        <input type="email" class="w-full border-2 border-gray-300 rounded-lg py-3 px-4 focus:border-blue-500" placeholder="john.doe@example.com">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-600 mb-2">Phone Number *</label>
+                        <input type="tel" class="w-full border-2 border-gray-300 rounded-lg py-3 px-4 focus:border-blue-500" placeholder="+1 (555) 123-4567">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-600 mb-2">Date of Birth</label>
+                        <input type="date" class="w-full border-2 border-gray-300 rounded-lg py-3 px-4 focus:border-blue-500">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-600 mb-2">Nationality</label>
+                        <input type="text" class="w-full border-2 border-gray-300 rounded-lg py-3 px-4 focus:border-blue-500" placeholder="American">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-600 mb-2">Photo URL</label>
+                        <input type="url" class="w-full border-2 border-gray-300 rounded-lg py-3 px-4 focus:border-blue-500" placeholder="https://example.com/photo.jpg">
+                    </div>
+                </div>
+                <div class="mt-6">
+                    <label class="block text-sm font-medium text-gray-600 mb-2">Professional Biography</label>
+                    <textarea rows="4" class="w-full border-2 border-gray-300 rounded-lg py-3 px-4 focus:border-blue-500" placeholder="Brief professional biography highlighting coaching philosophy, experience, and achievements..."></textarea>
+                </div>
+            </div>
+
+            <!-- Professional Qualifications Section -->
+            <div class="mb-8 p-6 bg-gray-50 rounded-lg border-l-4 border-green-500">
+                <h3 class="text-xl font-semibold mb-6 text-gray-800 flex items-center">
+                    <span class="text-2xl mr-3">🏆</span>
+                    Professional Qualifications
+                </h3>
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-600 mb-2">Coaching License</label>
+                        <select class="w-full border-2 border-gray-300 rounded-lg py-3 px-4 focus:border-green-500">
+                            <option>Select License</option>
+                            <option>UEFA Pro License</option>
+                            <option>UEFA A License</option>
+                            <option>UEFA B License</option>
+                            <option>CAF A License</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-600 mb-2">Years of Experience</label>
+                        <input type="number" class="w-full border-2 border-gray-300 rounded-lg py-3 px-4 focus:border-green-500" placeholder="10">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-600 mb-2">Current Position</label>
+                        <select class="w-full border-2 border-gray-300 rounded-lg py-3 px-4 focus:border-green-500">
+                            <option>Select Position</option>
+                            <option>Head Coach</option>
+                            <option>Assistant Coach</option>
+                            <option>Youth Coach</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Previous Clubs Section -->
+            <div class="mb-8 p-6 bg-gray-50 rounded-lg border-l-4 border-purple-500">
+                <div class="flex justify-between items-center mb-6">
+                    <h3 class="text-xl font-semibold text-gray-800 flex items-center">
+                        <span class="text-2xl mr-3">🏟️</span>
+                        Previous Clubs Experience
+                    </h3>
+                    <button class="bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700 font-medium">
+                        + Add Club
+                    </button>
+                </div>
+                <div class="bg-white p-4 rounded-lg border border-gray-300">
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                        <input type="text" placeholder="Club Name" class="border border-gray-300 rounded-lg py-2 px-3">
+                        <input type="text" placeholder="Position" class="border border-gray-300 rounded-lg py-2 px-3">
+                        <input type="date" placeholder="Start Date" class="border border-gray-300 rounded-lg py-2 px-3">
+                        <input type="date" placeholder="End Date" class="border border-gray-300 rounded-lg py-2 px-3">
+                    </div>
+                    <div class="mt-3">
+                        <input type="text" placeholder="Key Achievements (optional)" class="w-full border border-gray-300 rounded-lg py-2 px-3">
+                    </div>
+                </div>
+            </div>
+
+            <!-- Trophies Section -->
+            <div class="mb-8 p-6 bg-gray-50 rounded-lg border-l-4 border-yellow-500">
+                <div class="flex justify-between items-center mb-6">
+                    <h3 class="text-xl font-semibold text-gray-800 flex items-center">
+                        <span class="text-2xl mr-3">🏆</span>
+                        Trophies & Achievements
+                    </h3>
+                    <button class="bg-yellow-600 text-white px-4 py-2 rounded-lg hover:bg-yellow-700 font-medium">
+                        + Add Trophy
+                    </button>
+                </div>
+                <div class="bg-white p-4 rounded-lg border border-gray-300">
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                        <input type="text" placeholder="Trophy Name" class="border border-gray-300 rounded-lg py-2 px-3">
+                        <input type="number" placeholder="Year" class="border border-gray-300 rounded-lg py-2 px-3">
+                        <input type="text" placeholder="Club" class="border border-gray-300 rounded-lg py-2 px-3">
+                        <select class="border border-gray-300 rounded-lg py-2 px-3">
+                            <option>Select Level</option>
+                            <option>Professional</option>
+                            <option>Youth</option>
+                            <option>International</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Documents Section -->
+            <div class="mb-8 p-6 bg-gray-50 rounded-lg border-l-4 border-pink-500">
+                <div class="flex justify-between items-center mb-6">
+                    <h3 class="text-xl font-semibold text-gray-800 flex items-center">
+                        <span class="text-2xl mr-3">📄</span>
+                        Documents
+                    </h3>
+                    <button class="bg-pink-600 text-white px-4 py-2 rounded-lg hover:bg-pink-700 font-medium">
+                        + Add Document
+                    </button>
+                </div>
+                <div class="bg-white p-4 rounded-lg border border-gray-300">
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <select class="border border-gray-300 rounded-lg py-2 px-3">
+                            <option>Document Type</option>
+                            <option>CV/Resume</option>
+                            <option>Coaching License</option>
+                            <option>Certificate</option>
+                            <option>ID Document</option>
+                        </select>
+                        <input type="text" placeholder="Document Name" class="border border-gray-300 rounded-lg py-2 px-3">
+                        <input type="url" placeholder="Document URL" class="border border-gray-300 rounded-lg py-2 px-3">
+                    </div>
+                </div>
+            </div>
+
+            <!-- Contract Information -->
+            <div class="mb-8 p-6 bg-gray-50 rounded-lg border-l-4 border-teal-500">
+                <h3 class="text-xl font-semibold mb-6 text-gray-800 flex items-center">
+                    <span class="text-2xl mr-3">📋</span>
+                    Contract Information
+                </h3>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-600 mb-2">Contract Start Date</label>
+                        <input type="date" class="w-full border-2 border-gray-300 rounded-lg py-3 px-4 focus:border-teal-500">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-600 mb-2">Contract End Date</label>
+                        <input type="date" class="w-full border-2 border-gray-300 rounded-lg py-3 px-4 focus:border-teal-500">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-600 mb-2">Annual Salary (Optional)</label>
+                        <input type="number" class="w-full border-2 border-gray-300 rounded-lg py-3 px-4 focus:border-teal-500" placeholder="50000">
+                    </div>
+                </div>
+            </div>
+
+            <!-- Form Actions -->
+            <div class="flex justify-center">
+                <button class="bg-gradient-to-r from-green-500 to-green-600 text-white font-bold py-4 px-12 rounded-lg hover:shadow-xl transition-all transform hover:scale-105 flex items-center text-lg">
+                    <span class="text-2xl mr-3">✨</span>
+                    Create Professional Coach Profile
+                </button>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

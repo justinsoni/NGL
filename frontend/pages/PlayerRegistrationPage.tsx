@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { PlayerRegistration, Position } from '../types';
-import { CLUBS, POSITIONS, LEAGUES } from '../constants';
+import { PlayerRegistration, Position, Club } from '../types';
+import { POSITIONS, LEAGUES } from '../constants';
+import { clubService } from '@/services/clubService';
 
 interface PlayerRegistrationPageProps {
     onSubmitRegistration: (registration: Omit<PlayerRegistration, 'id' | 'status' | 'submittedAt'>) => void;
@@ -9,6 +10,9 @@ interface PlayerRegistrationPageProps {
 
 const PlayerRegistrationPage: React.FC<PlayerRegistrationPageProps> = ({ onSubmitRegistration }) => {
     const navigate = useNavigate();
+
+    const [clubs, setClubs] = useState<Club[]>([]);
+    const [clubsLoading, setClubsLoading] = useState(true);
     const [formData, setFormData] = useState({
         name: '',
         email: '',
@@ -21,10 +25,62 @@ const PlayerRegistrationPage: React.FC<PlayerRegistrationPageProps> = ({ onSubmi
         imageUrl: '',
         identityCardUrl: '',
         bio: '',
-        clubId: CLUBS.length > 0 ? CLUBS[0].id : 0
+        clubId: ''
     });
     const [error, setError] = useState('');
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const [uploadedFiles, setUploadedFiles] = useState<{
+        profilePhoto: File | null;
+        identityCard: File | null;
+    }>({
+        profilePhoto: null,
+        identityCard: null
+    });
+    const [previewUrls, setPreviewUrls] = useState<{
+        profilePhoto: string | null;
+        identityCard: string | null;
+    }>({
+        profilePhoto: null,
+        identityCard: null
+    });
+
+    useEffect(() => {
+        return () => {
+            if (previewUrls.profilePhoto && previewUrls.profilePhoto.startsWith('blob:')) {
+                URL.revokeObjectURL(previewUrls.profilePhoto);
+            }
+            if (previewUrls.identityCard && previewUrls.identityCard.startsWith('blob:')) {
+                URL.revokeObjectURL(previewUrls.identityCard);
+            }
+        };
+    }, [previewUrls]);
+
+    useEffect(() => {
+        console.log('Fetching clubs from API...');
+        const fetchClubs = async () => {
+            setClubsLoading(true);
+            try {
+                const res = await clubService.getClubs();
+                const clubsWithId = res.data.map((club: any) => ({
+                    ...club,
+                    id: club._id || club.id
+                }));
+
+                console.log('Fetched clubs:', clubsWithId);
+                setClubs(clubsWithId);
+
+                setFormData(prev => ({
+                    ...prev,
+                    clubId: clubsWithId.length > 0 ? clubsWithId[0].id : ''
+                }));
+            } catch (err) {
+                console.error('Error fetching clubs:', err);
+            } finally {
+                setClubsLoading(false);
+            }
+        };
+        fetchClubs();
+    }, []);
 
     const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
         const { name, value } = e.target;
@@ -43,14 +99,89 @@ const PlayerRegistrationPage: React.FC<PlayerRegistrationPageProps> = ({ onSubmi
         }));
     };
 
-    const handleFileUpload = (field: 'imageUrl' | 'identityCardUrl', file: File) => {
+    const handleFileUpload = (field: 'profilePhoto' | 'identityCard', file: File) => {
+        // Validate file type
+        const allowedTypes = field === 'profilePhoto'
+            ? ['image/jpeg', 'image/jpg', 'image/png', 'image/webp']
+            : ['image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'application/pdf'];
+
+        if (!allowedTypes.includes(file.type)) {
+            setError(`Invalid file type for ${field === 'profilePhoto' ? 'profile photo' : 'identity document'}. Please upload ${field === 'profilePhoto' ? 'an image' : 'an image or PDF'}.`);
+            return;
+        }
+
+        // Validate file size (5MB max)
+        const maxSize = 5 * 1024 * 1024; // 5MB
+        if (file.size > maxSize) {
+            setError(`File size too large. Please upload a file smaller than 5MB.`);
+            return;
+        }
+
+        // Clear any previous errors
+        setError('');
+
+        // Store the file
+        setUploadedFiles(prev => ({
+            ...prev,
+            [field]: file
+        }));
+
+        // Create preview URL for images
+        if (file.type.startsWith('image/')) {
+            const previewUrl = URL.createObjectURL(file);
+            setPreviewUrls(prev => ({
+                ...prev,
+                [field]: previewUrl
+            }));
+        } else {
+            // For PDFs, just show filename
+            setPreviewUrls(prev => ({
+                ...prev,
+                [field]: file.name
+            }));
+        }
+
         // In a real application, this would upload to a file storage service
-        const fakeUrl = `https://example.com/uploads/${file.name}`;
+        // For now, we'll simulate with a fake URL that includes the actual filename
+        const fakeUrl = `https://uploads.ngl.com/${Date.now()}-${file.name}`;
+        const formField = field === 'profilePhoto' ? 'imageUrl' : 'identityCardUrl';
         setFormData(prev => ({
             ...prev,
-            [field]: fakeUrl
+            [formField]: fakeUrl
         }));
     };
+
+
+    const uploadToCloudinary = async (file: File, uploadPreset: string): Promise<string> => {
+        const url = `https://api.cloudinary.com/v1_1/dmuilu78u/auto/upload`; 
+
+        const formData = new FormData();
+        formData.append("file", file);
+        formData.append("upload_preset", uploadPreset);
+
+        try {
+            const res = await fetch(url, {
+            method: "POST",
+            body: formData,
+            });
+
+            if (!res.ok) {
+            const errorText = await res.text();
+            throw new Error(`Failed to upload file: ${res.status} ${errorText}`);
+            }
+
+            const data = await res.json();
+            if (!data.secure_url) {
+            throw new Error("No secure_url returned from Cloudinary");
+            }
+
+            return data.secure_url;
+        } catch (err) {
+            console.error("Cloudinary upload error:", err);
+            throw err;
+        }
+        };
+
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -64,26 +195,66 @@ const PlayerRegistrationPage: React.FC<PlayerRegistrationPageProps> = ({ onSubmi
             return;
         }
 
-        if (!formData.identityCardUrl) {
+        // Basic email format validation
+        const emailPattern = /^\w+([.-]?\w+)*@\w+([.-]?\w+)*(\.\w{2,3})+$/;
+        if (!emailPattern.test(formData.email.trim().toLowerCase())) {
+            setError('Please enter a valid email address.');
+            setIsSubmitting(false);
+            return;
+        }
+
+        if (!uploadedFiles.identityCard) {
             setError('Please upload your identity card or player card for verification.');
             setIsSubmitting(false);
             return;
         }
 
         try {
-            const registration: Omit<PlayerRegistration, 'id' | 'status' | 'submittedAt'> = {
+            let imageUrl = formData.imageUrl;
+            let identityCardUrl = formData.identityCardUrl;
+
+            if (uploadedFiles.profilePhoto) {
+                imageUrl = await uploadToCloudinary(uploadedFiles.profilePhoto, 'ml_default');
+            }
+            if (uploadedFiles.identityCard) {
+                identityCardUrl = await uploadToCloudinary(uploadedFiles.identityCard, 'ml_default');
+            }
+
+            const selectedClub = clubs.find(c => String(c.id) === String(formData.clubId));
+            const registration = {
                 ...formData,
+                imageUrl,
+                identityCardUrl,
+                clubName: selectedClub?.name || undefined,
                 reviewedAt: undefined,
                 reviewedBy: undefined,
                 rejectionReason: undefined
             };
 
-            onSubmitRegistration(registration);
-            
+            const response = await fetch('http://localhost:5000/api/players/register', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(registration),
+            });
+
+            if (!response.ok) {
+                let message = 'Failed to register player';
+                try {
+                    const data = await response.json();
+                    if (data && typeof data.message === 'string') {
+                        message = data.message;
+                    }
+                } catch (_) { /* ignore parse error */ }
+                if (response.status === 409 && !message) {
+                    message = 'Email already registered. Please use a different email.';
+                }
+                throw new Error(message);
+            }
+
             alert('Registration submitted successfully! You will be notified once your application is reviewed.');
             navigate('/');
-        } catch (error) {
-            setError('Unable to submit your registration at this time. Please try again or contact support if the issue persists.');
+        } catch (error: any) {
+            setError(error.message || 'Unable to submit your registration at this time. Please try again or contact support if the issue persists.');
         } finally {
             setIsSubmitting(false);
         }
@@ -223,8 +394,9 @@ const PlayerRegistrationPage: React.FC<PlayerRegistrationPageProps> = ({ onSubmi
                                             onChange={handleInputChange}
                                             required
                                             className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 bg-white text-black"
+                                            disabled={clubsLoading || clubs.length === 0}
                                         >
-                                            {CLUBS.map(club => (
+                                            {clubs.map(club => (
                                                 <option key={club.id} value={club.id} className="text-black">{club.name}</option>
                                             ))}
                                         </select>
@@ -285,63 +457,123 @@ const PlayerRegistrationPage: React.FC<PlayerRegistrationPageProps> = ({ onSubmi
                                         <label className="block text-sm font-semibold text-gray-700 mb-2">
                                             Profile Photo
                                         </label>
-                                        <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-blue-400 transition-colors">
-                                            <input
-                                                type="file"
-                                                accept="image/*"
-                                                onChange={(e) => {
-                                                    const file = e.target.files?.[0];
-                                                    if (file) handleFileUpload('imageUrl', file);
-                                                }}
-                                                className="hidden"
-                                                id="profile-photo"
-                                            />
-                                            <label htmlFor="profile-photo" className="cursor-pointer">
-                                                <svg className="mx-auto h-12 w-12 text-gray-400" stroke="currentColor" fill="none" viewBox="0 0 48 48">
-                                                    <path d="M28 8H12a4 4 0 00-4 4v20m32-12v8m0 0v8a4 4 0 01-4 4H12a4 4 0 01-4-4v-4m32-4l-3.172-3.172a4 4 0 00-5.656 0L28 28M8 32l9.172-9.172a4 4 0 015.656 0L28 28m0 0l4 4m4-24h8m-4-4v8m-12 4h.02" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
-                                                </svg>
-                                                <p className="mt-2 text-sm text-gray-600">Click to upload profile photo</p>
-                                            </label>
-                                        </div>
-                                        {formData.imageUrl && (
-                                            <p className="text-sm text-green-600 mt-2 flex items-center">
-                                                <svg className="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20">
-                                                    <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                                                </svg>
-                                                Photo uploaded successfully
-                                            </p>
+                                        {previewUrls.profilePhoto ? (
+                                            <div className="relative">
+                                                <img
+                                                    src={previewUrls.profilePhoto}
+                                                    alt="Profile preview"
+                                                    className="w-full h-48 object-cover rounded-lg border-2 border-green-300"
+                                                />
+                                                <div className="absolute top-2 right-2 flex gap-2">
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => {
+                                                            setPreviewUrls(prev => ({ ...prev, profilePhoto: null }));
+                                                            setUploadedFiles(prev => ({ ...prev, profilePhoto: null }));
+                                                            setFormData(prev => ({ ...prev, imageUrl: '' }));
+                                                        }}
+                                                        className="bg-red-500 text-white p-1 rounded-full hover:bg-red-600 transition-colors"
+                                                    >
+                                                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                                        </svg>
+                                                    </button>
+                                                </div>
+                                                <div className="mt-2 text-center">
+                                                    <p className="text-sm text-green-600 font-medium">✓ Photo uploaded successfully</p>
+                                                    <p className="text-xs text-gray-500">{uploadedFiles.profilePhoto?.name}</p>
+                                                </div>
+                                            </div>
+                                        ) : (
+                                            <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-blue-400 transition-colors">
+                                                <input
+                                                    type="file"
+                                                    accept="image/jpeg,image/jpg,image/png,image/webp"
+                                                    onChange={(e) => {
+                                                        const file = e.target.files?.[0];
+                                                        if (file) handleFileUpload('profilePhoto', file);
+                                                    }}
+                                                    className="hidden"
+                                                    id="profile-photo"
+                                                />
+                                                <label htmlFor="profile-photo" className="cursor-pointer">
+                                                    <div className="mx-auto h-16 w-16 bg-gray-100 rounded-full flex items-center justify-center mb-4">
+                                                        <svg className="h-8 w-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                                                        </svg>
+                                                    </div>
+                                                    <p className="text-sm font-medium text-gray-700">Upload Profile Photo</p>
+                                                    <p className="text-xs text-gray-500 mt-1">JPG, PNG, WEBP up to 5MB</p>
+                                                </label>
+                                            </div>
                                         )}
                                     </div>
                                     <div>
                                         <label className="block text-sm font-semibold text-gray-700 mb-2">
                                             Identity Card / Player Card *
                                         </label>
-                                        <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-blue-400 transition-colors">
-                                            <input
-                                                type="file"
-                                                accept="image/*,.pdf"
-                                                onChange={(e) => {
-                                                    const file = e.target.files?.[0];
-                                                    if (file) handleFileUpload('identityCardUrl', file);
-                                                }}
-                                                required
-                                                className="hidden"
-                                                id="identity-card"
-                                            />
-                                            <label htmlFor="identity-card" className="cursor-pointer">
-                                                <svg className="mx-auto h-12 w-12 text-gray-400" stroke="currentColor" fill="none" viewBox="0 0 48 48">
-                                                    <path d="M28 8H12a4 4 0 00-4 4v20m32-12v8m0 0v8a4 4 0 01-4 4H12a4 4 0 01-4-4v-4m32-4l-3.172-3.172a4 4 0 00-5.656 0L28 28M8 32l9.172-9.172a4 4 0 015.656 0L28 28m0 0l4 4m4-24h8m-4-4v8m-12 4h.02" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
-                                                </svg>
-                                                <p className="mt-2 text-sm text-gray-600">Click to upload identity document</p>
-                                            </label>
-                                        </div>
-                                        {formData.identityCardUrl && (
-                                            <p className="text-sm text-green-600 mt-2 flex items-center">
-                                                <svg className="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20">
-                                                    <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                                                </svg>
-                                                Identity document uploaded successfully
-                                            </p>
+                                        {previewUrls.identityCard ? (
+                                            <div className="relative">
+                                                {uploadedFiles.identityCard?.type.startsWith('image/') ? (
+                                                    <img
+                                                        src={previewUrls.identityCard}
+                                                        alt="Identity document preview"
+                                                        className="w-full h-48 object-cover rounded-lg border-2 border-green-300"
+                                                    />
+                                                ) : (
+                                                    <div className="w-full h-48 bg-gray-100 rounded-lg border-2 border-green-300 flex items-center justify-center">
+                                                        <div className="text-center">
+                                                            <svg className="mx-auto h-12 w-12 text-red-500 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                                                            </svg>
+                                                            <p className="text-sm font-medium text-gray-700">PDF Document</p>
+                                                            <p className="text-xs text-gray-500">{uploadedFiles.identityCard?.name}</p>
+                                                        </div>
+                                                    </div>
+                                                )}
+                                                <div className="absolute top-2 right-2 flex gap-2">
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => {
+                                                            setPreviewUrls(prev => ({ ...prev, identityCard: null }));
+                                                            setUploadedFiles(prev => ({ ...prev, identityCard: null }));
+                                                            setFormData(prev => ({ ...prev, identityCardUrl: '' }));
+                                                        }}
+                                                        className="bg-red-500 text-white p-1 rounded-full hover:bg-red-600 transition-colors"
+                                                    >
+                                                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                                        </svg>
+                                                    </button>
+                                                </div>
+                                                <div className="mt-2 text-center">
+                                                    <p className="text-sm text-green-600 font-medium">✓ Document uploaded successfully</p>
+                                                    <p className="text-xs text-gray-500">{uploadedFiles.identityCard?.name}</p>
+                                                </div>
+                                            </div>
+                                        ) : (
+                                            <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-blue-400 transition-colors">
+                                                <input
+                                                    type="file"
+                                                    accept="image/jpeg,image/jpg,image/png,image/webp,application/pdf"
+                                                    onChange={(e) => {
+                                                        const file = e.target.files?.[0];
+                                                        if (file) handleFileUpload('identityCard', file);
+                                                    }}
+                                                    required
+                                                    className="hidden"
+                                                    id="identity-card"
+                                                />
+                                                <label htmlFor="identity-card" className="cursor-pointer">
+                                                    <div className="mx-auto h-16 w-16 bg-gray-100 rounded-full flex items-center justify-center mb-4">
+                                                        <svg className="h-8 w-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                                                        </svg>
+                                                    </div>
+                                                    <p className="text-sm font-medium text-gray-700">Upload Identity Document *</p>
+                                                    <p className="text-xs text-gray-500 mt-1">JPG, PNG, WEBP, PDF up to 5MB</p>
+                                                </label>
+                                            </div>
                                         )}
                                     </div>
                                 </div>

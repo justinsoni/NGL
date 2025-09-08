@@ -371,8 +371,7 @@ const LoginPage: React.FC = () => {
         switch (role) {
             case 'admin': 
                 return '/admin';
-            case 'clubManager': 
-            case 'manager': 
+            case 'clubManager':
                 return '/club-manager';
             case 'coach': 
                 return '/coach';

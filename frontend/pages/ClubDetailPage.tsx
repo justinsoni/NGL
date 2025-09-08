@@ -1,9 +1,8 @@
-
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { CLUBS } from '../constants';
+import clubService from '../services/clubService';
 import NotFoundPage from './NotFoundPage';
-import { Player } from '../types';
+import { Player, Club } from '../types';
 
 interface ClubDetailPageProps {
     players: Player[];
@@ -20,13 +19,36 @@ const PlayerListRow: React.FC<{ player: Player; onPlayerSelect: (playerId: numbe
     </div>
 );
 
-
 const ClubDetailPage: React.FC<ClubDetailPageProps> = ({ players, onPlayerSelect }) => {
     const { clubId } = useParams();
-    const club = CLUBS.find(c => c.id === Number(clubId));
+    const [club, setClub] = useState<Club | null>(null);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState<string | null>(null);
+
+    useEffect(() => {
+        const fetchClub = async () => {
+            try {
+                setLoading(true);
+                setError(null);
+                const res = await clubService.getClub(clubId as string);
+                setClub(res.data);
+            } catch (err) {
+                setError('Club not found');
+            } finally {
+                setLoading(false);
+            }
+        };
+        fetchClub();
+    }, [clubId]);
+
+    // Filter players for this club (if you still want to use the passed-in players prop)
     const squad = players.filter(p => p.club === club?.name);
 
-    if (!club) {
+    if (loading) {
+        return <div className="min-h-screen flex items-center justify-center">Loading club details...</div>;
+    }
+
+    if (error || !club) {
         return <NotFoundPage />;
     }
 
@@ -60,7 +82,7 @@ const ClubDetailPage: React.FC<ClubDetailPageProps> = ({ players, onPlayerSelect
 
                         <div className="bg-theme-page-bg p-6 rounded-lg shadow-lg">
                             <h3 className="text-xl font-bold mb-4 border-b-2 border-theme-primary pb-2 text-theme-dark">Honours</h3>
-                            {club.honours.length > 0 ? (
+                            {club.honours && club.honours.length > 0 ? (
                                 <div className="space-y-3">
                                     {club.honours.map(honour => (
                                         <div key={honour.name} className="flex justify-between items-center">

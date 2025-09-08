@@ -17,11 +17,11 @@ const registerUser = async (req, res) => {
     }
 
     // Validate role
-    const validRoles = ['admin', 'manager', 'coach', 'registeredUser', 'user'];
+    const validRoles = ['admin', 'manager', 'clubManager', 'coach', 'registeredUser', 'user'];
     if (!validRoles.includes(role)) {
       return res.status(400).json({
         success: false,
-        message: 'Invalid role. Must be one of: admin, manager, coach, registeredUser, user'
+        message: 'Invalid role. Must be one of: admin, manager, clubManager, coach, registeredUser, user'
       });
     }
 

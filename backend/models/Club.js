@@ -101,13 +101,6 @@ const clubSchema = new mongoose.Schema({
     years: [Number]
   }],
   
-  // League information
-  group: {
-    type: String,
-    enum: ['A', 'B', 'C', 'D'],
-    default: 'A'
-  },
-  
   // Club status
   isActive: {
     type: Boolean,
@@ -177,11 +170,6 @@ clubSchema.pre('save', function(next) {
 // Instance method to get total honours count
 clubSchema.methods.getTotalHonours = function() {
   return this.honours.reduce((total, honour) => total + honour.count, 0);
-};
-
-// Static method to find clubs by group
-clubSchema.statics.findByGroup = function(group) {
-  return this.find({ group, isActive: true });
 };
 
 // Static method to find clubs by city

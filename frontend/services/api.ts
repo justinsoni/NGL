@@ -21,7 +21,7 @@ export interface ApiUser {
   firebaseUid: string;
   name: string;
   email: string;
-  role: 'admin' | 'manager' | 'coach' | 'registeredUser' | 'user';
+  role: 'admin' | 'manager' | 'clubManager' | 'coach' | 'registeredUser' | 'user';
   club?: string;
   profile?: {
     phone?: string;
@@ -48,7 +48,7 @@ export interface RegisterUserData {
   firebaseUid: string;
   name: string;
   email: string;
-  role?: 'admin' | 'manager' | 'coach' | 'registeredUser' | 'user';
+  role?: 'admin' | 'manager' | 'clubManager' | 'coach' | 'registeredUser' | 'user';
   club?: string;
   authMethod?: 'email' | 'google';
 }
@@ -56,7 +56,7 @@ export interface RegisterUserData {
 export interface UpdateProfileData {
   name?: string;
   email?: string;
-  role?: 'admin' | 'manager' | 'coach' | 'registeredUser' | 'user';
+  role?: 'admin' | 'manager' | 'clubManager' | 'coach' | 'registeredUser' | 'user';
   club?: string;
   profile?: {
     phone?: string;

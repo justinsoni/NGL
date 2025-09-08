@@ -140,7 +140,7 @@ Your manager account has been created by ${adminName} for ${clubName}.
 
 📧 Login Credentials:
 Email: ${managerEmail}
-Password: ${password}
+Password Reset Link: ${passwordResetLink}
 Club: ${clubName}
 
 🔐 Security Note: Please change your password after your first login.
@@ -211,7 +211,7 @@ NGL Administration Team
     console.log('📧 EMAIL NOT SENT - No email service configured');
     console.log('To:', managerEmail);
     console.log('Subject:', subject);
-    console.log('Password:', password);
+    console.log('Password Reset Link:', passwordResetLink);
     console.log('---');
     console.log('To enable real email sending, configure either:');
     console.log('1. BREVO_API_KEY for Brevo email service (recommended)');
@@ -219,15 +219,15 @@ NGL Administration Team
     console.log('---');
     console.log('For now, here are the credentials that should have been sent:');
     console.log(`Email: ${managerEmail}`);
-    console.log(`Password: ${password}`);
+    console.log(`Password Reset Link: ${passwordResetLink}`);
     console.log(`Club: ${clubName}`);
-    
+
     return { 
       success: false, 
       message: 'No email service configured. Please set up email credentials. Credentials have been logged to console.',
       credentials: {
         email: managerEmail,
-        password: password,
+        passwordResetLink: passwordResetLink,
         club: clubName
       }
     };
@@ -355,6 +355,177 @@ NGL Administration Team
     console.log('2. EMAIL_USER and EMAIL_PASSWORD for Gmail SMTP');
     return { success: false, message: 'No email service configured. Please set up email credentials.' };
   }
+
+  // Send welcome email to newly created coach with login credentials
+  async sendCoachWelcomeEmail(coachEmail, coachName, temporaryPassword, clubName) {
+    const subject = '🎉 Welcome to NGL - Your Coach Account is Ready!';
+
+    const htmlBody = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Welcome to NGL</title>
+        <style>
+          body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+          .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+          .header { background: linear-gradient(135deg, #578E7E, #417062); color: white; padding: 30px; text-align: center; border-radius: 10px 10px 0 0; }
+          .content { background: #f9f9f9; padding: 30px; border-radius: 0 0 10px 10px; }
+          .credentials-box { background: #fff; border: 2px solid #578E7E; border-radius: 8px; padding: 20px; margin: 20px 0; }
+          .button { display: inline-block; background: #578E7E; color: white; padding: 12px 30px; text-decoration: none; border-radius: 5px; font-weight: bold; margin: 20px 0; }
+          .warning { background: #fff3cd; border: 1px solid #ffeaa7; color: #856404; padding: 15px; border-radius: 5px; margin: 20px 0; }
+          .footer { text-align: center; margin-top: 30px; color: #666; font-size: 14px; }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          <div class="header">
+            <h1>🏆 Welcome to NGL!</h1>
+            <p>Your Coach Account Has Been Created</p>
+          </div>
+
+          <div class="content">
+            <h2>Hello ${coachName}! 👋</h2>
+
+            <p>Congratulations! Your coach account has been successfully created for <strong>${clubName}</strong> in the National Gaming League (NGL).</p>
+
+            <div class="credentials-box">
+              <h3>🔐 Your Login Credentials</h3>
+              <p><strong>Email:</strong> ${coachEmail}</p>
+              <p><strong>Temporary Password:</strong> <code style="background: #f0f0f0; padding: 4px 8px; border-radius: 4px; font-family: monospace;">${temporaryPassword}</code></p>
+            </div>
+
+            <div class="warning">
+              <strong>⚠️ Important Security Notice:</strong><br>
+              This is a temporary password. For your security, please log in and change your password immediately after your first login.
+            </div>
+
+            <h3>🎯 What You Can Do as a Coach:</h3>
+            <ul>
+              <li>📊 Monitor player performance and statistics</li>
+              <li>📹 Upload and manage training materials</li>
+              <li>🤖 Access AI-powered coaching tools</li>
+              <li>📈 Compare player performance metrics</li>
+              <li>🎮 Develop tactical strategies for matches</li>
+            </ul>
+
+            <div style="text-align: center;">
+              <a href="${process.env.FRONTEND_URL || 'http://localhost:3000'}/login" class="button">
+                🚀 Login to Your Dashboard
+              </a>
+            </div>
+
+            <h3>📞 Need Help?</h3>
+            <p>If you have any questions or need assistance, please contact your club manager or reach out to our support team.</p>
+
+            <p>Welcome to the team, and we look forward to seeing great things from you and your players!</p>
+
+            <p>Best regards,<br>
+            <strong>The NGL Team</strong></p>
+          </div>
+
+          <div class="footer">
+            <p>This email was sent automatically. Please do not reply to this email.</p>
+            <p>&copy; ${new Date().getFullYear()} National Gaming League. All rights reserved.</p>
+          </div>
+        </div>
+      </body>
+      </html>
+    `;
+
+    const textBody = `
+Welcome to NGL - Your Coach Account is Ready!
+
+Hello ${coachName}!
+
+Congratulations! Your coach account has been successfully created for ${clubName} in the National Gaming League (NGL).
+
+Your Login Credentials:
+Email: ${coachEmail}
+Temporary Password: ${temporaryPassword}
+
+IMPORTANT SECURITY NOTICE:
+This is a temporary password. For your security, please log in and change your password immediately after your first login.
+
+What You Can Do as a Coach:
+- Monitor player performance and statistics
+- Upload and manage training materials
+- Access AI-powered coaching tools
+- Compare player performance metrics
+- Develop tactical strategies for matches
+
+Login URL: ${process.env.FRONTEND_URL || 'http://localhost:3000'}/login
+
+Need Help?
+If you have any questions or need assistance, please contact your club manager or reach out to our support team.
+
+Welcome to the team, and we look forward to seeing great things from you and your players!
+
+Best regards,
+The NGL Team
+
+This email was sent automatically. Please do not reply to this email.
+© ${new Date().getFullYear()} National Gaming League. All rights reserved.
+    `;
+
+    // Try Brevo first (primary email service)
+    if (this.brevoApi) {
+      try {
+        const sendSmtpEmail = {
+          to: [{
+            email: coachEmail,
+            name: coachName
+          }],
+          sender: {
+            email: process.env.BREVO_SENDER_EMAIL || 'justinsony2000@gmail.com',
+            name: 'NGL Administration Team'
+          },
+          subject: subject,
+          htmlContent: htmlBody,
+          textContent: textBody
+        };
+
+        const result = await this.brevoApi.sendTransacEmail(sendSmtpEmail);
+        console.log('✅ Brevo coach welcome email sent successfully:', result.body?.messageId || result.messageId);
+        return { success: true, messageId: result.body?.messageId || result.messageId, provider: 'brevo' };
+      } catch (error) {
+        console.error('❌ Brevo coach welcome email sending failed:', error.message);
+        // Fall back to Gmail if Brevo fails
+      }
+    }
+
+    // Fallback to Gmail if Brevo is not configured or fails
+    if (this.transporter) {
+      try {
+        const mailOptions = {
+          from: process.env.EMAIL_USER || 'justinsony2000@gmail.com',
+          to: coachEmail,
+          subject: subject,
+          html: htmlBody,
+          text: textBody
+        };
+
+        const result = await this.transporter.sendMail(mailOptions);
+        console.log('✅ Gmail coach welcome email sent successfully:', result.messageId);
+        return { success: true, messageId: result.messageId, provider: 'gmail' };
+      } catch (error) {
+        console.error('❌ Gmail coach welcome email sending failed:', error.message);
+        throw new Error(`Failed to send coach welcome email: ${error.message}`);
+      }
+    }
+
+    // If no email service is configured, log the email details
+    console.log('📧 COACH WELCOME EMAIL NOT SENT - No email service configured');
+    console.log('To:', coachEmail);
+    console.log('Subject:', subject);
+    console.log('Password:', temporaryPassword);
+    console.log('---');
+    console.log('To enable real email sending, configure either:');
+    console.log('1. BREVO_API_KEY for Brevo email service (recommended)');
+    console.log('2. EMAIL_USER and EMAIL_PASSWORD for Gmail SMTP');
+    return { success: false, message: 'No email service configured. Please set up email credentials.' };
+  }
 }
 
-module.exports = EmailService; 
+module.exports = EmailService;

@@ -51,7 +51,7 @@ router.put('/:id',
 );
 
 // @route   DELETE /api/clubs/:id
-// @desc    Delete club (soft delete)
+// @desc    Delete club (hard delete - permanently removes from database)
 // @access  Private (Admin only)
 router.delete('/:id', 
   authenticateToken, 

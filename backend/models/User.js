@@ -74,7 +74,15 @@ const userSchema = new mongoose.Schema({
     },
     position: {
       type: String,
-      enum: ['Goalkeeper', 'Defender', 'Midfielder', 'Forward', 'Coach', 'Manager', 'Other'],
+      enum: [
+        // Player positions
+        'Goalkeeper', 'Defender', 'Midfielder', 'Forward',
+        // Coaching positions
+        'Head Coach', 'Assistant Coach', 'Goalkeeping Coach', 'Fitness Coach',
+        'Technical Coach', 'Youth Coach', 'Coach', 'Manager',
+        // Other positions
+        'Other'
+      ],
       trim: true
     },
     bio: {

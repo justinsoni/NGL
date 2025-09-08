@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Enhanced File Upload System</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100 p-8">
+    <div class="max-w-4xl mx-auto">
+        <h1 class="text-3xl font-bold mb-8 text-center text-gray-800">Enhanced File Upload System</h1>
+        
+        <!-- Documents & Photo Section -->
+        <div class="bg-gray-50 rounded-xl p-8 border border-gray-200">
+            <div class="flex items-center mb-6">
+                <div class="w-10 h-10 bg-orange-600 rounded-full flex items-center justify-center mr-4">
+                    <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                    </svg>
+                </div>
+                <h2 class="text-2xl font-bold text-gray-800">Documents & Photo</h2>
+            </div>
+            
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <!-- Profile Photo Upload -->
+                <div>
+                    <label class="block text-sm font-semibold text-gray-700 mb-2">
+                        Profile Photo
+                    </label>
+                    
+                    <!-- Before Upload State -->
+                    <div id="profile-upload-area" class="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-blue-400 transition-colors cursor-pointer">
+                        <div class="mx-auto h-16 w-16 bg-gray-100 rounded-full flex items-center justify-center mb-4">
+                            <svg class="h-8 w-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                            </svg>
+                        </div>
+                        <p class="text-sm font-medium text-gray-700">Upload Profile Photo</p>
+                        <p class="text-xs text-gray-500 mt-1">JPG, PNG, WEBP up to 5MB</p>
+                    </div>
+                    
+                    <!-- After Upload State (Hidden by default) -->
+                    <div id="profile-preview" class="relative hidden">
+                        <img src="https://picsum.photos/400/300?random=1" alt="Profile preview" class="w-full h-48 object-cover rounded-lg border-2 border-green-300">
+                        <div class="absolute top-2 right-2 flex gap-2">
+                            <button class="bg-red-500 text-white p-1 rounded-full hover:bg-red-600 transition-colors">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                                </svg>
+                            </button>
+                        </div>
+                        <div class="mt-2 text-center">
+                            <p class="text-sm text-green-600 font-medium">✓ Photo uploaded successfully</p>
+                            <p class="text-xs text-gray-500">profile-photo.jpg</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Identity Card Upload -->
+                <div>
+                    <label class="block text-sm font-semibold text-gray-700 mb-2">
+                        Identity Card / Player Card *
+                    </label>
+                    
+                    <!-- Before Upload State -->
+                    <div id="identity-upload-area" class="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-blue-400 transition-colors cursor-pointer">
+                        <div class="mx-auto h-16 w-16 bg-gray-100 rounded-full flex items-center justify-center mb-4">
+                            <svg class="h-8 w-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                            </svg>
+                        </div>
+                        <p class="text-sm font-medium text-gray-700">Upload Identity Document *</p>
+                        <p class="text-xs text-gray-500 mt-1">JPG, PNG, WEBP, PDF up to 5MB</p>
+                    </div>
+                    
+                    <!-- After Upload State - Image -->
+                    <div id="identity-preview-image" class="relative hidden">
+                        <img src="https://picsum.photos/400/300?random=2" alt="Identity document preview" class="w-full h-48 object-cover rounded-lg border-2 border-green-300">
+                        <div class="absolute top-2 right-2 flex gap-2">
+                            <button class="bg-red-500 text-white p-1 rounded-full hover:bg-red-600 transition-colors">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                                </svg>
+                            </button>
+                        </div>
+                        <div class="mt-2 text-center">
+                            <p class="text-sm text-green-600 font-medium">✓ Document uploaded successfully</p>
+                            <p class="text-xs text-gray-500">identity-card.jpg</p>
+                        </div>
+                    </div>
+                    
+                    <!-- After Upload State - PDF -->
+                    <div id="identity-preview-pdf" class="relative hidden">
+                        <div class="w-full h-48 bg-gray-100 rounded-lg border-2 border-green-300 flex items-center justify-center">
+                            <div class="text-center">
+                                <svg class="mx-auto h-12 w-12 text-red-500 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                                </svg>
+                                <p class="text-sm font-medium text-gray-700">PDF Document</p>
+                                <p class="text-xs text-gray-500">identity-card.pdf</p>
+                            </div>
+                        </div>
+                        <div class="absolute top-2 right-2 flex gap-2">
+                            <button class="bg-red-500 text-white p-1 rounded-full hover:bg-red-600 transition-colors">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                                </svg>
+                            </button>
+                        </div>
+                        <div class="mt-2 text-center">
+                            <p class="text-sm text-green-600 font-medium">✓ Document uploaded successfully</p>
+                            <p class="text-xs text-gray-500">identity-card.pdf</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Demo Controls -->
+            <div class="mt-8 p-4 bg-blue-50 rounded-lg">
+                <h3 class="text-lg font-semibold text-blue-800 mb-4">Demo Controls</h3>
+                <div class="flex flex-wrap gap-4">
+                    <button onclick="showProfileUpload()" class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 transition-colors">
+                        Show Profile Photo Upload
+                    </button>
+                    <button onclick="showIdentityImageUpload()" class="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 transition-colors">
+                        Show Identity Image Upload
+                    </button>
+                    <button onclick="showIdentityPdfUpload()" class="bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700 transition-colors">
+                        Show Identity PDF Upload
+                    </button>
+                    <button onclick="resetAll()" class="bg-gray-600 text-white px-4 py-2 rounded hover:bg-gray-700 transition-colors">
+                        Reset All
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Features List -->
+        <div class="mt-8 bg-white rounded-xl p-6 shadow-lg">
+            <h2 class="text-2xl font-bold text-gray-800 mb-4">✨ Enhanced Features</h2>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                    <h3 class="text-lg font-semibold text-gray-700 mb-2">🖼️ Image Previews</h3>
+                    <ul class="text-sm text-gray-600 space-y-1">
+                        <li>• Real-time image preview after upload</li>
+                        <li>• Proper aspect ratio handling</li>
+                        <li>• High-quality image display</li>
+                        <li>• Remove/replace functionality</li>
+                    </ul>
+                </div>
+                <div>
+                    <h3 class="text-lg font-semibold text-gray-700 mb-2">📄 File Validation</h3>
+                    <ul class="text-sm text-gray-600 space-y-1">
+                        <li>• File type validation (JPG, PNG, WEBP, PDF)</li>
+                        <li>• File size limit (5MB maximum)</li>
+                        <li>• Clear error messages</li>
+                        <li>• Supported format indicators</li>
+                    </ul>
+                </div>
+                <div>
+                    <h3 class="text-lg font-semibold text-gray-700 mb-2">🎨 User Experience</h3>
+                    <ul class="text-sm text-gray-600 space-y-1">
+                        <li>• Drag & drop interface</li>
+                        <li>• Visual upload progress</li>
+                        <li>• Success/error feedback</li>
+                        <li>• Mobile-responsive design</li>
+                    </ul>
+                </div>
+                <div>
+                    <h3 class="text-lg font-semibold text-gray-700 mb-2">🔒 Security</h3>
+                    <ul class="text-sm text-gray-600 space-y-1">
+                        <li>• Client-side file validation</li>
+                        <li>• Memory leak prevention</li>
+                        <li>• Secure file handling</li>
+                        <li>• Required document verification</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function showProfileUpload() {
+            document.getElementById('profile-upload-area').classList.add('hidden');
+            document.getElementById('profile-preview').classList.remove('hidden');
+        }
+
+        function showIdentityImageUpload() {
+            document.getElementById('identity-upload-area').classList.add('hidden');
+            document.getElementById('identity-preview-image').classList.remove('hidden');
+            document.getElementById('identity-preview-pdf').classList.add('hidden');
+        }
+
+        function showIdentityPdfUpload() {
+            document.getElementById('identity-upload-area').classList.add('hidden');
+            document.getElementById('identity-preview-pdf').classList.remove('hidden');
+            document.getElementById('identity-preview-image').classList.add('hidden');
+        }
+
+        function resetAll() {
+            document.getElementById('profile-upload-area').classList.remove('hidden');
+            document.getElementById('profile-preview').classList.add('hidden');
+            document.getElementById('identity-upload-area').classList.remove('hidden');
+            document.getElementById('identity-preview-image').classList.add('hidden');
+            document.getElementById('identity-preview-pdf').classList.add('hidden');
+        }
+    </script>
+</body>
+</html>

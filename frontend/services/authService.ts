@@ -8,7 +8,10 @@ import {
   sendPasswordResetEmail,
   sendEmailVerification,
   GoogleAuthProvider,
-  signInWithPopup
+  signInWithPopup,
+  updatePassword,
+  reauthenticateWithCredential,
+  EmailAuthProvider
 } from 'firebase/auth';
 import { auth } from '../config/firebase';
 import { apiService, ApiUser, RegisterUserData } from './api';
@@ -342,7 +345,7 @@ class AuthService {
       await sendPasswordResetEmail(auth, email);
     } catch (error: any) {
       console.error('Password reset error:', error);
-      
+
       if (error.code === 'auth/user-not-found') {
         throw new Error('No account found with this email address.');
       } else if (error.code === 'auth/invalid-email') {
@@ -356,8 +359,41 @@ class AuthService {
       } else if (error.code === 'auth/quota-exceeded') {
         throw new Error('Service temporarily unavailable. Please try again later.');
       }
-      
+
       throw new Error(error.message || 'Unable to send password reset email. Please try again or contact support if the issue persists.');
+    }
+  }
+
+  // Change password (requires current password for security)
+  async changePassword(currentPassword: string, newPassword: string): Promise<void> {
+    try {
+      if (!this.currentUser?.firebaseUser) {
+        throw new Error('No user logged in');
+      }
+
+      const firebaseUser = this.currentUser.firebaseUser;
+
+      // Re-authenticate user with current password for security
+      const credential = EmailAuthProvider.credential(firebaseUser.email!, currentPassword);
+      await reauthenticateWithCredential(firebaseUser, credential);
+
+      // Update password
+      await updatePassword(firebaseUser, newPassword);
+
+    } catch (error: any) {
+      console.error('Change password error:', error);
+
+      if (error.code === 'auth/wrong-password') {
+        throw new Error('Current password is incorrect.');
+      } else if (error.code === 'auth/weak-password') {
+        throw new Error('New password should be at least 6 characters long.');
+      } else if (error.code === 'auth/requires-recent-login') {
+        throw new Error('For security reasons, please log out and log back in before changing your password.');
+      } else if (error.code === 'auth/too-many-requests') {
+        throw new Error('Too many password change attempts. Please wait a few minutes before trying again.');
+      }
+
+      throw new Error(error.message || 'Unable to change password. Please try again or contact support if the issue persists.');
     }
   }
 

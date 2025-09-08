@@ -12,6 +12,11 @@ export default defineConfig(({ mode }) => {
         alias: {
           '@': path.resolve(__dirname, '.'),
         }
+      },
+      server:{
+        headers: {
+          'Cache-Control': 'no-store'
+        }
       }
     };
 });

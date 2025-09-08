@@ -1,9 +1,28 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import PageBanner from '../components/PageBanner';
 import ClubCard from '../components/ClubCard';
-import { CLUBS } from '../constants';
+import clubService from '../services/clubService';
 
 const ClubsPage: React.FC = () => {
+    const [clubs, setClubs] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState<string | null>(null);
+
+    useEffect(() => {
+        const fetchClubs = async () => {
+            try {
+                setLoading(true);
+                const res = await clubService.getClubs();
+                setClubs(res.data);
+            } catch (err) {
+                setError('Failed to load clubs');
+            } finally {
+                setLoading(false);
+            }
+        };
+        fetchClubs();
+    }, []);
+
     return (
         <div className="min-h-screen">
             <PageBanner title="Clubs" />
@@ -23,11 +42,17 @@ const ClubsPage: React.FC = () => {
                 </div>
 
                 {/* Clubs Grid */}
-                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-                    {CLUBS.map(club => (
-                        <ClubCard key={club.id} club={club} />
-                    ))}
-                </div>
+                {loading ? (
+                    <div>Loading clubs...</div>
+                ) : error ? (
+                    <div className="text-red-500">{error}</div>
+                ) : (
+                    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+                        {clubs.map((club: any) => (
+                            <ClubCard key={club.id || club._id} club={club} />
+                        ))}
+                    </div>
+                )}
             </div>
         </div>
     );

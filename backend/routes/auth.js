@@ -26,7 +26,7 @@ router.post('/register', [
   body('firebaseUid').notEmpty().withMessage('Firebase UID is required'),
   body('name').notEmpty().withMessage('Name is required'),
   body('email').isEmail().withMessage('Valid email is required'),
-  body('role').optional().isIn(['admin', 'manager', 'coach', 'registeredUser', 'user']).withMessage('Invalid role'),
+  body('role').optional().isIn(['admin', 'manager', 'clubManager', 'coach', 'registeredUser', 'user']).withMessage('Invalid role'),
   validateRequest
 ], registerUser);
 
@@ -56,7 +56,7 @@ router.get('/users', authenticateToken, requireRole('admin'), getAllUsers);
 router.put('/users/:userId/role', [
   authenticateToken,
   requireRole('admin'),
-  body('role').isIn(['admin', 'manager', 'coach', 'registeredUser', 'user']).withMessage('Invalid role'),
+  body('role').isIn(['admin', 'manager', 'clubManager', 'coach', 'registeredUser', 'user']).withMessage('Invalid role'),
   validateRequest
 ], updateUserRole);
 
@@ -83,5 +83,16 @@ router.put('/managers/:managerId', [
 ], updateManager);
 
 router.delete('/managers/:managerId', authenticateToken, requireRole('admin'), deactivateManager);
+
+// Coach management routes (Club Manager only)
+router.post('/create-coach', [
+  authenticateToken,
+  requireRole(['manager', 'clubManager']),
+  body('name').notEmpty().withMessage('Coach name is required'),
+  body('email').isEmail().withMessage('Valid coach email is required'),
+  body('phone').notEmpty().withMessage('Phone number is required'),
+  body('clubId').notEmpty().withMessage('Club ID is required'),
+  validateRequest
+], require('../controllers/coachController').createCoach);
 
 module.exports = router;

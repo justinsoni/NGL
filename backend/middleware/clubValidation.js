@@ -103,10 +103,10 @@ const validateCreateClub = [
     .isInt({ min: 1800, max: new Date().getFullYear() })
     .withMessage(`Year must be between 1800 and ${new Date().getFullYear()}`),
   
-  body('group')
-    .optional()
-    .isIn(['A', 'B', 'C', 'D'])
-    .withMessage('Group must be A, B, C, or D'),
+  // body('group')
+  //   .optional()
+  //   .isIn(['A', 'B', 'C', 'D'])
+  //   .withMessage('Group must be A, B, C, or D'),
   
   body('description')
     .optional()

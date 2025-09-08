@@ -1,7 +1,7 @@
 
 
 import { useState, useEffect } from 'react';
-import { HashRouter, Routes, Route, useLocation } from 'react-router-dom';
+import { HashRouter, Routes, Route, useLocation, Navigate } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
 import { AuthProvider } from './contexts/AuthContext';
 import { QueryProvider } from './contexts/QueryProvider';
@@ -30,6 +30,8 @@ import AuthBridge from './components/AuthBridge';
 import { UserRole, Club, Match as MatchType, TableEntry, GroupName, CreatedUser, Player, LeaderStat, Position, PlayerRegistration } from './types';
 import { CLUBS, MATCHES, TABLE_DATA, PLAYERS } from './constants';
 import { EmailService } from './utils/emailService';
+import { clubService } from './services/clubService';
+import { playerService } from './services/playerService';
 
 const ScrollToTop = () => {
   const { pathname } = useLocation();
@@ -54,32 +56,114 @@ const App = () => {
   const [leaderStats, setLeaderStats] = useState<LeaderStat[]>([]);
   const [viewingPlayer, setViewingPlayer] = useState<Player | null>(null);
 
+  // Club management state - start with existing clubs from constants
+  const [clubsData, setClubsData] = useState<Club[]>(CLUBS);
+
   const [createdUsers, setCreatedUsers] = useState<CreatedUser[]>([
-    { id: 1, email: 'admin@ngl.com', password: 'admin', role: 'admin', isActive: true, createdAt: '2024-01-01T00:00:00Z' },
-    { id: 2, email: 'manager@mancity.com', password: 'password', role: 'club-manager', clubId: 5, clubName: 'Manchester City', addedBy: 1, isActive: true, createdAt: '2024-01-01T00:00:00Z' },
-    { id: 3, email: 'coach@liverpool.com', password: 'password', role: 'coach', clubId: 1, clubName: 'Liverpool', addedBy: 2, isActive: true, createdAt: '2024-01-01T00:00:00Z' },
-    { id: 4, email: 'fan@ngl.com', password: 'password', role: 'fan', isActive: true, createdAt: '2024-01-01T00:00:00Z' },
-    // Additional test accounts for easier testing
-    { id: 5, email: 'test@test.com', password: 'test', role: 'club-manager', clubId: 2, clubName: 'Arsenal', addedBy: 1, isActive: true, createdAt: '2024-01-01T00:00:00Z' }
+    { id: 1, email: 'admin@ngl.com', password: 'admin', role: 'admin', isActive: true, createdAt: '2024-01-01T00:00:00Z' }
+    // All other accounts will be created through real authentication and email verification
   ]);
   const [playerRegistrations, setPlayerRegistrations] = useState<PlayerRegistration[]>([]);
+  const [isLoadingRegistrations, setIsLoadingRegistrations] = useState(false);
 
   const [currentUserId, setCurrentUserId] = useState<number | null>(null);
 
+  // Fetch player registrations from API
+  const fetchPlayerRegistrations = async () => {
+    if (userRole !== 'admin') return;
+    
+    setIsLoadingRegistrations(true);
+    try {
+      const response = await playerService.getPendingPlayers(); // No clubId = all registrations
+      if (response.success) {
+        // Convert API response to PlayerRegistration format
+        const registrations: PlayerRegistration[] = response.data.map((player: any) => ({
+          id: player._id || player.id || Date.now(),
+          name: player.name,
+          email: player.email,
+          phone: player.phone,
+          dob: player.dob,
+          position: player.position,
+          nationality: player.nationality,
+          previousClub: player.previousClub || '',
+          leaguesPlayed: player.leaguesPlayed || [],
+          imageUrl: player.imageUrl || '',
+          identityCardUrl: player.identityCardUrl || '',
+          bio: player.bio || '',
+          status: player.status || 'pending',
+          clubId: player.clubId?._id || player.clubId || '',
+          submittedAt: player.submittedAt || new Date().toISOString(),
+          reviewedAt: player.reviewedAt,
+          reviewedBy: player.reviewedBy,
+          rejectionReason: player.rejectionReason
+        }));
+        setPlayerRegistrations(registrations);
+      }
+    } catch (error) {
+      console.error('Failed to fetch player registrations:', error);
+    } finally {
+      setIsLoadingRegistrations(false);
+    }
+  };
+
+  // Fetch player registrations when user becomes admin
+  useEffect(() => {
+    if (userRole === 'admin') {
+      fetchPlayerRegistrations();
+    }
+  }, [userRole]);
+
+  // Resolve and set managed club, refreshing from API if needed
+  const resolveAndSetManagedClub = async (userClub: string | undefined, userId?: number) => {
+    if (!userClub) {
+      const user = createdUsers.find(u => u.id === userId);
+      if (user && user.clubId) {
+        const localClub = clubsData.find(c => c.id === user.clubId);
+        setManagedClub(localClub || null);
+      }
+      return;
+    }
+
+    // Try find by name, by numeric id, and by string id
+    let club = clubsData.find(c => c.name === userClub)
+      || clubsData.find(c => c.id === Number(userClub))
+      || clubsData.find(c => String(c.id) === String(userClub));
+
+    if (!club) {
+      try {
+        const res = await clubService.getClubs({ limit: 200 });
+        const normalized = res.data.map((clb: any) => ({
+          ...clb,
+          id: clb._id || clb.id,
+        }));
+        setClubsData(normalized);
+        club = normalized.find((c: any) => c.name === userClub)
+          || normalized.find((c: any) => c.id === Number(userClub))
+          || normalized.find((c: any) => String(c.id) === String(userClub));
+      } catch (e) {
+        // leave club null on error
+      }
+    }
+
+    setManagedClub(club || null);
+  };
+
   // Handler for Firebase auth state changes
-  const handleFirebaseAuthChange = (isLoggedIn: boolean, userRole: UserRole | null, userId?: number) => {
+  const handleFirebaseAuthChange = async (isLoggedIn: boolean, userRole: UserRole | null, userId?: number, userClub?: string) => {
+    console.log('🔍 App - handleFirebaseAuthChange called:', {
+      isLoggedIn,
+      userRole,
+      userId,
+      userClub
+    });
+
     setIsLoggedIn(isLoggedIn);
     setUserRole(userRole);
     setCurrentUserId(userId || null);
 
     // Set managed club based on role and user data
-    if (userRole === 'club-manager' || userRole === 'coach') {
-      // Find the club for this user
-      const user = createdUsers.find(u => u.id === userId);
-      if (user && user.clubId) {
-        const club = CLUBS.find(c => c.id === user.clubId);
-        setManagedClub(club || null);
-      }
+    if (userRole === 'clubManager' || userRole === 'coach') {
+      await resolveAndSetManagedClub(userClub, userId);
     } else {
       setManagedClub(null);
     }
@@ -118,7 +202,7 @@ const App = () => {
       email: registration.email,
       role: 'player',
       clubId: registration.clubId,
-      clubName: CLUBS.find(c => c.id === registration.clubId)?.name,
+      clubName: clubsData.find(c => c.id === registration.clubId)?.name,
       isActive: true,
       createdAt: new Date().toISOString(),
       addedBy: currentUserId || undefined
@@ -136,8 +220,8 @@ const App = () => {
       position: registration.position,
       nationality: registration.nationality,
       flag: '🏳️',
-      club: CLUBS.find(c => c.id === registration.clubId)?.name || 'Unknown',
-      clubLogo: CLUBS.find(c => c.id === registration.clubId)?.logo || '',
+      club: clubsData.find(c => c.id === registration.clubId)?.name || 'Unknown',
+      clubLogo: clubsData.find(c => c.id === registration.clubId)?.logo || '',
       previousClub: registration.previousClub,
       leaguesPlayed: registration.leaguesPlayed,
       imageUrl: registration.imageUrl || `https://picsum.photos/seed/${registration.name}/400/400`,
@@ -163,7 +247,7 @@ const App = () => {
       await EmailService.sendPlayerApprovalNotification(
         registration.email,
         registration.name,
-        CLUBS.find(c => c.id === registration.clubId)?.name || 'Unknown Club',
+        clubsData.find(c => c.id === registration.clubId)?.name || 'Unknown Club',
         { email: createdUser.email, password: createdUser.password }
       );
     } catch (error) {
@@ -194,7 +278,7 @@ const App = () => {
       await EmailService.sendPlayerRejectionNotification(
         registration.email,
         registration.name,
-        CLUBS.find(c => c.id === registration.clubId)?.name || 'Unknown Club',
+        clubsData.find(c => c.id === registration.clubId)?.name || 'Unknown Club',
         reason
       );
     } catch (error) {
@@ -214,8 +298,8 @@ const App = () => {
     setIsLoggedIn(true);
     setUserRole(role);
     setCurrentUserId(userId || null);
-    if ((role === 'club-manager' || role === 'coach') && clubId) {
-      const club = CLUBS.find(c => c.id === clubId);
+    if ((role === 'clubManager' || role === 'coach') && clubId) {
+      const club = clubsData.find(c => c.id === clubId);
       setManagedClub(club || null);
     }
   };
@@ -291,8 +375,8 @@ const App = () => {
       const winner1 = getWinner(semiFinals[0]);
       const winner2 = getWinner(semiFinals[1]);
 
-      const winner1Club = CLUBS.find(c => c.name === winner1);
-      const winner2Club = CLUBS.find(c => c.name === winner2);
+      const winner1Club = clubsData.find(c => c.name === winner1);
+      const winner2Club = clubsData.find(c => c.name === winner2);
       
       if(!winner1Club || !winner2Club) return;
 
@@ -434,6 +518,18 @@ const App = () => {
   const handleDeletePlayer = (playerId: number) => {
     setPlayers(prevPlayers => prevPlayers.filter(p => p.id !== playerId));
   };
+
+  const handleAddClub = (newClub: Club) => {
+    setClubsData(prev => [...prev, newClub]);
+  };
+
+  const handleUpdateClub = (updatedClub: Club) => {
+    setClubsData(prev => prev.map(club => club.id === updatedClub.id ? updatedClub : club));
+  };
+
+  const handleDeleteClub = (clubId: number | string) => {
+    setClubsData(prev => prev.filter(club => club.id !== clubId));
+  };
   
   const handlePlayerSelect = (playerId: number) => {
     const player = players.find(p => p.id === playerId);
@@ -569,13 +665,17 @@ const App = () => {
                   playerRegistrations={playerRegistrations}
                   onApprovePlayerRegistration={handleApprovePlayerRegistration}
                   onRejectPlayerRegistration={handleRejectPlayerRegistration}
+                  clubs={clubsData}
+                  onAddClub={handleAddClub}
+                  onUpdateClub={handleUpdateClub}
+                  onDeleteClub={handleDeleteClub}
                 />
               } />
             )}
             {isLoggedIn && userRole === 'coach' && managedClub && (
               <Route path="/coach" element={<CoachDashboard club={managedClub} players={players} />} />
             )}
-            {isLoggedIn && userRole === 'manager' && managedClub && (
+            {isLoggedIn && userRole === 'clubManager' && managedClub && (
               <Route path="/club-manager" element={
                 <ClubManagerDashboard
                     club={managedClub}
@@ -601,6 +701,16 @@ const App = () => {
                   onUpdateProfile={handleEditPlayer}
                 />
               } />
+            )}
+
+            {/* Redirect protected routes to login when not authenticated */}
+            {!isLoggedIn && (
+              <>
+                <Route path="/admin" element={<Navigate to="/login" replace />} />
+                <Route path="/coach" element={<Navigate to="/login" replace />} />
+                <Route path="/club-manager" element={<Navigate to="/login" replace />} />
+                <Route path="/player" element={<Navigate to="/login" replace />} />
+              </>
             )}
 
             <Route path="*" element={<NotFoundPage />} />

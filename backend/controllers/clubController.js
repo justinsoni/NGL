@@ -7,7 +7,7 @@ const { validationResult } = require('express-validator');
 // @access  Public
 const getClubs = async (req, res) => {
   try {
-    const { page = 1, limit = 10, search, group, city } = req.query;
+    const { page = 1, limit = 10, search, city } = req.query;
     
     // Build query
     let query = { isActive: true };
@@ -19,10 +19,6 @@ const getClubs = async (req, res) => {
         { city: regex },
         { stadium: regex }
       ];
-    }
-    
-    if (group) {
-      query.group = group;
     }
     
     if (city) {
@@ -197,27 +193,26 @@ const updateClub = async (req, res) => {
   }
 };
 
-// @desc    Delete club (soft delete)
+// @desc    Delete club (hard delete)
 // @route   DELETE /api/clubs/:id
 // @access  Private (Admin only)
 const deleteClub = async (req, res) => {
   try {
     const club = await Club.findById(req.params.id);
-    
+
     if (!club) {
       return res.status(404).json({
         success: false,
         message: 'Club not found'
       });
     }
-    
-    // Soft delete by setting isActive to false
-    club.isActive = false;
-    await club.save();
-    
+
+    // Hard delete - permanently remove from database
+    await Club.findByIdAndDelete(req.params.id);
+
     res.status(200).json({
       success: true,
-      message: 'Club deleted successfully'
+      message: 'Club permanently deleted from database'
     });
   } catch (error) {
     console.error('Delete club error:', error);
@@ -240,37 +235,19 @@ const getClubStats = async (req, res) => {
           _id: null,
           totalClubs: { $sum: 1 },
           avgFounded: { $avg: '$founded' },
-          totalHonours: { 
-            $sum: { 
-              $sum: '$honours.count' 
-            } 
-          },
-          clubsByGroup: {
-            $push: {
-              group: '$group',
-              name: '$name'
+          totalHonours: {
+            $sum: {
+              $sum: '$honours.count'
             }
           }
         }
       }
     ]);
-    
-    const groupStats = await Club.aggregate([
-      { $match: { isActive: true } },
-      {
-        $group: {
-          _id: '$group',
-          count: { $sum: 1 },
-          clubs: { $push: '$name' }
-        }
-      }
-    ]);
-    
+
     res.status(200).json({
       success: true,
       data: {
-        overview: stats[0] || {},
-        byGroup: groupStats
+        overview: stats[0] || {}
       }
     });
   } catch (error) {

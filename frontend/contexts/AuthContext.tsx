@@ -12,6 +12,7 @@ interface AuthContextType {
   registerWithGoogle: () => Promise<AuthUser>;
   logout: () => Promise<void>;
   resetPassword: (email: string) => Promise<void>;
+  changePassword: (currentPassword: string, newPassword: string) => Promise<void>;
   updateProfile: (updateData: any) => Promise<AuthUser>;
   hasRole: (role: string) => boolean;
   isAdmin: () => boolean;
@@ -115,6 +116,10 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     return authService.resetPassword(email);
   };
 
+  const changePassword = async (currentPassword: string, newPassword: string): Promise<void> => {
+    return authService.changePassword(currentPassword, newPassword);
+  };
+
   const updateProfile = async (updateData: any): Promise<AuthUser> => {
     try {
       const updatedUser = await authService.updateProfile(updateData);
@@ -147,6 +152,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     registerWithGoogle,
     logout,
     resetPassword,
+    changePassword,
     updateProfile,
     hasRole,
     isAdmin,

@@ -1,6 +1,6 @@
 
 export type Position = 'Goalkeeper' | 'Defender' | 'Midfielder' | 'Forward';
-export type UserRole = 'user' | 'admin' | 'coach' | 'manager' | 'player';
+export type UserRole = 'user' | 'admin' | 'coach' | 'clubManager' | 'player';
 export type GroupName = 'A' | 'B' | 'C' | 'D';
 export type RegistrationStatus = 'pending' | 'approved' | 'rejected';
 export type NotificationType = 'account_created' | 'registration_approved' | 'registration_rejected';
@@ -80,8 +80,34 @@ export interface Club {
   id: number;
   name: string;
   logo: string;
-  founded?: string;
+  founded?: number;
   stadium?: string;
+  stadiumCapacity?: number;
+  website?: string;
+  email?: string;
+  phone?: string;
+  city?: string;
+  country?: string;
+  colors?: {
+    primary?: string;
+    secondary?: string;
+  };
+  honours?: Array<{
+    name: string;
+    count: number;
+    years?: number[];
+  }>;
+  isActive?: boolean;
+  description?: string;
+  socialMedia?: {
+    twitter?: string;
+    facebook?: string;
+    instagram?: string;
+    youtube?: string;
+  };
+  createdBy?: string;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface Match {
