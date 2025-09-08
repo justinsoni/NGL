@@ -96,7 +96,7 @@ const requireRole = (roles) => {
 const requireAdmin = requireRole('admin');
 
 // Middleware to check if user can manage clubs
-const requireClubManager = requireRole(['admin', 'manager']);
+const requireClubManager = requireRole(['admin', 'clubManager']);
 
 // Middleware to check if user can coach
 const requireCoach = requireRole(['admin', 'clubManager', 'coach']);
@@ -155,6 +155,7 @@ const requireClubAccess = (req, res, next) => {
 
 module.exports = {
   verifyFirebaseToken,
+  authenticateToken: verifyFirebaseToken, // Alias for backward compatibility
   requireRole,
   requireAdmin,
   requireClubManager,

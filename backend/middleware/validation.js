@@ -188,6 +188,7 @@ const validateRoleUpdate = [
 
 module.exports = {
   handleValidationErrors,
+  validateRequest: handleValidationErrors, // Alias for backward compatibility
   validateUserRegistration,
   validateProfileUpdate,
   validateObjectId,

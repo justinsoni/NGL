@@ -1,161 +1,87 @@
 const express = require('express');
+const { body } = require('express-validator');
+const { 
+  registerUser, 
+  getUserProfile, 
+  updateUserProfile, 
+  getAllUsers, 
+  updateUserRole, 
+  checkAuthMethod, 
+  checkUserExists 
+} = require('../controllers/authController');
+const { 
+  createManager, 
+  getAllManagers, 
+  getManagerById, 
+  updateManager, 
+  deactivateManager 
+} = require('../controllers/managerController');
+const { authenticateToken, requireRole } = require('../middleware/auth');
+const { validateRequest } = require('../middleware/validation');
+
 const router = express.Router();
 
-// Import controllers
-const {
-  registerUser,
-  getUserProfile,
-  updateUserProfile,
-  getAllUsers,
-  updateUserRole,
-  checkAuthMethod,
-  checkUserExists
-} = require('../controllers/authController');
+// Public routes
+router.post('/register', [
+  body('firebaseUid').notEmpty().withMessage('Firebase UID is required'),
+  body('name').notEmpty().withMessage('Name is required'),
+  body('email').isEmail().withMessage('Valid email is required'),
+  body('role').optional().isIn(['admin', 'manager', 'coach', 'registeredUser', 'user']).withMessage('Invalid role'),
+  validateRequest
+], registerUser);
 
-// Import User model for additional routes
-const User = require('../models/User');
+router.post('/check-auth-method', [
+  body('email').isEmail().withMessage('Valid email is required'),
+  validateRequest
+], checkAuthMethod);
 
-// Import middleware
-const {
-  verifyFirebaseToken,
-  requireAdmin,
-  requireOwnershipOrAdmin
-} = require('../middleware/auth');
+router.post('/check-user-exists', [
+  body('email').isEmail().withMessage('Valid email is required'),
+  validateRequest
+], checkUserExists);
 
-const {
-  validateUserRegistration,
-  validateProfileUpdate,
-  validateObjectId,
-  validatePagination,
-  validateSearch,
-  validateRoleUpdate
-} = require('../middleware/validation');
+// Protected routes
+router.get('/profile', authenticateToken, getUserProfile);
 
-// @route   POST /api/auth/register
-// @desc    Register new user profile after Firebase signup
-// @access  Public (but requires valid Firebase user)
-router.post('/register', validateUserRegistration, registerUser);
+router.put('/update-profile', [
+  authenticateToken,
+  body('name').optional().notEmpty().withMessage('Name cannot be empty'),
+  body('email').optional().isEmail().withMessage('Valid email is required'),
+  validateRequest
+], updateUserProfile);
 
-// @route   POST /api/auth/check-auth-method
-// @desc    Check if user signed up with Google or email/password
-// @access  Public
-router.post('/check-auth-method', checkAuthMethod);
+// Admin only routes
+router.get('/users', authenticateToken, requireRole('admin'), getAllUsers);
 
-// @route   POST /api/auth/check-user-exists
-// @desc    Check if user exists by email
-// @access  Public
-router.post('/check-user-exists', checkUserExists);
+router.put('/users/:userId/role', [
+  authenticateToken,
+  requireRole('admin'),
+  body('role').isIn(['admin', 'manager', 'coach', 'registeredUser', 'user']).withMessage('Invalid role'),
+  validateRequest
+], updateUserRole);
 
-// @route   GET /api/auth/profile
-// @desc    Get current user profile
-// @access  Private
-router.get('/profile', verifyFirebaseToken, getUserProfile);
+// Manager management routes (Admin only)
+router.post('/create-manager', [
+  authenticateToken,
+  requireRole('admin'),
+  body('managerName').notEmpty().withMessage('Manager name is required'),
+  body('managerEmail').isEmail().withMessage('Valid manager email is required'),
+  body('clubName').notEmpty().withMessage('Club name is required'),
+  validateRequest
+], createManager);
 
-// @route   PUT /api/auth/update-profile
-// @desc    Update current user profile
-// @access  Private
-router.put('/update-profile', verifyFirebaseToken, validateProfileUpdate, updateUserProfile);
+router.get('/managers', authenticateToken, requireRole('admin'), getAllManagers);
 
-// @route   GET /api/auth/users
-// @desc    Get all users with pagination and filtering (Admin only)
-// @access  Private (Admin only)
-router.get('/users', verifyFirebaseToken, requireAdmin, validatePagination, validateSearch, getAllUsers);
+router.get('/managers/:managerId', authenticateToken, requireRole('admin'), getManagerById);
 
-// @route   PUT /api/auth/users/:userId/role
-// @desc    Update user role (Admin only)
-// @access  Private (Admin only)
-router.put('/users/:userId/role', 
-  verifyFirebaseToken, 
-  requireAdmin, 
-  validateObjectId('userId'), 
-  validateRoleUpdate, 
-  updateUserRole
-);
+router.put('/managers/:managerId', [
+  authenticateToken,
+  requireRole('admin'),
+  body('name').optional().notEmpty().withMessage('Name cannot be empty'),
+  body('club').optional().notEmpty().withMessage('Club cannot be empty'),
+  validateRequest
+], updateManager);
 
-// @route   GET /api/auth/users/:userId
-// @desc    Get specific user profile (Admin or own profile)
-// @access  Private
-router.get('/users/:userId', 
-  verifyFirebaseToken, 
-  validateObjectId('userId'), 
-  requireOwnershipOrAdmin, 
-  async (req, res) => {
-    try {
-      const { userId } = req.params;
-      
-      const user = await User.findById(userId).select('-__v');
-      
-      if (!user) {
-        return res.status(404).json({
-          success: false,
-          message: 'User not found'
-        });
-      }
-
-      res.status(200).json({
-        success: true,
-        data: { user }
-      });
-
-    } catch (error) {
-      console.error('Get user error:', error.message);
-      res.status(500).json({
-        success: false,
-        message: 'Failed to retrieve user',
-        error: process.env.NODE_ENV === 'development' ? error.message : undefined
-      });
-    }
-  }
-);
-
-// @route   DELETE /api/auth/users/:userId
-// @desc    Deactivate user account (Admin only)
-// @access  Private (Admin only)
-router.delete('/users/:userId', 
-  verifyFirebaseToken, 
-  requireAdmin, 
-  validateObjectId('userId'), 
-  async (req, res) => {
-    try {
-      const { userId } = req.params;
-      
-      const user = await User.findById(userId);
-      
-      if (!user) {
-        return res.status(404).json({
-          success: false,
-          message: 'User not found'
-        });
-      }
-
-      // Prevent deactivating the last admin
-      if (user.role === 'admin') {
-        const adminCount = await User.countDocuments({ role: 'admin', isActive: true });
-        if (adminCount <= 1) {
-          return res.status(400).json({
-            success: false,
-            message: 'Cannot deactivate the last admin user'
-          });
-        }
-      }
-
-      user.isActive = false;
-      await user.save();
-
-      res.status(200).json({
-        success: true,
-        message: 'User account deactivated successfully'
-      });
-
-    } catch (error) {
-      console.error('Deactivate user error:', error.message);
-      res.status(500).json({
-        success: false,
-        message: 'Failed to deactivate user',
-        error: process.env.NODE_ENV === 'development' ? error.message : undefined
-      });
-    }
-  }
-);
+router.delete('/managers/:managerId', authenticateToken, requireRole('admin'), deactivateManager);
 
 module.exports = router;

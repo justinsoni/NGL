@@ -120,6 +120,7 @@ const requestLogger = (req, res, next) => {
       userAgent: req.get('User-Agent'),
       timestamp: new Date().toISOString()
     };
+
     
     // Log user info if available
     if (req.user) {
@@ -128,6 +129,7 @@ const requestLogger = (req, res, next) => {
     }
     
     console.log('API Request:', JSON.stringify(logData));
+    console.log('Request Body:', JSON.stringify(req.body));
   });
   
   next();
