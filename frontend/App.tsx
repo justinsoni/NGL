@@ -191,6 +191,30 @@ const App = () => {
       submittedAt: new Date().toISOString()
     };
     setPlayerRegistrations(prev => [...prev, newRegistration]);
+
+    // Also surface the submitted player immediately in Players page (unverified)
+    const club = clubsData.find(c => String(c.id) === String(registration.clubId));
+    const pendingPlayer: Player = {
+      id: Date.now() + 1,
+      name: registration.name,
+      email: registration.email,
+      phone: registration.phone,
+      dob: registration.dob,
+      position: registration.position,
+      nationality: registration.nationality,
+      flag: '🏳️',
+      club: club?.name || 'Unknown',
+      clubLogo: club?.logo || '',
+      previousClub: registration.previousClub,
+      leaguesPlayed: registration.leaguesPlayed,
+      imageUrl: registration.imageUrl || `https://picsum.photos/seed/${registration.name}/400/400`,
+      identityCardUrl: registration.identityCardUrl,
+      bio: registration.bio,
+      isVerified: false,
+      addedBy: currentUserId || 0,
+      stats: { matches: 0, goals: 0, assists: 0, yellowCards: 0, redCards: 0 }
+    };
+    setPlayers(prev => [...prev, pendingPlayer]);
   };
 
   const handleApprovePlayerRegistration = async (registrationId: number) => {

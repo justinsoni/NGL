@@ -164,6 +164,41 @@ const ClubManagerDashboard: React.FC<ClubManagerDashboardProps> = ({
     // Professional Coach Form Handlers
     const handleProfessionalCoachInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
         const { name, value } = e.target;
+        // Field-level sanitization
+        if (name === 'name') {
+            const sanitized = value.replace(/[^A-Za-z\s'\-]/g, '');
+            setProfessionalCoachData(prev => ({ ...prev, name: sanitized }));
+            return;
+        }
+        if (name === 'phone') {
+            const digitsOnly = value.replace(/[^0-9]/g, '');
+            setProfessionalCoachData(prev => ({ ...prev, phone: digitsOnly }));
+            return;
+        }
+        if (name === 'nationality') {
+            const sanitized = value.replace(/[^A-Za-z\s]/g, '');
+            setProfessionalCoachData(prev => ({ ...prev, nationality: sanitized }));
+            return;
+        }
+        if (name === 'languages') {
+            // Allow letters, spaces, commas, and hyphens
+            const sanitized = value.replace(/[^A-Za-z,\s\-]/g, '');
+            setProfessionalCoachData(prev => ({ ...prev, languages: sanitized }));
+            return;
+        }
+        if (name === 'yearsOfExperience') {
+            // Digits only, clamp 0-60
+            let digits = value.replace(/[^0-9]/g, '');
+            let num = digits === '' ? '' : String(Math.max(0, Math.min(60, parseInt(digits))));
+            setProfessionalCoachData(prev => ({ ...prev, yearsOfExperience: num as any }));
+            return;
+        }
+        if (name === 'salary') {
+            // Digits only
+            const digits = value.replace(/[^0-9]/g, '');
+            setProfessionalCoachData(prev => ({ ...prev, salary: digits }));
+            return;
+        }
         setProfessionalCoachData(prev => ({ ...prev, [name]: value }));
     };
 
@@ -175,10 +210,14 @@ const ClubManagerDashboard: React.FC<ClubManagerDashboardProps> = ({
     };
 
     const updatePreviousClub = (index: number, field: string, value: string) => {
+        // Sanitize club name to avoid numbers; achievements allow no digits
+        let sanitizedValue = value;
+        if (field === 'clubName') sanitizedValue = value.replace(/[^A-Za-z\s'\-]/g, '');
+        if (field === 'achievements') sanitizedValue = value.replace(/[0-9]/g, '');
         setProfessionalCoachData(prev => ({
             ...prev,
             previousClubs: prev.previousClubs.map((club, i) =>
-                i === index ? { ...club, [field]: value } : club
+                i === index ? { ...club, [field]: sanitizedValue } : club
             )
         }));
     };
@@ -198,10 +237,14 @@ const ClubManagerDashboard: React.FC<ClubManagerDashboardProps> = ({
     };
 
     const updateTrophy = (index: number, field: string, value: string) => {
+        // Sanitize fields: name/club letters only; year digits only
+        let sanitized = value;
+        if (field === 'name' || field === 'club') sanitized = value.replace(/[^A-Za-z\s'\-]/g, '');
+        if (field === 'year') sanitized = value.replace(/[^0-9]/g, '').slice(0, 4);
         setProfessionalCoachData(prev => ({
             ...prev,
             trophies: prev.trophies.map((trophy, i) =>
-                i === index ? { ...trophy, [field]: value } : trophy
+                i === index ? { ...trophy, [field]: sanitized } : trophy
             )
         }));
     };
@@ -251,10 +294,10 @@ const ClubManagerDashboard: React.FC<ClubManagerDashboardProps> = ({
 
     const handleDocumentUpload = (index: number, file: File) => {
         // Validate file type
-        const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'];
+        const allowedTypes = ['application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'];
 
         if (!allowedTypes.includes(file.type)) {
-            alert('Invalid file type. Please upload an image, PDF, or Word document.');
+            alert('Invalid file type. Please upload a PDF or Word document.');
             return;
         }
 
@@ -271,19 +314,11 @@ const ClubManagerDashboard: React.FC<ClubManagerDashboardProps> = ({
             [index]: file
         }));
 
-        // Create preview
-        if (file.type.startsWith('image/')) {
-            const previewUrl = URL.createObjectURL(file);
-            setDocumentPreviews(prev => ({
-                ...prev,
-                [index]: previewUrl
-            }));
-        } else {
-            setDocumentPreviews(prev => ({
-                ...prev,
-                [index]: file.name
-            }));
-        }
+        // Create preview (filename only for documents)
+        setDocumentPreviews(prev => ({
+            ...prev,
+            [index]: file.name
+        }));
 
         // Update the document URL in the form data (simulate upload)
         const fakeUrl = `https://uploads.ngl.com/documents/${Date.now()}-${file.name}`;
@@ -387,11 +422,107 @@ const ClubManagerDashboard: React.FC<ClubManagerDashboardProps> = ({
                 return;
             }
 
+            // Name letters-only validation
+            const namePattern = /^[A-Za-z][A-Za-z\s'\-]*$/;
+            if (!namePattern.test(professionalCoachData.name.trim())) {
+                alert("Name can contain letters, spaces, apostrophes, and hyphens only.");
+                return;
+            }
+
+            // Phone digits-only validation (7-15)
+            const phoneDigits = professionalCoachData.phone.replace(/\D/g, '');
+            if (!/^[0-9]{7,15}$/.test(phoneDigits)) {
+                alert('Phone number must be digits only (7 to 15 numbers).');
+                return;
+            }
+
+            // Nationality letters and spaces only if provided
+            if (professionalCoachData.nationality && !/^[A-Za-z\s]+$/.test(professionalCoachData.nationality.trim())) {
+                alert('Nationality must contain letters and spaces only.');
+                return;
+            }
+
+            // DOB logical check (coach age 18-75 if provided)
+            if (professionalCoachData.dateOfBirth) {
+                const today = new Date();
+                const minDate = new Date(today.getFullYear() - 75, today.getMonth(), today.getDate());
+                const maxDate = new Date(today.getFullYear() - 18, today.getMonth(), today.getDate());
+                const dob = new Date(professionalCoachData.dateOfBirth);
+                if (Number.isNaN(dob.getTime()) || dob < minDate || dob > maxDate) {
+                    alert('Please enter a valid date of birth: age must be between 18 and 75.');
+                    return;
+                }
+            }
+
+            // License expiry date should be in the future if provided
+            if (professionalCoachData.licenseExpiryDate) {
+                const exp = new Date(professionalCoachData.licenseExpiryDate);
+                const today = new Date();
+                if (Number.isNaN(exp.getTime()) || exp < today) {
+                    alert('License expiry date must be in the future.');
+                    return;
+                }
+            }
+
+            // Experience logical range already constrained by min/max, double-check
+            if (professionalCoachData.yearsOfExperience && (Number(professionalCoachData.yearsOfExperience) < 0 || Number(professionalCoachData.yearsOfExperience) > 60)) {
+                alert('Years of experience looks invalid. Please enter 0-60.');
+                return;
+            }
+
+            // Languages validation: only letters, spaces, commas, hyphens
+            if (professionalCoachData.languages && /[^A-Za-z,\s\-]/.test(professionalCoachData.languages)) {
+                alert('Languages can include only letters, spaces, commas, and hyphens.');
+                return;
+            }
+
+            // Contract dates logic if provided
+            if (professionalCoachData.contractStartDate && professionalCoachData.contractEndDate) {
+                const start = new Date(professionalCoachData.contractStartDate);
+                const end = new Date(professionalCoachData.contractEndDate);
+                if (start > end) {
+                    alert('Contract end date must be after start date.');
+                    return;
+                }
+            }
+
+            // Validate previous clubs fields
+            for (const c of professionalCoachData.previousClubs) {
+                if (c.clubName && /[^A-Za-z\s'\-]/.test(c.clubName)) {
+                    alert('Previous club names can only include letters, spaces, apostrophes and hyphens.');
+                    return;
+                }
+                if (c.achievements && /[0-9]/.test(c.achievements)) {
+                    alert('Key achievements should not include numbers.');
+                    return;
+                }
+                if (c.startDate && c.endDate) {
+                    const s = new Date(c.startDate);
+                    const e = new Date(c.endDate);
+                    if (s > e) {
+                        alert('Previous club end date must be after start date.');
+                        return;
+                    }
+                }
+            }
+
+            // Validate documents: require type and name if a file/url present; name letters only
+            for (const d of professionalCoachData.documents) {
+                if (d.url && (!d.type || !d.name)) {
+                    alert('Please specify document type and name for each uploaded document.');
+                    return;
+                }
+                if (d.name && /[^A-Za-z\s'\-]/.test(d.name)) {
+                    alert('Document name can include only letters, spaces, apostrophes and hyphens.');
+                    return;
+                }
+            }
+
             // Prepare coach data for API
             const coachData: CreateCoachData = {
                 name: professionalCoachData.name,
                 email: professionalCoachData.email,
-                phone: professionalCoachData.phone,
+                phone: phoneDigits || professionalCoachData.phone,
                 clubId: club.id.toString(),
                 dateOfBirth: professionalCoachData.dateOfBirth,
                 nationality: professionalCoachData.nationality,
@@ -590,6 +721,8 @@ const ClubManagerDashboard: React.FC<ClubManagerDashboardProps> = ({
                                         name="name"
                                         value={professionalCoachData.name}
                                         onChange={handleProfessionalCoachInputChange}
+                                        pattern="[A-Za-z][A-Za-z\s'\-]*"
+                                        title="Letters, spaces, apostrophes and hyphens only"
                                         required
                                         className="w-full bg-theme-secondary-bg border-2 border-theme-border rounded-lg py-3 px-4 text-theme-dark focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
                                         placeholder="John Doe"
@@ -614,6 +747,8 @@ const ClubManagerDashboard: React.FC<ClubManagerDashboardProps> = ({
                                         name="phone"
                                         value={professionalCoachData.phone}
                                         onChange={handleProfessionalCoachInputChange}
+                                        pattern="[0-9]{7,15}"
+                                        title="Digits only, 7 to 15 numbers"
                                         required
                                         className="w-full bg-theme-secondary-bg border-2 border-theme-border rounded-lg py-3 px-4 text-theme-dark focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
                                         placeholder="+1 (555) 123-4567"
@@ -626,6 +761,8 @@ const ClubManagerDashboard: React.FC<ClubManagerDashboardProps> = ({
                                         name="dateOfBirth"
                                         value={professionalCoachData.dateOfBirth}
                                         onChange={handleProfessionalCoachInputChange}
+                                        min={(d => { const t=new Date(); const m=new Date(t.getFullYear()-75,t.getMonth(),t.getDate()); return new Date(m.getTime()-m.getTimezoneOffset()*60000).toISOString().split('T')[0]; })()}
+                                        max={(d => { const t=new Date(); const m=new Date(t.getFullYear()-18,t.getMonth(),t.getDate()); return new Date(m.getTime()-m.getTimezoneOffset()*60000).toISOString().split('T')[0]; })()}
                                         className="w-full bg-theme-secondary-bg border-2 border-theme-border rounded-lg py-3 px-4 text-theme-dark focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
                                     />
                                 </div>
@@ -636,6 +773,8 @@ const ClubManagerDashboard: React.FC<ClubManagerDashboardProps> = ({
                                         name="nationality"
                                         value={professionalCoachData.nationality}
                                         onChange={handleProfessionalCoachInputChange}
+                                        pattern="[A-Za-z\s]+"
+                                        title="Letters and spaces only"
                                         className="w-full bg-theme-secondary-bg border-2 border-theme-border rounded-lg py-3 px-4 text-theme-dark focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
                                         placeholder="American"
                                     />
@@ -774,6 +913,8 @@ const ClubManagerDashboard: React.FC<ClubManagerDashboardProps> = ({
                                         name="languages"
                                         value={professionalCoachData.languages}
                                         onChange={handleProfessionalCoachInputChange}
+                                        pattern="[A-Za-z,\s\-]+"
+                                        title="Letters, spaces, commas and hyphens only"
                                         className="w-full bg-theme-secondary-bg border-2 border-theme-border rounded-lg py-3 px-4 text-theme-dark focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-all"
                                         placeholder="English, Spanish, French"
                                     />
@@ -804,6 +945,8 @@ const ClubManagerDashboard: React.FC<ClubManagerDashboardProps> = ({
                                             placeholder="Club Name"
                                             value={club.clubName}
                                             onChange={(e) => updatePreviousClub(index, 'clubName', e.target.value)}
+                                            pattern="[A-Za-z\s'\-]*"
+                                            title="Letters, spaces, apostrophes and hyphens only"
                                             className="bg-theme-page-bg border border-theme-border rounded-lg py-2 px-3 text-theme-dark focus:outline-none focus:ring-2 focus:ring-purple-500"
                                         />
                                         <input
@@ -827,6 +970,8 @@ const ClubManagerDashboard: React.FC<ClubManagerDashboardProps> = ({
                                             placeholder="Key Achievements (optional)"
                                             value={club.achievements}
                                             onChange={(e) => updatePreviousClub(index, 'achievements', e.target.value)}
+                                            pattern="[^0-9]*"
+                                            title="Numbers are not allowed"
                                             className="w-full bg-theme-page-bg border border-theme-border rounded-lg py-2 px-3 text-theme-dark focus:outline-none focus:ring-2 focus:ring-purple-500"
                                         />
                                     </div>
@@ -866,6 +1011,8 @@ const ClubManagerDashboard: React.FC<ClubManagerDashboardProps> = ({
                                             placeholder="Trophy Name"
                                             value={trophy.name}
                                             onChange={(e) => updateTrophy(index, 'name', e.target.value)}
+                                            pattern="[A-Za-z\s'\-]+"
+                                            title="Letters, spaces, apostrophes and hyphens only"
                                             className="bg-theme-page-bg border border-theme-border rounded-lg py-2 px-3 text-theme-dark focus:outline-none focus:ring-2 focus:ring-yellow-500"
                                         />
                                         <input
@@ -882,6 +1029,8 @@ const ClubManagerDashboard: React.FC<ClubManagerDashboardProps> = ({
                                             placeholder="Club"
                                             value={trophy.club}
                                             onChange={(e) => updateTrophy(index, 'club', e.target.value)}
+                                            pattern="[A-Za-z\s'\-]+"
+                                            title="Letters, spaces, apostrophes and hyphens only"
                                             className="bg-theme-page-bg border border-theme-border rounded-lg py-2 px-3 text-theme-dark focus:outline-none focus:ring-2 focus:ring-yellow-500"
                                         />
                                         <select
@@ -951,6 +1100,8 @@ const ClubManagerDashboard: React.FC<ClubManagerDashboardProps> = ({
                                             placeholder="Document Name"
                                             value={doc.name}
                                             onChange={(e) => updateDocument(index, 'name', e.target.value)}
+                                            pattern="[A-Za-z\s'\-]+"
+                                            title="Letters, spaces, apostrophes and hyphens only"
                                             className="bg-theme-page-bg border border-theme-border rounded-lg py-2 px-3 text-theme-dark focus:outline-none focus:ring-2 focus:ring-pink-500"
                                         />
                                         <div className="relative">
@@ -1030,6 +1181,7 @@ const ClubManagerDashboard: React.FC<ClubManagerDashboardProps> = ({
                                         value={professionalCoachData.salary}
                                         onChange={handleProfessionalCoachInputChange}
                                         min="0"
+                                        step="1"
                                         className="w-full bg-theme-secondary-bg border-2 border-theme-border rounded-lg py-3 px-4 text-theme-dark focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-teal-500 transition-all"
                                         placeholder="50000"
                                     />

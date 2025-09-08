@@ -44,6 +44,14 @@ const PlayerRegistrationPage: React.FC<PlayerRegistrationPageProps> = ({ onSubmi
         identityCard: null
     });
 
+    // Date boundaries for logical DOB: between 10 and 60 years old
+    const today = new Date();
+    const maxDobDate = new Date(today.getFullYear() - 10, today.getMonth(), today.getDate());
+    const minDobDate = new Date(today.getFullYear() - 60, today.getMonth(), today.getDate());
+    const formatDate = (d: Date) => new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().split('T')[0];
+    const minDobStr = formatDate(minDobDate);
+    const maxDobStr = formatDate(maxDobDate);
+
     useEffect(() => {
         return () => {
             if (previewUrls.profilePhoto && previewUrls.profilePhoto.startsWith('blob:')) {
@@ -99,14 +107,46 @@ const PlayerRegistrationPage: React.FC<PlayerRegistrationPageProps> = ({ onSubmi
         }));
     };
 
+    // Strict field-specific input handlers
+    const handleNameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const raw = e.target.value;
+        // Allow letters, spaces, apostrophes and hyphens only
+        const sanitized = raw.replace(/[^A-Za-z\s'\-]/g, '');
+        setFormData(prev => ({ ...prev, name: sanitized }));
+    };
+
+    const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const raw = e.target.value;
+        // Digits only
+        const digitsOnly = raw.replace(/[^0-9]/g, '');
+        setFormData(prev => ({ ...prev, phone: digitsOnly }));
+    };
+
+    const handleNationalityChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const raw = e.target.value;
+        // Allow letters and spaces only
+        const sanitized = raw.replace(/[^A-Za-z\s]/g, '');
+        setFormData(prev => ({ ...prev, nationality: sanitized }));
+    };
+
+    const handlePreviousClubChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const raw = e.target.value;
+        // Allow letters, spaces, apostrophes and hyphens only
+        const sanitized = raw.replace(/[^A-Za-z\s'\-]/g, '');
+        setFormData(prev => ({ ...prev, previousClub: sanitized }));
+    };
+
     const handleFileUpload = (field: 'profilePhoto' | 'identityCard', file: File) => {
         // Validate file type
         const allowedTypes = field === 'profilePhoto'
             ? ['image/jpeg', 'image/jpg', 'image/png', 'image/webp']
-            : ['image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'application/pdf'];
+            : ['application/pdf'];
 
         if (!allowedTypes.includes(file.type)) {
-            setError(`Invalid file type for ${field === 'profilePhoto' ? 'profile photo' : 'identity document'}. Please upload ${field === 'profilePhoto' ? 'an image' : 'an image or PDF'}.`);
+            setError(
+                `Invalid file type for ${field === 'profilePhoto' ? 'profile photo' : 'identity document'}. ` +
+                `${field === 'profilePhoto' ? 'Please upload an image (JPG, PNG, WEBP).' : 'Only PDF documents are allowed for identity verification.'}`
+            );
             return;
         }
 
@@ -203,6 +243,62 @@ const PlayerRegistrationPage: React.FC<PlayerRegistrationPageProps> = ({ onSubmi
             return;
         }
 
+        // Name validation: letters, spaces, apostrophes, hyphens only
+        const namePattern = /^[A-Za-z][A-Za-z\s'\-]*$/;
+        if (!namePattern.test(formData.name.trim())) {
+            setError("Name can contain letters, spaces, apostrophes, and hyphens only.");
+            setIsSubmitting(false);
+            return;
+        }
+
+        // Phone validation: digits only, 7-15 digits
+        const phoneDigits = formData.phone.replace(/\D/g, '');
+        const phonePattern = /^[0-9]{7,15}$/;
+        if (!phonePattern.test(phoneDigits)) {
+            setError('Phone number must be digits only (7 to 15 numbers).');
+            setIsSubmitting(false);
+            return;
+        }
+
+        // Nationality validation: letters and spaces only
+        const nationalityPattern = /^[A-Za-z\s]+$/;
+        if (!nationalityPattern.test(formData.nationality.trim())) {
+            setError('Nationality must contain letters and spaces only.');
+            setIsSubmitting(false);
+            return;
+        }
+
+        // DOB logical validation: age between 10 and 60 years
+        const dobDate = new Date(formData.dob);
+        const tooYoung = dobDate > maxDobDate;
+        const tooOld = dobDate < minDobDate;
+        if (Number.isNaN(dobDate.getTime()) || tooYoung || tooOld) {
+            setError('Please enter a valid date of birth: age must be between 10 and 60.');
+            setIsSubmitting(false);
+            return;
+        }
+
+        // Position validation
+        if (!POSITIONS.includes(formData.position)) {
+            setError('Please select a valid position.');
+            setIsSubmitting(false);
+            return;
+        }
+
+        // Club selection validation
+        if (!formData.clubId || !clubs.some(c => String(c.id) === String(formData.clubId))) {
+            setError('Please select a valid club.');
+            setIsSubmitting(false);
+            return;
+        }
+
+        // Optional: Bio length soft limit
+        if (formData.bio && formData.bio.length > 1000) {
+            setError('Bio is too long. Please keep it under 1000 characters.');
+            setIsSubmitting(false);
+            return;
+        }
+
         if (!uploadedFiles.identityCard) {
             setError('Please upload your identity card or player card for verification.');
             setIsSubmitting(false);
@@ -223,6 +319,7 @@ const PlayerRegistrationPage: React.FC<PlayerRegistrationPageProps> = ({ onSubmi
             const selectedClub = clubs.find(c => String(c.id) === String(formData.clubId));
             const registration = {
                 ...formData,
+                phone: phoneDigits,
                 imageUrl,
                 identityCardUrl,
                 clubName: selectedClub?.name || undefined,
@@ -293,7 +390,9 @@ const PlayerRegistrationPage: React.FC<PlayerRegistrationPageProps> = ({ onSubmi
                                             type="text"
                                             name="name"
                                             value={formData.name}
-                                            onChange={handleInputChange}
+                                            onChange={handleNameChange}
+                                            pattern="[A-Za-z][A-Za-z\s'\-]*"
+                                            title="Letters, spaces, apostrophes and hyphens only"
                                             required
                                             className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
                                             placeholder="Enter your full name"
@@ -321,7 +420,9 @@ const PlayerRegistrationPage: React.FC<PlayerRegistrationPageProps> = ({ onSubmi
                                             type="tel"
                                             name="phone"
                                             value={formData.phone}
-                                            onChange={handleInputChange}
+                                            onChange={handlePhoneChange}
+                                            pattern="[0-9]{7,15}"
+                                            title="Digits only, 7 to 15 numbers"
                                             required
                                             className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
                                             placeholder="+1 (555) 123-4567"
@@ -336,6 +437,8 @@ const PlayerRegistrationPage: React.FC<PlayerRegistrationPageProps> = ({ onSubmi
                                             name="dob"
                                             value={formData.dob}
                                             onChange={handleInputChange}
+                                            min={minDobStr}
+                                            max={maxDobStr}
                                             required
                                             className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
                                         />
@@ -348,7 +451,9 @@ const PlayerRegistrationPage: React.FC<PlayerRegistrationPageProps> = ({ onSubmi
                                             type="text"
                                             name="nationality"
                                             value={formData.nationality}
-                                            onChange={handleInputChange}
+                                            onChange={handleNationalityChange}
+                                            pattern="[A-Za-z\s]+"
+                                            title="Letters and spaces only"
                                             required
                                             className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
                                             placeholder="e.g., United States"
@@ -409,7 +514,9 @@ const PlayerRegistrationPage: React.FC<PlayerRegistrationPageProps> = ({ onSubmi
                                             type="text"
                                             name="previousClub"
                                             value={formData.previousClub}
-                                            onChange={handleInputChange}
+                                            onChange={handlePreviousClubChange}
+                                            pattern="[A-Za-z\s'\-]*"
+                                            title="Letters, spaces, apostrophes and hyphens only"
                                             placeholder="Enter your previous club (if any)"
                                             className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
                                         />
@@ -510,7 +617,7 @@ const PlayerRegistrationPage: React.FC<PlayerRegistrationPageProps> = ({ onSubmi
                                     </div>
                                     <div>
                                         <label className="block text-sm font-semibold text-gray-700 mb-2">
-                                            Identity Card / Player Card *
+                                            Identity Card / Player Card * (PDF only)
                                         </label>
                                         {previewUrls.identityCard ? (
                                             <div className="relative">
@@ -555,7 +662,7 @@ const PlayerRegistrationPage: React.FC<PlayerRegistrationPageProps> = ({ onSubmi
                                             <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-blue-400 transition-colors">
                                                 <input
                                                     type="file"
-                                                    accept="image/jpeg,image/jpg,image/png,image/webp,application/pdf"
+                                                    accept="application/pdf"
                                                     onChange={(e) => {
                                                         const file = e.target.files?.[0];
                                                         if (file) handleFileUpload('identityCard', file);
@@ -571,7 +678,7 @@ const PlayerRegistrationPage: React.FC<PlayerRegistrationPageProps> = ({ onSubmi
                                                         </svg>
                                                     </div>
                                                     <p className="text-sm font-medium text-gray-700">Upload Identity Document *</p>
-                                                    <p className="text-xs text-gray-500 mt-1">JPG, PNG, WEBP, PDF up to 5MB</p>
+                                                    <p className="text-xs text-gray-500 mt-1">PDF up to 5MB</p>
                                                 </label>
                                             </div>
                                         )}
