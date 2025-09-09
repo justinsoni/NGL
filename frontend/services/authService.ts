@@ -24,6 +24,7 @@ export interface AuthUser extends ApiUser {
 export interface LoginCredentials {
   email: string;
   password: string;
+  name?: string;
 }
 
 export interface RegisterCredentials extends LoginCredentials {
@@ -169,6 +170,18 @@ class AuthService {
   // Login user
   async login(credentials: LoginCredentials): Promise<AuthUser> {
     try {
+      // First, validate user exists in MongoDB before Firebase authentication
+      // Pass both email and name for validation
+      const validationResult = await apiService.validateUserForLogin(
+        credentials.email, 
+        credentials.name
+      );
+      
+      if (!validationResult.success) {
+        throw new Error(validationResult.message);
+      }
+
+      // Proceed with Firebase authentication only if MongoDB validation passes
       const userCredential = await signInWithEmailAndPassword(
         auth,
         credentials.email,
@@ -189,15 +202,16 @@ class AuthService {
       console.error('Login error:', error);
       
       // Handle Firebase errors
-      if (error.code === 'auth/user-not-found' || error.code === 'auth/wrong-password') {
-        throw new Error('Invalid email or password.');
+      if (error.code === 'auth/user-not-found' || error.code === 'auth/wrong-password' || error.code === 'auth/invalid-credential') {
+        throw new Error('The password you entered is incorrect. Please check your password and try again.');
       } else if (error.code === 'auth/invalid-email') {
         throw new Error('Please enter a valid email address.');
       } else if (error.code === 'auth/too-many-requests') {
         throw new Error('Too many failed login attempts. Please try again later.');
       }
       
-      throw new Error(error.message || 'Login failed. Please try again.');
+      // Pass through the exact error message from validation or Firebase
+      throw new Error(error.message || 'Login failed. Please check your credentials and try again.');
     }
   }
 
@@ -401,7 +415,7 @@ class AuthService {
   async updateProfile(updateData: {
     name?: string;
     email?: string;
-    role?: string;
+    role?: 'admin' | 'manager' | 'clubManager' | 'coach' | 'registeredUser' | 'user';
     club?: string;
     profile?: any;
   }): Promise<AuthUser> {

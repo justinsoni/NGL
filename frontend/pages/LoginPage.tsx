@@ -30,6 +30,7 @@ const LoginPage: React.FC = () => {
         if (user) {
             // Check if current user signed up with Google
             const checkCurrentUserAuthMethod = async () => {
+                
                 try {
                     const response = await fetch('/api/auth/check-auth-method', {
                         method: 'POST',
@@ -219,9 +220,9 @@ const LoginPage: React.FC = () => {
                 }
 
                 if (isLogin) {
-                    // Firebase login for all users
+                    // Firebase login for all users - MongoDB validation happens in authService
                     try {
-                        const user = await firebaseLogin({ email, password });
+                        const user = await firebaseLogin({ email, password, name });
                         toast.success('Welcome back! You\'re now signed in successfully.');
 
                         // Navigate based on user role
@@ -236,9 +237,19 @@ const LoginPage: React.FC = () => {
                     } catch (firebaseError: any) {
                         console.error('Login error:', firebaseError);
                         
-                        // Handle specific Firebase errors
-                        if (firebaseError.message.includes('user-not-found') || firebaseError.message.includes('wrong-password')) {
-                            setError('The email or password you entered is incorrect. Please check your credentials and try again.');
+                        // Handle specific validation errors from MongoDB
+                        if (firebaseError.message.includes('No account found with this email address')) {
+                            setError('No account found with this email address. Please check your email or create a new account.');
+                        } else if (firebaseError.message.includes('Name does not match our records')) {
+                            setError('Name does not match our records. Please verify your name and try again.');
+                        } else if (firebaseError.message.includes('Account is deactivated')) {
+                            setError('Account is deactivated. Please contact support for assistance.');
+                        } else if (firebaseError.message.includes('Name is required for login')) {
+                            setError('Name is required for login. Please enter your full name.');
+                        } else if (firebaseError.message.includes('Email is required')) {
+                            setError('Email is required. Please enter your email address.');
+                        } else if (firebaseError.message.includes('user-not-found') || firebaseError.message.includes('wrong-password') || firebaseError.message.includes('auth/invalid-credential')) {
+                            setError('The password you entered is incorrect. Please check your password and try again.');
                         } else if (firebaseError.message.includes('too-many-requests')) {
                             setError('Too many failed login attempts. Please wait a few minutes before trying again.');
                         } else if (firebaseError.message.includes('network') || firebaseError.message.includes('timeout')) {
@@ -246,7 +257,8 @@ const LoginPage: React.FC = () => {
                         } else if (firebaseError.message.includes('invalid-email')) {
                             setError('Please enter a valid email address.');
                         } else {
-                            setError('We\'re having trouble signing you in. Please try again or contact support if the issue persists.');
+                            // Show the actual error message from the backend instead of generic message
+                            setError(firebaseError.message || 'Login failed. Please check your credentials and try again.');
                         }
                         return;
                     }
@@ -576,14 +588,14 @@ const LoginPage: React.FC = () => {
 
                         <div className="rounded-md shadow-sm space-y-4">
                             {/* Name field for both login and register */}
-                            {(!isLogin || isLogin) && !isForgotPassword && (
+                            {!isForgotPassword && (
                                 <input
                                     id="name"
                                     name="name"
                                     type="text"
                                     value={name}
                                     onChange={e => setName(e.target.value)}
-                                    required={!isLogin ? true : false}
+                                    required={true}
                                     className={commonInputClasses}
                                     placeholder="Full Name"
                                 />

@@ -7,7 +7,8 @@ const {
   getAllUsers, 
   updateUserRole, 
   checkAuthMethod, 
-  checkUserExists 
+  checkUserExists,
+  validateUserForLogin
 } = require('../controllers/authController');
 const { 
   createManager, 
@@ -39,6 +40,12 @@ router.post('/check-user-exists', [
   body('email').isEmail().withMessage('Valid email is required'),
   validateRequest
 ], checkUserExists);
+
+router.post('/validate-user', [
+  body('email').isEmail().withMessage('Valid email is required'),
+  body('name').notEmpty().withMessage('Name is required for login'),
+  validateRequest
+], validateUserForLogin);
 
 // Protected routes
 router.get('/profile', authenticateToken, getUserProfile);

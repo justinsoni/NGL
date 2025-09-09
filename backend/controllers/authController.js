@@ -423,6 +423,77 @@ const checkUserExists = async (req, res) => {
     }
 };
 
+// Validate user credentials against MongoDB before login
+const validateUserForLogin = async (req, res) => {
+    try {
+        const { email, name } = req.body;
+
+        if (!email) {
+            return res.status(400).json({ 
+                success: false, 
+                message: 'Email is required' 
+            });
+        }
+
+        if (!name) {
+            return res.status(400).json({ 
+                success: false, 
+                message: 'Name is required for login' 
+            });
+        }
+
+        // Find user in database by email
+        const user = await User.findOne({ email: email.toLowerCase() });
+
+        if (!user) {
+            return res.status(404).json({ 
+                success: false, 
+                message: 'No account found with this email address. Please check your email or create a new account.',
+                userNotFound: true
+            });
+        }
+
+        // Check if user is active
+        if (!user.isActive) {
+            return res.status(403).json({ 
+                success: false, 
+                message: 'Account is deactivated. Please contact support for assistance.',
+                accountDeactivated: true
+            });
+        }
+
+        // Validate name matches (case-insensitive) - REQUIRED for login
+        if (user.name.toLowerCase() !== name.toLowerCase()) {
+            return res.status(400).json({ 
+                success: false, 
+                message: `Name does not match our records. Expected: "${user.name}", but received: "${name}". Please verify your name and try again.`,
+                nameMismatch: true
+            });
+        }
+
+        // Return user validation success
+        return res.status(200).json({
+            success: true,
+            message: 'User validation successful',
+            user: {
+                id: user._id,
+                email: user.email,
+                name: user.name,
+                role: user.role,
+                authMethod: user.authMethod,
+                isActive: user.isActive
+            }
+        });
+
+    } catch (error) {
+        console.error('Error validating user for login:', error);
+        return res.status(500).json({ 
+            success: false, 
+            message: 'Internal server error during user validation'
+        });
+    }
+};
+
 module.exports = {
   registerUser,
   getUserProfile,
@@ -430,5 +501,6 @@ module.exports = {
   getAllUsers,
   updateUserRole,
   checkAuthMethod,
-  checkUserExists
+  checkUserExists,
+  validateUserForLogin
 };

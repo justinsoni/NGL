@@ -70,7 +70,7 @@ export interface UpdateProfileData {
 
 // Create axios instance
 const api: AxiosInstance = axios.create({
-  baseURL: import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api',
+  baseURL: (import.meta as any).env?.VITE_API_BASE_URL || 'http://localhost:5000/api',
   timeout: 10000,
   headers: {
     'Content-Type': 'application/json',
@@ -210,6 +210,34 @@ class ApiService {
 
   async deactivateUser(userId: string): Promise<void> {
     await api.delete(`/auth/users/${userId}`);
+  }
+
+  // Validate user credentials against MongoDB before login
+  async validateUserForLogin(email: string, name?: string): Promise<{ success: boolean; user?: any; message: string }> {
+    try {
+      const response = await api.post<ApiResponse<{ user: any }>>('/auth/validate-user', {
+        email,
+        name
+      });
+      return {
+        success: true,
+        user: response.data.data?.user,
+        message: response.data.message
+      };
+    } catch (error: any) {
+      const axiosError = error as AxiosError<ApiResponse>;
+      if (axiosError.response) {
+        // Pass through the exact error message from the backend
+        return {
+          success: false,
+          message: axiosError.response.data.message || 'User validation failed'
+        };
+      }
+      return {
+        success: false,
+        message: 'Network error during user validation. Please check your connection and try again.'
+      };
+    }
   }
 
   // Health check
