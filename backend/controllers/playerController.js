@@ -55,7 +55,11 @@ const registerPlayer = async (req, res) => {
     // Ensure we store normalized email and resolved club id
     req.body.email = email;
     req.body.clubId = resolvedClubId;
-    const player = await Player.create(req.body);
+    const player = await Player.create({
+      ...req.body,
+      documentVerification: { status: 'pending' },
+      isVerified: false
+    });
 
     await player.populate('clubId', 'name city');
 
@@ -114,7 +118,18 @@ const approvePlayer = async (req, res) => {
     const { registrationId } = req.params;
     const player = await Player.findByIdAndUpdate(
       registrationId,
-      { status: 'approved', isVerified: true },
+      { 
+        status: 'approved', 
+        isVerified: true,
+        documentVerification: {
+          status: 'verified',
+          method: 'manual',
+          verifiedAt: new Date(),
+          verifiedBy: req.user ? req.user._id : undefined
+        },
+        reviewedAt: new Date(),
+        reviewedBy: req.user ? req.user._id : undefined
+      },
       { new: true }
     );
     if (!player) {
@@ -133,7 +148,19 @@ const rejectPlayer = async (req, res) => {
     const { reason } = req.body;
     const player = await Player.findByIdAndUpdate(
       registrationId,
-      { status: 'rejected', rejectionReason: reason },
+      { 
+        status: 'rejected', 
+        rejectionReason: reason,
+        documentVerification: {
+          status: 'rejected',
+          method: 'manual',
+          verifiedAt: new Date(),
+          verifiedBy: req.user ? req.user._id : undefined,
+          notes: reason
+        },
+        reviewedAt: new Date(),
+        reviewedBy: req.user ? req.user._id : undefined
+      },
       { new: true }
     );
     if (!player) {
@@ -174,10 +201,102 @@ const getApprovedPlayers = async (req, res) => {
   }
 };
 
+const updatePlayer = async (req, res) => {
+  try {
+    const { playerId } = req.params;
+    const updates = { ...req.body };
+    // Prevent status edits here; approvals flow controls it
+    delete updates.status;
+    delete updates.reviewedAt;
+    delete updates.reviewedBy;
+    // Prevent clubId reassignment via name without validation
+    if (updates.clubName) delete updates.clubName;
+
+    const player = await Player.findByIdAndUpdate(playerId, updates, { new: true });
+    if (!player) {
+      return res.status(404).json({ success: false, message: 'Player not found' });
+    }
+    res.json({ success: true, message: 'Player updated', data: player });
+  } catch (error) {
+    console.error('Error updating player:', error);
+    res.status(500).json({ success: false, message: 'Failed to update player' });
+  }
+};
+
+// Document verification endpoints
+const verifyDocuments = async (req, res) => {
+  try {
+    const { playerId } = req.params;
+    const { method = 'manual', notes, aiScore } = req.body || {};
+    const updates = {
+      documentVerification: {
+        status: 'verified',
+        method,
+        verifiedAt: new Date(),
+        verifiedBy: req.user ? req.user._id : undefined,
+        notes,
+        aiScore
+      },
+      isVerified: true
+    };
+    const player = await Player.findByIdAndUpdate(playerId, updates, { new: true });
+    if (!player) {
+      return res.status(404).json({ success: false, message: 'Player not found' });
+    }
+    res.json({ success: true, message: 'Documents verified', data: player });
+  } catch (error) {
+    console.error('Error verifying documents:', error);
+    res.status(500).json({ success: false, message: 'Failed to verify documents' });
+  }
+};
+
+const unverifyDocuments = async (req, res) => {
+  try {
+    const { playerId } = req.params;
+    const { reason } = req.body || {};
+    const updates = {
+      documentVerification: {
+        status: 'rejected',
+        method: 'manual',
+        verifiedAt: new Date(),
+        verifiedBy: req.user ? req.user._id : undefined,
+        notes: reason || 'Unverified by manager'
+      },
+      isVerified: false
+    };
+    const player = await Player.findByIdAndUpdate(playerId, updates, { new: true });
+    if (!player) {
+      return res.status(404).json({ success: false, message: 'Player not found' });
+    }
+    res.json({ success: true, message: 'Documents marked as rejected', data: player });
+  } catch (error) {
+    console.error('Error rejecting documents:', error);
+    res.status(500).json({ success: false, message: 'Failed to update document verification' });
+  }
+};
+
+const deletePlayer = async (req, res) => {
+  try {
+    const { playerId } = req.params;
+    const deleted = await Player.findByIdAndDelete(playerId);
+    if (!deleted) {
+      return res.status(404).json({ success: false, message: 'Player not found' });
+    }
+    res.json({ success: true, message: 'Player removed' });
+  } catch (error) {
+    console.error('Error deleting player:', error);
+    res.status(500).json({ success: false, message: 'Failed to delete player' });
+  }
+};
+
 module.exports = {
   registerPlayer,
   getPendingPlayers,
   approvePlayer,
   rejectPlayer,
-  getApprovedPlayers
+  getApprovedPlayers,
+  updatePlayer,
+  deletePlayer,
+  verifyDocuments,
+  unverifyDocuments
 };

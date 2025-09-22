@@ -119,7 +119,27 @@ const ClubManagerDashboard: React.FC<ClubManagerDashboardProps> = ({
         try {
             const response = await playerService.getApprovedPlayers(undefined, club.name);
             if (response.success) {
-                setApprovedPlayers(response.data);
+                const normalized = (response.data as any[]).map((p: any, index: number) => ({
+                    id: Number(p.id) || Number(p._id?.toString().slice(-6)) || Date.now() + index,
+                    name: p.name,
+                    email: p.email,
+                    phone: p.phone,
+                    dob: typeof p.dob === 'string' ? p.dob : new Date(p.dob).toISOString(),
+                    position: p.position,
+                    nationality: p.nationality,
+                    flag: p.flag || '',
+                    club: club.name,
+                    clubLogo: club.logo,
+                    previousClub: p.previousClub || '',
+                    leaguesPlayed: p.leaguesPlayed || [],
+                    imageUrl: p.imageUrl || '',
+                    identityCardUrl: p.identityCardUrl || '',
+                    bio: p.bio || '',
+                    isVerified: true,
+                    addedBy: 0,
+                    stats: { matches: 0, goals: 0, assists: 0, yellowCards: 0, redCards: 0 }
+                }));
+                setApprovedPlayers(normalized as any);
             }
         } catch (error) {
             console.error('Failed to fetch approved players:', error);
@@ -1393,13 +1413,41 @@ const ClubManagerDashboard: React.FC<ClubManagerDashboardProps> = ({
 
                             <div className="flex gap-2">
                                 <button
-                                    onClick={() => handleEditClick(player)}
+                                    onClick={async () => {
+                                        // Simple inline edit: toggle name/position prompt; in real UI use the existing edit form
+                                        const newName = prompt('Update player name:', player.name);
+                                        if (!newName || newName.trim() === player.name) return;
+                                        try {
+                                            const response = await playerService.update(player.id, { name: newName.trim() } as any);
+                                            if (response.success) {
+                                                await fetchApprovedPlayers();
+                                                alert('Player updated');
+                                            } else {
+                                                alert(response.message || 'Failed to update player');
+                                            }
+                                        } catch (e) {
+                                            alert('Error updating player');
+                                        }
+                                    }}
                                     className="flex-1 bg-blue-600 text-white px-3 py-2 rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium"
                                 >
                                     Edit
                                 </button>
                                 <button
-                                    onClick={() => handleDeleteClick(player.id)}
+                                    onClick={async () => {
+                                        if (!window.confirm('Remove this player from the squad?')) return;
+                                        try {
+                                            const response = await playerService.remove(player.id);
+                                            if (response.success) {
+                                                await fetchApprovedPlayers();
+                                                alert('Player removed');
+                                            } else {
+                                                alert(response.message || 'Failed to remove player');
+                                            }
+                                        } catch (e) {
+                                            alert('Error removing player');
+                                        }
+                                    }}
                                     className="flex-1 bg-red-600 text-white px-3 py-2 rounded-lg hover:bg-red-700 transition-colors text-sm font-medium"
                                 >
                                     Remove

@@ -26,6 +26,10 @@ const playerSchema = new mongoose.Schema({
     type: Date,
     required: true
   },
+  age: {
+    type: Number,
+    min: 0
+  },
   position: {
     type: String,
     required: true,
@@ -52,6 +56,40 @@ const playerSchema = new mongoose.Schema({
     type: String,
     required: true,
     trim: true
+  },
+  // High-level verification flag (set when approved)
+  isVerified: {
+    type: Boolean,
+    default: false
+  },
+  // Detailed document verification metadata
+  documentVerification: {
+    status: {
+      type: String,
+      enum: ['pending', 'verified', 'rejected'],
+      default: 'pending'
+    },
+    method: {
+      type: String,
+      enum: ['manual', 'auto', 'ai', null],
+      default: null
+    },
+    verifiedAt: {
+      type: Date
+    },
+    verifiedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User'
+    },
+    notes: {
+      type: String,
+      maxlength: 500
+    },
+    aiScore: {
+      type: Number,
+      min: 0,
+      max: 100
+    }
   },
   bio: {
     type: String,

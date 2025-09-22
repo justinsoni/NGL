@@ -33,6 +33,18 @@ export const playerService = {
     const response = await api.get('/players/approved', { params });
     return response.data;
 },
+
+  async update(playerId: string | number, updates: Partial<Player>) {
+    const id = String(playerId);
+    const response = await api.put(`/players/${id}`, updates);
+    return response.data;
+  },
+
+  async remove(playerId: string | number) {
+    const id = String(playerId);
+    const response = await api.delete(`/players/${id}`);
+    return response.data;
+  },
 };
 
 export default playerService;

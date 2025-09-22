@@ -169,6 +169,47 @@ const App = () => {
     }
   };
 
+  // Fetch approved players for the managed club (used by Coach view)
+  const fetchApprovedPlayersForManagedClub = async (club: Club | null) => {
+    if (!club) return;
+    try {
+      const response = await playerService.getApprovedPlayers(undefined, club.name);
+      if (response.success) {
+        const normalized: Player[] = (response.data as any[]).map((p: any, index: number) => ({
+          id: Number(p.id) || Number(p._id?.toString().slice(-6)) || Date.now() + index,
+          name: p.name,
+          email: p.email,
+          phone: p.phone,
+          dob: typeof p.dob === 'string' ? p.dob : new Date(p.dob).toISOString(),
+          position: p.position,
+          nationality: p.nationality,
+          flag: p.flag || '',
+          club: p.clubId?.name || club.name,
+          clubLogo: p.clubLogo || club.logo || '',
+          previousClub: p.previousClub || '',
+          leaguesPlayed: p.leaguesPlayed || [],
+          imageUrl: p.imageUrl || '',
+          identityCardUrl: p.identityCardUrl || '',
+          bio: p.bio || '',
+          isVerified: true,
+          addedBy: currentUserId || 0,
+          stats: { matches: 0, goals: 0, assists: 0, yellowCards: 0, redCards: 0 }
+        }));
+        setPlayers(normalized);
+      }
+    } catch (e) {
+      // Silently ignore fetch errors to avoid blocking UI
+      console.error('Failed to fetch approved players for coach view', e);
+    }
+  };
+
+  // When user is a coach and managed club is resolved, load approved players from backend
+  useEffect(() => {
+    if (isLoggedIn && userRole === 'coach' && managedClub) {
+      fetchApprovedPlayersForManagedClub(managedClub);
+    }
+  }, [isLoggedIn, userRole, managedClub]);
+
   const handleCreateUser = (newUser: Omit<CreatedUser, 'password' | 'id'>): CreatedUser => {
     const password = EmailService.generateSecurePassword();
     const userWithPassword = {
@@ -559,6 +600,18 @@ const App = () => {
     const player = players.find(p => p.id === playerId);
     if(player) setViewingPlayer(player);
   };
+
+  // Allow other components to request opening the player modal via a window event
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const custom = e as CustomEvent<{ playerId: number }>;
+      if (custom?.detail?.playerId) {
+        handlePlayerSelect(custom.detail.playerId);
+      }
+    };
+    window.addEventListener('player:select', handler as EventListener);
+    return () => window.removeEventListener('player:select', handler as EventListener);
+  }, [players]);
   
   const handleClosePlayerModal = () => {
       setViewingPlayer(null);

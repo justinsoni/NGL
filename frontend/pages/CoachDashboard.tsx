@@ -3,7 +3,7 @@ import { Player, Club } from '../types';
 import { useAuth } from '../contexts/AuthContext';
 import toast from 'react-hot-toast';
 
-type CoachSection = 'Player Performance' | 'Training Materials' | 'AI Tools' | 'Account Settings';
+type CoachSection = 'Players' | 'Player Performance' | 'Training Materials' | 'AI Tools' | 'Account Settings';
 
 interface CoachDashboardProps {
     club: Club;
@@ -73,7 +73,7 @@ const CoachDashboard: React.FC<CoachDashboardProps> = ({ club, players }) => {
     };
 
     const renderSection = () => {
-        if (clubPlayers.length === 0 && activeSection !== 'Training Materials') {
+        if (clubPlayers.length === 0 && (activeSection === 'Player Performance' || activeSection === 'Players')) {
             return (
                 <div className="text-center py-10">
                     <h2 className="text-2xl font-bold mb-4 text-theme-dark">No Players Found</h2>
@@ -83,6 +83,58 @@ const CoachDashboard: React.FC<CoachDashboardProps> = ({ club, players }) => {
         }
         
         switch(activeSection) {
+            case 'Players':
+                return (
+                    <div>
+                        <h2 className="text-2xl font-bold mb-4 text-theme-dark">Players</h2>
+                        <p className="mb-4 text-theme-text-secondary">All registered players for {club.name}.</p>
+                        <div className="overflow-x-auto">
+                            <table className="min-w-full bg-theme-page-bg">
+                                <thead className="bg-theme-secondary-bg">
+                                    <tr>
+                                        <th className="py-2 px-4 text-left text-theme-dark">Player</th>
+                                        <th className="py-2 px-4 text-left text-theme-dark">Position</th>
+                                        <th className="py-2 px-4 text-left text-theme-dark">Email</th>
+                                        <th className="py-2 px-4 text-left text-theme-dark">Phone</th>
+                                        <th className="py-2 px-4 text-left text-theme-dark">Nationality</th>
+                                        <th className="py-2 px-4 text-center text-theme-dark">Stats</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {clubPlayers.map(p => (
+                                        <tr
+                                            key={p.id}
+                                            className="border-b border-theme-border hover:bg-theme-secondary-bg cursor-pointer"
+                                            onClick={() => {
+                                                // Surface player profile via global modal in App
+                                                const event = new CustomEvent('player:select', { detail: { playerId: p.id } });
+                                                window.dispatchEvent(event);
+                                            }}
+                                        >
+                                            <td className="py-3 px-4 flex items-center gap-3">
+                                                <img src={p.imageUrl} alt={p.name} className="h-10 w-10 rounded-full object-cover" />
+                                                <div>
+                                                    <div className="text-theme-dark font-medium">{p.name}</div>
+                                                    <div className="text-xs text-theme-text-secondary">ID: {p.id}</div>
+                                                </div>
+                                            </td>
+                                            <td className="py-3 px-4 text-theme-text-secondary">{p.position}</td>
+                                            <td className="py-3 px-4 text-theme-text-secondary">{p.email}</td>
+                                            <td className="py-3 px-4 text-theme-text-secondary">{p.phone}</td>
+                                            <td className="py-3 px-4 flex items-center gap-2 text-theme-text-secondary">
+                                                {p.flag && (<img src={p.flag} alt={p.nationality} className="h-4 w-6 object-cover rounded-sm" />)}
+                                                <span>{p.nationality}</span>
+                                            </td>
+                                            <td className="py-3 px-4 text-center text-theme-text-secondary">
+                                                {p.stats.matches} M • {p.stats.goals} G • {p.stats.assists} A
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                );
             case 'Player Performance':
                 return (
                     <div>
@@ -278,7 +330,7 @@ const CoachDashboard: React.FC<CoachDashboardProps> = ({ club, players }) => {
         }
     };
 
-    const sections: CoachSection[] = ['Player Performance', 'Training Materials', 'AI Tools', 'Account Settings'];
+    const sections: CoachSection[] = ['Players', 'Player Performance', 'Training Materials', 'AI Tools', 'Account Settings'];
 
     return (
         <div className="flex min-h-screen bg-theme-light">

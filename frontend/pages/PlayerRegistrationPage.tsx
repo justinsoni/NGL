@@ -18,6 +18,7 @@ const PlayerRegistrationPage: React.FC<PlayerRegistrationPageProps> = ({ onSubmi
         email: '',
         phone: '',
         dob: '',
+        age: 15 as number,
         position: 'Forward' as Position,
         nationality: '',
         previousClub: '',
@@ -29,6 +30,7 @@ const PlayerRegistrationPage: React.FC<PlayerRegistrationPageProps> = ({ onSubmi
     });
     const [error, setError] = useState('');
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const [ageWarning, setAgeWarning] = useState('');
     const [uploadedFiles, setUploadedFiles] = useState<{
         profilePhoto: File | null;
         identityCard: File | null;
@@ -96,6 +98,20 @@ const PlayerRegistrationPage: React.FC<PlayerRegistrationPageProps> = ({ onSubmi
             ...prev,
             [name]: value
         }));
+
+        // Real-time age validation
+        if (name === 'age') {
+            const numericAge = Number(value);
+            if (value && !Number.isFinite(numericAge)) {
+                setAgeWarning('Please enter a valid age.');
+            } else if (value && numericAge < 15) {
+                setAgeWarning('Registration is only available for players aged 15 and above.');
+            } else if (value && numericAge > 45) {
+                setAgeWarning('Registration is only available for players aged 45 and below.');
+            } else {
+                setAgeWarning('');
+            }
+        }
     };
 
     const handleLeagueChange = (league: string, checked: boolean) => {
@@ -226,10 +242,11 @@ const PlayerRegistrationPage: React.FC<PlayerRegistrationPageProps> = ({ onSubmi
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         setError('');
+        setAgeWarning('');
         setIsSubmitting(true);
 
         // Validation
-        if (!formData.name || !formData.email || !formData.phone || !formData.dob) {
+        if (!formData.name || !formData.email || !formData.phone || !formData.dob || formData.age === undefined || formData.age === null) {
             setError('Please fill in all required fields.');
             setIsSubmitting(false);
             return;
@@ -278,6 +295,24 @@ const PlayerRegistrationPage: React.FC<PlayerRegistrationPageProps> = ({ onSubmi
             return;
         }
 
+        // Age validation: must be between 15 and 45
+        const numericAge = Number(formData.age);
+        if (!Number.isFinite(numericAge)) {
+            setError('Please enter a valid age.');
+            setIsSubmitting(false);
+            return;
+        }
+        if (numericAge < 15) {
+            setError('Registration is only available for players aged 15 and above. Please verify your age and try again.');
+            setIsSubmitting(false);
+            return;
+        }
+        if (numericAge > 45) {
+            setError('Registration is only available for players aged 45 and below. Please verify your age and try again.');
+            setIsSubmitting(false);
+            return;
+        }
+
         // Position validation
         if (!POSITIONS.includes(formData.position)) {
             setError('Please select a valid position.');
@@ -322,6 +357,7 @@ const PlayerRegistrationPage: React.FC<PlayerRegistrationPageProps> = ({ onSubmi
                 phone: phoneDigits,
                 imageUrl,
                 identityCardUrl,
+                age: numericAge,
                 clubName: selectedClub?.name || undefined,
                 reviewedAt: undefined,
                 reviewedBy: undefined,
@@ -397,6 +433,34 @@ const PlayerRegistrationPage: React.FC<PlayerRegistrationPageProps> = ({ onSubmi
                                             className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
                                             placeholder="Enter your full name"
                                         />
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm font-semibold text-gray-700 mb-2">
+                                            Age *
+                                        </label>
+                                        <input
+                                            type="number"
+                                            name="age"
+                                            value={formData.age}
+                                            onChange={handleInputChange}
+                                            min={15}
+                                            max={45}
+                                            required
+                                            className={`w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:border-transparent transition-all duration-200 ${
+                                                ageWarning 
+                                                    ? 'border-red-300 focus:ring-red-500 bg-red-50' 
+                                                    : 'border-gray-300 focus:ring-blue-500'
+                                            }`}
+                                            placeholder="15"
+                                        />
+                                        {ageWarning && (
+                                            <div className="mt-2 flex items-center text-sm text-red-600">
+                                                <svg className="w-4 h-4 mr-2 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                                                    <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                                                </svg>
+                                                {ageWarning}
+                                            </div>
+                                        )}
                                     </div>
                                     <div>
                                         <label className="block text-sm font-semibold text-gray-700 mb-2">
