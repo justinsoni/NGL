@@ -147,7 +147,6 @@ const clubSchema = new mongoose.Schema({
 clubSchema.index({ name: 1 });
 clubSchema.index({ city: 1 });
 clubSchema.index({ country: 1 });
-clubSchema.index({ group: 1 });
 clubSchema.index({ isActive: 1 });
 clubSchema.index({ createdAt: -1 });
 

@@ -100,9 +100,11 @@ const getPendingPlayers = async (req, res) => {
     }
     
     const players = await Player.find(filter).populate('clubId', 'name city');
+    // Filter out orphaned players where the club no longer exists
+    const filtered = players.filter(p => !!p.clubId);
     res.json({
       success: true,
-      data: players
+      data: filtered
     });
   } catch (error) {
     console.error('Error fetching pending players:', error);
@@ -187,10 +189,11 @@ const getApprovedPlayers = async (req, res) => {
       }
     }
     const players = await Player.find(filter).populate('clubId', 'name city');
-    console.log('Approved players fetched:', players);
+    const filtered = players.filter(p => !!p.clubId);
+    console.log('Approved players fetched:', filtered);
     res.json({
       success: true,
-      data: players
+      data: filtered
     });
   } catch (error) {
     console.error('Error fetching approved players:', error);

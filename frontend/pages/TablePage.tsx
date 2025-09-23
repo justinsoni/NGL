@@ -1,19 +1,50 @@
 
 
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { TableEntry, GroupName } from '../types';
 import PageBanner from '../components/PageBanner';
 import { Link } from 'react-router-dom';
+import { clubService } from '../services/clubService';
 
 interface TablePageProps {
   tableData: Record<GroupName, TableEntry[]>;
 }
 
 const TablePage: React.FC<TablePageProps> = ({ tableData }) => {
+  const [activeClubIds, setActiveClubIds] = useState<Set<string | number>>(new Set());
+  const [activeClubNames, setActiveClubNames] = useState<Set<string>>(new Set());
+
+  useEffect(() => {
+    const fetchActiveClubs = async () => {
+      try {
+        const res = await clubService.getClubs({ limit: 500 });
+        const ids = new Set<string | number>();
+        const names = new Set<string>();
+        (res.data || []).forEach((c: any) => {
+          const id = (c as any).id ?? (c as any)._id;
+          if (id !== undefined && id !== null) ids.add(id);
+          if (c.name) names.add(c.name);
+        });
+        setActiveClubIds(ids);
+        setActiveClubNames(names);
+      } catch (e) {
+        // On failure, leave sets empty to avoid hiding anything accidentally
+        setActiveClubIds(new Set());
+        setActiveClubNames(new Set());
+      }
+    };
+    fetchActiveClubs();
+  }, []);
   // Flatten all group arrays into one
   const allTeams = Object.values(tableData).flat();
   // Sort by points, then goal difference, then goals for
-  const sortedTeams = [...allTeams].sort((a, b) => {
+  const filteredTeams = [...allTeams].filter(team => {
+    // If we don't have active clubs loaded yet, show all to avoid blank state
+    if (activeClubIds.size === 0 && activeClubNames.size === 0) return true;
+    return activeClubIds.has(team.id) || activeClubNames.has(team.club);
+  });
+
+  const sortedTeams = filteredTeams.sort((a, b) => {
     if (b.pts !== a.pts) return b.pts - a.pts;
     if (b.gd !== a.gd) return b.gd - a.gd;
     if (b.gf !== a.gf) return b.gf - a.gf;

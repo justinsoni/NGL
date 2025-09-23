@@ -24,11 +24,14 @@ const createRateLimit = (windowMs, max, message) => {
 };
 
 // General API rate limiting
-const generalLimiter = createRateLimit(
-  parseInt(process.env.RATE_LIMIT_WINDOW_MS) || 15 * 60 * 1000, // 15 minutes
-  parseInt(process.env.RATE_LIMIT_MAX_REQUESTS) || 100, // 100 requests per window
-  'Too many requests from this IP, please try again later.'
-);
+// In development, disable the limiter to avoid 429 during local testing
+const generalLimiter = process.env.NODE_ENV === 'development'
+  ? (req, res, next) => next()
+  : createRateLimit(
+      parseInt(process.env.RATE_LIMIT_WINDOW_MS) || 15 * 60 * 1000, // 15 minutes
+      parseInt(process.env.RATE_LIMIT_MAX_REQUESTS) || 100, // 100 requests per window
+      'Too many requests from this IP, please try again later.'
+    );
 
 // Strict rate limiting for authentication endpoints
 const authLimiter = createRateLimit(

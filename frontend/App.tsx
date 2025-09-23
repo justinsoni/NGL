@@ -210,6 +210,30 @@ const App = () => {
     }
   }, [isLoggedIn, userRole, managedClub]);
 
+  // Remove players whose club no longer exists in current clubs list
+  useEffect(() => {
+    if (!clubsData || clubsData.length === 0) return;
+    const existingClubNames = new Set(clubsData.map(c => c.name));
+    setPlayers(prev => prev.filter(p => existingClubNames.has(p.club)));
+  }, [clubsData]);
+
+  // Load live clubs from backend on mount to ensure we reflect deletions globally
+  useEffect(() => {
+    const loadClubs = async () => {
+      try {
+        const res = await clubService.getClubs({ limit: 200 });
+        const normalized = (res.data || []).map((clb: any) => ({
+          ...clb,
+          id: clb._id || clb.id
+        }));
+        setClubsData(normalized);
+      } catch (e) {
+        // keep existing constants fallback if backend not reachable
+      }
+    };
+    loadClubs();
+  }, []);
+
   const handleCreateUser = (newUser: Omit<CreatedUser, 'password' | 'id'>): CreatedUser => {
     const password = EmailService.generateSecurePassword();
     const userWithPassword = {

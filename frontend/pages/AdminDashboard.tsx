@@ -6,6 +6,9 @@ import { clubService, CreateClubData } from '../services/clubService';
 import ClubRegistrationForm from '../components/ClubRegistrationForm';
 import ClubList from '../components/ClubList';
 import toast from 'react-hot-toast';
+import { listFixtures, generateFixtures, startMatch, addEvent, finishMatch, simulateMatch, scheduleMatch, resetLeague, updateTeams, FixtureDTO } from '../services/fixturesService';
+import playerService from '../services/playerService';
+import { getSocket } from '../services/socket';
 
 type AdminSection = 'Dashboard' | 'Manage Clubs' | 'Manage Players' | 'Manage Fixtures' | 'Manage News' | 'User Management' | 'Player Registrations';
 
@@ -41,6 +44,21 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
     const { user } = useAuth();
     const [activeSection, setActiveSection] = useState<AdminSection>('User Management');
     const [matchScores, setMatchScores] = useState<Record<number, { home: string; away: string }>>({});
+    const [fixtures, setFixtures] = useState<FixtureDTO[]>([]);
+    const [eventInput, setEventInput] = useState<{ minute: string; type: 'goal'|'yellow_card'|'red_card'|'foul'; team: 'home'|'away'; player: string; targetId?: string }>({ minute: '', type: 'goal', team: 'home', player: '' });
+    const [approvedPlayersByClub, setApprovedPlayersByClub] = useState<Record<string, { _id: string; name: string }[]>>({});
+
+    const loadApprovedPlayers = async (clubId?: string) => {
+        if (!clubId) return;
+        if (approvedPlayersByClub[clubId]) return; // cached
+        try {
+            const res = await playerService.getApprovedPlayers(clubId);
+            const players = (res.data || []).map((p: any) => ({ _id: String(p._id || p.id || p.email), name: p.name || p.fullName || p.email }));
+            setApprovedPlayersByClub(prev => ({ ...prev, [clubId]: players }));
+        } catch (e) {
+            // ignore silently in admin UI; fallback to manual entry
+        }
+    };
 
     // Club management state
     const [showClubForm, setShowClubForm] = useState(false);
@@ -215,6 +233,22 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
             }
         };
         fetchClubs();
+        // Load fixtures initially and subscribe to socket updates
+        listFixtures().then(setFixtures).catch(()=>{});
+        const s = getSocket();
+        const refresh = async () => { try { const list = await listFixtures(); setFixtures(list); } catch {} };
+        s.on('match:event', refresh);
+        s.on('match:finished', refresh);
+        s.on('match:started', refresh);
+        s.on('final:created', refresh);
+        s.on('final:finished', refresh);
+        return () => {
+            s.off('match:event', refresh);
+            s.off('match:finished', refresh);
+            s.off('match:started', refresh);
+            s.off('final:created', refresh);
+            s.off('final:finished', refresh);
+        };
     }, []);
 
     const handleCreateClub = async (clubData: CreateClubData) => {
@@ -265,46 +299,189 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
             case 'Manage Fixtures':
                 return (
                     <div>
-                        <h2 className="text-3xl font-bold mb-6 text-theme-dark">Manage & Finalize Fixtures</h2>
-                        <div className="space-y-3">
-                            {matches.map(match => (
-                                <div key={match.id} className="bg-theme-secondary-bg p-3 rounded-lg flex items-center justify-between flex-wrap gap-4">
-                                    <div className="flex items-center gap-4 flex-grow text-theme-dark">
-                                        <span className={`font-bold px-2 py-1 rounded text-xs text-theme-dark ${match.stage === 'Final' ? 'bg-yellow-500' : match.stage === 'Semi-Final' ? 'bg-blue-500' : 'bg-gray-500'}`}>{match.stage}</span>
-                                        <span className="w-32 text-right font-bold">{match.homeTeam}</span>
-                                        <img src={match.homeLogo} alt={match.homeTeam} className="h-8 w-8" />
-                                        <div className="flex items-center gap-2">
-                                            {match.status === 'live' ? (
-                                                <>
-                                                    <input type="number" key={`${match.id}-home`} placeholder={String(match.homeScore)} min="0" className="w-14 bg-theme-page-bg text-center font-bold text-lg rounded border border-theme-border focus:ring-2 focus:ring-theme-primary focus:outline-none" onChange={e => handleScoreChange(match.id, 'home', e.target.value)} />
-                                                    <span>-</span>
-                                                    <input type="number" key={`${match.id}-away`} placeholder={String(match.awayScore)} min="0" className="w-14 bg-theme-page-bg text-center font-bold text-lg rounded border border-theme-border focus:ring-2 focus:ring-theme-primary focus:outline-none" onChange={e => handleScoreChange(match.id, 'away', e.target.value)} />
-                                                </>
-                                            ) : (
-                                                <span className="text-2xl font-bold w-28 text-center">{match.homeScore} - {match.awayScore}</span>
-                                            )}
+                        <h2 className="text-3xl font-bold mb-6 text-theme-dark">Manage Fixtures</h2>
+                        {user?.role !== 'admin' && (
+                            <div className="p-3 bg-red-50 border border-red-200 rounded text-red-700 text-sm mb-4">Admin access required.</div>
+                        )}
+                        <div className="flex items-center gap-2 mb-4">
+                            <button onClick={async () => { try { await generateFixtures(); toast.success('Fixtures generated'); const list = await listFixtures(); setFixtures(list); } catch { toast.error('Failed to generate'); } }} className="bg-theme-primary text-theme-dark font-bold py-2 px-4 rounded-md">Generate Fixtures</button>
+                            <button onClick={async () => { try { const list = await listFixtures(); setFixtures(list); toast.success('Refreshed'); } catch { toast.error('Refresh failed'); } }} className="bg-theme-secondary-bg text-theme-dark font-bold py-2 px-4 rounded-md">Refresh</button>
+                            <button onClick={async () => { if (!confirm('Reset league? This clears fixtures and table.')) return; try { await resetLeague(); toast.success('League reset'); const list = await listFixtures(); setFixtures(list); } catch { toast.error('Reset failed'); } }} className="bg-red-50 text-red-700 font-bold py-2 px-4 rounded-md border border-red-200">Reset League</button>
+                        </div>
+                        <div className="grid gap-4">
+                            {fixtures.map(f => {
+                                const home = typeof f.homeTeam === 'string' ? undefined : f.homeTeam;
+                                const away = typeof f.awayTeam === 'string' ? undefined : f.awayTeam;
+                                return (
+                                    <div key={f._id} className="bg-theme-secondary-bg p-4 rounded-lg shadow-sm">
+                                        <div className="grid grid-cols-12 items-center gap-3">
+                                            <div className="col-span-5 flex items-center gap-3 min-w-0">
+                                                <span className={`px-2 py-1 rounded text-xs whitespace-nowrap ${f.isFinal ? 'bg-yellow-500 text-white' : 'bg-gray-300'}`}>{f.isFinal ? 'FINAL' : 'LEAGUE'}</span>
+                                                <div className="flex items-center gap-2 min-w-0">
+                                                    {home?.logo && <img src={home.logo} className="h-6 w-6"/>}
+                                                    <span className="font-semibold truncate max-w-[140px]">{home?.name || 'Home'}</span>
+                                                </div>
+                                                <span className="text-lg font-extrabold">{f.score.home} - {f.score.away}</span>
+                                                <div className="flex items-center gap-2 min-w-0">
+                                                    {away?.logo && <img src={away.logo} className="h-6 w-6"/>}
+                                                    <span className="font-semibold truncate max-w-[140px]">{away?.name || 'Away'}</span>
+                                                </div>
+                                            </div>
+                                            <div className="col-span-2 text-center">
+                                                {(() => {
+                                                    const homeId = (typeof f.homeTeam==='string'?f.homeTeam:f.homeTeam?._id);
+                                                    const awayId = (typeof f.awayTeam==='string'?f.awayTeam:f.awayTeam?._id);
+                                                    const isReady = !!(homeId && awayId && f.kickoffAt && f.venueName && f.venueName.trim().length>0);
+                                                    const label = f.status==='live' ? 'LIVE' : (f.status==='finished' ? 'FINISHED' : (isReady ? 'SCHEDULED' : 'DRAFT'));
+                                                    const cls = f.status==='live' ? 'bg-red-500 text-white' : (f.status==='finished' ? 'bg-gray-800 text-white' : (isReady ? 'bg-gray-200' : 'bg-yellow-100 text-yellow-800'));
+                                                    return <span className={`px-2 py-1 rounded text-xs ${cls}`}>{label}</span>;
+                                                })()}
+                                            </div>
+                                            <div className="col-span-5 flex justify-end items-center gap-2">
+                                                {f.status==='scheduled' && (
+                                                    <>
+                                                        <button onClick={async()=>{ 
+                                                            try { 
+                                                                if (!((typeof f.homeTeam==='string'?f.homeTeam:f.homeTeam?._id) && (typeof f.awayTeam==='string'?f.awayTeam:f.awayTeam?._id) && f.kickoffAt && (f.venueName && f.venueName.trim().length>0))) {
+                                                                    toast.error('Please set teams, kickoff, and venue before starting');
+                                                                    return;
+                                                                }
+                                                                await startMatch(f._id); 
+                                                                toast.success('Match started'); 
+                                                                const list=await listFixtures(); setFixtures(list);
+                                                            } catch (e:any) { toast.error('Start failed'); } 
+                                                        }} className="h-9 px-3 rounded bg-green-600 text-white">Start</button>
+                                                        <button onClick={async()=>{ try { await simulateMatch(f._id); toast.success('Simulated'); const list=await listFixtures(); setFixtures(list);} catch { toast.error('Sim failed'); } }} className="h-9 px-3 rounded bg-blue-600 text-white">Simulate</button>
+                                                    </>
+                                                )}
+                                                {f.status==='live' && (
+                                                    <button onClick={async()=>{ try { await finishMatch(f._id); toast.success('Finished'); const list=await listFixtures(); setFixtures(list);} catch { toast.error('Finish failed'); } }} className="h-9 px-3 rounded bg-red-600 text-white">Finish</button>
+                                                )}
+                                            </div>
                                         </div>
-                                        <img src={match.awayLogo} alt={match.awayTeam} className="h-8 w-8" />
-                                        <span className="w-32 text-left font-bold">{match.awayTeam}</span>
+                                        {f.status==='scheduled' && (
+                                            <div className="mt-3 grid grid-cols-12 items-center gap-3">
+                                                <div className="col-span-6 flex items-center gap-2">
+                                                    <label className="text-xs text-theme-text-secondary">Kickoff</label>
+                                                    <input type="datetime-local" onChange={async e=>{
+                                                        const kickoffAt = e.target.value ? new Date(e.target.value).toISOString() : '';
+                                                        if (!kickoffAt) return;
+                                                        try { await scheduleMatch(f._id, { kickoffAt }); } catch { toast.error('Schedule failed'); }
+                                                    }} className="bg-theme-page-bg border border-theme-border rounded px-2 py-1"/>
+                                                    <label className="text-xs text-theme-text-secondary ml-3">Venue</label>
+                                                    <input type="text" placeholder="Stadium name" onBlur={async e=>{
+                                                        const venueName = e.target.value.trim();
+                                                        try { await scheduleMatch(f._id, { venueName }); } catch { toast.error('Venue save failed'); }
+                                                    }} className="bg-theme-page-bg border border-theme-border rounded px-2 py-1 min-w-[200px]"/>
+                                                    <button onClick={async()=>{ try { await scheduleMatch(f._id, {} as any); toast.success('Scheduled'); const list=await listFixtures(); setFixtures(list);} catch { toast.error('Schedule failed'); } }} className="h-9 px-3 rounded bg-theme-primary text-theme-dark font-bold">Schedule</button>
+                                                </div>
+                                                <div className="col-span-6 flex items-center gap-2 justify-end">
+                                                    <label className="text-xs text-theme-text-secondary">Set Teams</label>
+                                                    {(() => {
+                                                        const homeId = (typeof f.homeTeam==='string'?f.homeTeam:f.homeTeam?._id)||'';
+                                                        const awayId = (typeof f.awayTeam==='string'?f.awayTeam:f.awayTeam?._id)||'';
+                                                        // Determine the two clubs for this pairing from the fixture itself
+                                                        const pairIds = Array.from(new Set([homeId, awayId].filter(Boolean)));
+                                                        let pairClubs: { id: string; name: string }[] = [];
+                                                        if (pairIds.length === 2) {
+                                                            pairClubs = pairIds.map(id => {
+                                                                const found = clubs.find(c => String(c.id) === String(id));
+                                                                if (found) return { id: String(found.id), name: found.name };
+                                                                // Fallback to populated names from fixture
+                                                                if (String(id) === String(homeId) && typeof f.homeTeam !== 'string' && f.homeTeam) return { id: String(homeId), name: f.homeTeam.name } as any;
+                                                                if (String(id) === String(awayId) && typeof f.awayTeam !== 'string' && f.awayTeam) return { id: String(awayId), name: f.awayTeam.name } as any;
+                                                                return { id: String(id), name: 'Club' };
+                                                            });
+                                                        }
+                                                        // If we don't have two, don't allow changing yet (generator should provide both)
+                                                        const options = pairClubs.length === 2 ? pairClubs : [];
+                                                        return (
+                                                            <>
+                                                                <select disabled={options.length!==2} value={homeId} onChange={async e=>{ const newHome=e.target.value; if (!newHome || !awayId) return; if (newHome===awayId) { toast.error('Teams must be different'); return; } try { await scheduleMatch(f._id,{homeTeamId:newHome,awayTeamId:awayId}); toast.success('Home set'); const list=await listFixtures(); setFixtures(list);} catch{ toast.error('Update failed'); } }} className={`bg-theme-page-bg border border-theme-border rounded px-2 py-1 ${options.length!==2?'opacity-50 cursor-not-allowed':''}`}>
+                                                                    <option value="">Home Team</option>
+                                                                    {options.map(c=> (<option key={c.id} value={c.id}>{c.name}</option>))}
+                                                                </select>
+                                                                <select disabled={options.length!==2} value={awayId} onChange={async e=>{ const newAway=e.target.value; if (!newAway || !homeId) return; if (newAway===homeId) { toast.error('Teams must be different'); return; } try { await scheduleMatch(f._id,{homeTeamId:homeId,awayTeamId:newAway}); toast.success('Away set'); const list=await listFixtures(); setFixtures(list);} catch{ toast.error('Update failed'); } }} className={`bg-theme-page-bg border border-theme-border rounded px-2 py-1 ${options.length!==2?'opacity-50 cursor-not-allowed':''}`}>
+                                                                    <option value="">Away Team</option>
+                                                                    {options.map(c=> (<option key={c.id} value={c.id}>{c.name}</option>))}
+                                                                </select>
+                                                                <button disabled={options.length!==2} onClick={async()=>{ if (!homeId || !awayId || homeId===awayId) return; try { await scheduleMatch(f._id,{homeTeamId:awayId,awayTeamId:homeId}); toast.success('Swapped'); const list=await listFixtures(); setFixtures(list);} catch { toast.error('Swap failed'); } }} className={`h-9 px-3 rounded bg-theme-secondary-bg ${options.length!==2?'opacity-50 cursor-not-allowed':''}`}>Swap</button>
+                                                            </>
+                                                        );
+                                                    })()}
+                                                </div>
                                     </div>
-                                    <div className="flex items-center gap-2">
-                                        {match.status === 'upcoming' && (
-                                            <button onClick={() => onMatchUpdate(match.id, 0, 0)} className="bg-green-500 text-white font-bold py-2 px-4 rounded-md hover:bg-green-600 transition-colors">Start Match</button>
                                         )}
-                                        {match.status === 'live' && (
-                                            <>
-                                                <button onClick={() => handleUpdateScoreClick(match)} className="bg-blue-500 text-white font-bold py-2 px-4 rounded-md hover:bg-blue-600 transition-colors">Update Score</button>
-                                                <button onClick={() => handleFinalizeMatchClick(match)} className="bg-red-500 text-white font-bold py-2 px-4 rounded-md hover:bg-red-600 transition-colors">Finalize</button>
-                                            </>
-                                        )}
-                                        {match.status === 'finished' && (
-                                            <span className={`font-bold px-3 py-1 rounded-full text-xs text-white bg-gray-500`}>
-                                                FINISHED
-                                            </span>
+                                        {f.status==='live' && (
+                                            <div className="mt-3 flex items-end gap-2 flex-wrap">
+                                                <div className="flex items-end gap-2">
+                                                    <label className="text-xs text-theme-text-secondary">Minute</label>
+                                                    <input type="number" min={0} max={120} value={eventInput.targetId===f._id?eventInput.minute:''} onChange={e=>setEventInput(prev=>({...prev, targetId:f._id, minute:e.target.value}))} placeholder="e.g. 34" className="w-24 bg-theme-page-bg border border-theme-border rounded px-2 py-1"/>
+                                                </div>
+                                                <div className="flex items-end gap-2">
+                                                    <label className="text-xs text-theme-text-secondary">Type</label>
+                                                    <select value={eventInput.targetId===f._id?eventInput.type:'goal'} onChange={e=>setEventInput(prev=>({...prev, targetId:f._id, type:e.target.value as any}))} className="bg-theme-page-bg border border-theme-border rounded px-2 py-1">
+                                                        <option value="goal">Goal</option>
+                                                        <option value="yellow_card">Yellow Card</option>
+                                                        <option value="red_card">Red Card</option>
+                                                        <option value="foul">Foul</option>
+                                                    </select>
+                                                </div>
+                                                <div className="flex items-end gap-2">
+                                                    <label className="text-xs text-theme-text-secondary">Team</label>
+                                                    <select
+                                                        value={eventInput.targetId===f._id?eventInput.team:'home'}
+                                                        onChange={async e=>{
+                                                            const team = e.target.value as 'home'|'away';
+                                                            const clubId = team === 'home'
+                                                                ? (typeof f.homeTeam==='string'? f.homeTeam : f.homeTeam?._id)
+                                                                : (typeof f.awayTeam==='string'? f.awayTeam : f.awayTeam?._id);
+                                                            setEventInput(prev=>({ ...prev, targetId: f._id, team, player: '' }));
+                                                            await loadApprovedPlayers(clubId);
+                                                        }}
+                                                        className="bg-theme-page-bg border border-theme-border rounded px-2 py-1"
+                                                    >
+                                                        <option value="home">Home</option>
+                                                        <option value="away">Away</option>
+                                                    </select>
+                                                </div>
+                                                <div className="flex items-end gap-2">
+                                                    <label className="text-xs text-theme-text-secondary">Player</label>
+                                                    {(() => {
+                                                        const team = (eventInput.targetId===f._id?eventInput.team:'home') as 'home'|'away';
+                                                        const clubId = team === 'home'
+                                                            ? (typeof f.homeTeam==='string'? f.homeTeam : f.homeTeam?._id)
+                                                            : (typeof f.awayTeam==='string'? f.awayTeam : f.awayTeam?._id);
+                                                        const options = (clubId && approvedPlayersByClub[clubId]) || [];
+                                                        return (
+                                                            <select
+                                                                value={eventInput.targetId===f._id?eventInput.player:''}
+                                                                onFocus={async ()=>{ await loadApprovedPlayers(clubId); }}
+                                                                onChange={e=>setEventInput(prev=>({...prev, targetId:f._id, player: e.target.value }))}
+                                                                className="bg-theme-page-bg border border-theme-border rounded px-2 py-1 min-w-[200px]"
+                                                            >
+                                                                <option value="">Select Player</option>
+                                                                {options.map(p => (
+                                                                    <option key={p._id} value={p.name}>{p.name}</option>
+                                                                ))}
+                                                            </select>
+                                                        );
+                                                    })()}
+                                                </div>
+                                                <button onClick={async()=>{
+                                                    if (eventInput.targetId!==f._id) return;
+                                                    const minuteNum = parseInt(eventInput.minute, 10);
+                                                    if (isNaN(minuteNum)) { toast.error('Minute required'); return; }
+                                                    try { await addEvent(f._id, { minute: minuteNum, type: eventInput.type, team: eventInput.team, player: eventInput.player }); toast.success('Event added'); setEventInput({ minute:'', type:'goal', team:'home', player:'', targetId:undefined }); } catch { toast.error('Event failed'); }
+                                                }} className="bg-theme-primary text-theme-dark font-bold px-3 py-1 rounded">Add Event</button>
+                                            </div>
                                         )}
                                     </div>
-                                </div>
-                            ))}
+                                );
+                            })}
+                            {fixtures.length===0 && (
+                                <div className="text-sm text-theme-text-secondary">No fixtures yet. Click Generate Fixtures.</div>
+                            )}
                         </div>
                     </div>
                 );

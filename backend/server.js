@@ -20,6 +20,8 @@ const {
 const authRoutes = require('./routes/auth');
 const clubRoutes = require('./routes/clubs');
 const playerRoutes = require('./routes/player');
+const fixtureRoutes = require('./routes/fixtures');
+const tableRoutes = require('./routes/table');
 
 // Initialize Express app
 const app = express();
@@ -61,6 +63,8 @@ app.get('/health', (req, res) => {
 app.use('/api/auth', authRoutes);
 app.use('/api/clubs', clubRoutes);
 app.use('/api/players', playerRoutes);
+app.use('/api/fixtures', fixtureRoutes);
+app.use('/api/table', tableRoutes);
 
 // 404 handler for undefined routes
 app.use('*', (req, res) => {
@@ -87,6 +91,14 @@ app.use('*', (req, res) => {
       'POST /api/players/:registrationId/approve',
       'POST /api/players/:registrationId/reject',
       'GET /api/players/approved',
+      'POST /api/fixtures/generate',
+      'GET /api/fixtures',
+      'PUT /api/fixtures/:id/start',
+      'PUT /api/fixtures/:id/event',
+      'POST /api/fixtures/:id/simulate',
+      'PUT /api/fixtures/:id/finish',
+      'PUT /api/fixtures/final/:id/finish-and-declare',
+      'GET /api/table',
     ]
   });
 });
@@ -155,7 +167,27 @@ app.use((err, req, res, next) => {
 // Start server
 const PORT = process.env.PORT || 5000;
 
-const server = app.listen(PORT, () => {
+const http = require('http');
+const { Server } = require('socket.io');
+const server = http.createServer(app);
+const io = new Server(server, {
+  cors: {
+    origin: '*',
+    methods: ['GET','POST','PUT','DELETE']
+  }
+});
+
+app.set('io', io);
+
+// Start scheduler for auto-start/auto-simulate
+try {
+  const { startScheduler } = require('./utils/scheduler');
+  startScheduler(io);
+} catch (e) {
+  console.error('Failed to start scheduler', e);
+}
+
+server.listen(PORT, () => {
   console.log(`
 🚀 Football League Hub API Server Started
 📍 Environment: ${process.env.NODE_ENV || 'development'}

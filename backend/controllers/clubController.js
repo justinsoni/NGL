@@ -1,4 +1,5 @@
 const Club = require('../models/Club');
+const Player = require('../models/Player');
 const User = require('../models/User');
 const { validationResult } = require('express-validator');
 
@@ -210,9 +211,17 @@ const deleteClub = async (req, res) => {
     // Hard delete - permanently remove from database
     await Club.findByIdAndDelete(req.params.id);
 
+    // Cascade delete: remove players associated with this club
+    try {
+      await Player.deleteMany({ clubId: club._id });
+    } catch (cascadeError) {
+      console.error('Failed to cascade delete players for club:', club._id.toString(), cascadeError);
+      // Continue; the main deletion succeeded, but log the issue
+    }
+
     res.status(200).json({
       success: true,
-      message: 'Club permanently deleted from database'
+      message: 'Club permanently deleted from database and associated players removed'
     });
   } catch (error) {
     console.error('Delete club error:', error);
