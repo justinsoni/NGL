@@ -1,5 +1,3 @@
-
-
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Club, Player, ClubVideo, Position, CreatedUser, PlayerRegistration, UserRole } from '../types';
@@ -22,7 +20,7 @@ interface ClubManagerDashboardProps {
     playerRegistrations: PlayerRegistration[];
 }
 
-type ManagerSection = 'Dashboard' | 'Manage Players' | 'Manage Coaches' | 'Manage Videos' | 'Profile';
+type ManagerSection = 'Dashboard' | 'Manage Players' | 'Manage Coaches' | 'Manage Transfers' | 'Manage Best Goals' | 'Profile';
 
 const ClubManagerDashboard: React.FC<ClubManagerDashboardProps> = ({
     club,
@@ -79,6 +77,20 @@ const ClubManagerDashboard: React.FC<ClubManagerDashboardProps> = ({
     const [coachPhotoPreview, setCoachPhotoPreview] = useState<string>('');
     const [pendingPlayers, setPendingPlayers] = useState<Player[]>([]);
     const [approvedPlayers, setApprovedPlayers] = useState<Player[]>([]);
+
+    // Transfer news state (manager-managed)
+    type TransferItem = { id: string; title: string; imageUrl: string; clubName: string; createdAt: string };
+    const [transferForm, setTransferForm] = useState<{ title: string; imageUrl: string }>({ title: '', imageUrl: '' });
+    const [transfers, setTransfers] = useState<TransferItem[]>([]);
+    const [transferImageFile, setTransferImageFile] = useState<File | null>(null);
+    const [transferImagePreview, setTransferImagePreview] = useState<string>('');
+
+    // Best goals state (manager-managed)
+    type BestGoalItem = { id: string; title: string; imageUrl: string; clubName: string; createdAt: string };
+    const [bestGoalForm, setBestGoalForm] = useState<{ title: string; imageUrl: string }>({ title: '', imageUrl: '' });
+    const [bestGoals, setBestGoals] = useState<BestGoalItem[]>([]);
+    const [bestGoalImageFile, setBestGoalImageFile] = useState<File | null>(null);
+    const [bestGoalImagePreview, setBestGoalImagePreview] = useState<string>('');
 
     // Profile management state
     const [isEditingProfile, setIsEditingProfile] = useState(false);
@@ -149,6 +161,23 @@ const ClubManagerDashboard: React.FC<ClubManagerDashboardProps> = ({
     useEffect(() => {  
         fetchApprovedPlayers();
     }, [club.id]);
+
+    // Load existing transfers for this manager's club from localStorage
+    useEffect(() => {
+        try {
+            const raw = localStorage.getItem('ngl_transfers');
+            const list: TransferItem[] = raw ? JSON.parse(raw) : [];
+            setTransfers(list.filter(t => t.clubName === club.name));
+        } catch {}
+    }, [club.name]);
+
+    useEffect(() => {
+        try {
+            const raw = localStorage.getItem('ngl_best_goals');
+            const list: BestGoalItem[] = raw ? JSON.parse(raw) : [];
+            setBestGoals(list.filter(g => g.clubName === club.name));
+        } catch {}
+    }, [club.name]);
 
     const clubPlayers = players.filter(p => p.club === club.name);
     const clubCoaches = coaches.filter(c => c.clubId === club.id && c.role === 'coach');
@@ -1224,6 +1253,259 @@ const ClubManagerDashboard: React.FC<ClubManagerDashboardProps> = ({
         </div>
     );
 
+    const uploadToCloudinary = async (file: File, uploadPreset: string): Promise<string> => {
+        const url = `https://api.cloudinary.com/v1_1/dmuilu78u/auto/upload`;
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('upload_preset', uploadPreset);
+        const res = await fetch(url, { method: 'POST', body: formData });
+        if (!res.ok) {
+            const errorText = await res.text();
+            throw new Error(`Upload failed: ${res.status} ${errorText}`);
+        }
+        const data = await res.json();
+        if (!data.secure_url) throw new Error('No secure_url returned from Cloudinary');
+        return data.secure_url as string;
+    };
+
+    const addTransfer = async () => {
+        const title = transferForm.title.trim();
+        let imageUrl = transferForm.imageUrl.trim();
+        if (!title) { alert('Please enter a transfer headline'); return; }
+        try {
+            if (transferImageFile) {
+                const allowed = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
+                if (!allowed.includes(transferImageFile.type)) { alert('Invalid image type. JPG, PNG or WEBP only.'); return; }
+                if (transferImageFile.size > 5 * 1024 * 1024) { alert('Image too large. Max 5MB.'); return; }
+                imageUrl = await uploadToCloudinary(transferImageFile, 'ml_default');
+            } else {
+                if (!/^https?:\/\//i.test(imageUrl)) { alert('Please upload an image or provide a valid image URL'); return; }
+            }
+        } catch (e: any) {
+            alert(e.message || 'Upload failed');
+            return;
+        }
+        const item: TransferItem = { id: String(Date.now()), title, imageUrl, clubName: club.name, createdAt: new Date().toISOString() };
+        try {
+            const raw = localStorage.getItem('ngl_transfers');
+            const list: TransferItem[] = raw ? JSON.parse(raw) : [];
+            const updated = [item, ...list];
+            localStorage.setItem('ngl_transfers', JSON.stringify(updated));
+            setTransfers(prev => [item, ...prev]);
+            setTransferForm({ title: '', imageUrl: '' });
+            setTransferImageFile(null);
+            setTransferImagePreview('');
+            alert('Transfer news published to homepage');
+        } catch {
+            alert('Failed to save transfer. Please try again.');
+        }
+    };
+
+    const removeTransfer = (id: string) => {
+        if (!confirm('Remove this transfer news item?')) return;
+        try {
+            const raw = localStorage.getItem('ngl_transfers');
+            const list: TransferItem[] = raw ? JSON.parse(raw) : [];
+            const updated = list.filter(t => t.id !== id);
+            localStorage.setItem('ngl_transfers', JSON.stringify(updated));
+            setTransfers(prev => prev.filter(t => t.id !== id));
+        } catch {
+            alert('Failed to remove transfer.');
+        }
+    };
+
+    const renderManageTransfers = () => (
+        <div>
+            <h2 className="text-3xl font-bold mb-8 text-theme-dark text-center">Manage Transfers</h2>
+            <div className="max-w-3xl mx-auto bg-theme-secondary-bg p-6 rounded-xl shadow-lg">
+                <h3 className="text-xl font-semibold text-theme-dark mb-4">Add Transfer News</h3>
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-3 items-end">
+                    <div className="md:col-span-3">
+                        <label className="block text-sm font-medium text-theme-text-secondary mb-1">Headline</label>
+                        <input
+                            type="text"
+                            value={transferForm.title}
+                            onChange={e=>setTransferForm(prev=>({ ...prev, title: e.target.value }))}
+                            placeholder="e.g., Club signs Striker from XYZ"
+                            className="w-full bg-theme-page-bg border border-theme-border rounded-md py-2 px-3"
+                        />
+                    </div>
+                    <div className="md:col-span-1">
+                        <label className="block text-sm font-medium text-theme-text-secondary mb-1">Image</label>
+                        <input
+                            type="file"
+                            accept="image/jpeg,image/jpg,image/png,image/webp"
+                            onChange={(e)=>{
+                                const f = e.target.files?.[0] || null;
+                                setTransferImageFile(f);
+                                if (f && f.type.startsWith('image/')) setTransferImagePreview(URL.createObjectURL(f)); else setTransferImagePreview('');
+                            }}
+                            className="w-full"
+                        />
+                        {!transferImageFile && (
+                            <input
+                                type="url"
+                                value={transferForm.imageUrl}
+                                onChange={e=>setTransferForm(prev=>({ ...prev, imageUrl: e.target.value }))}
+                                placeholder="or paste an image URL"
+                                className="mt-2 w-full bg-theme-page-bg border border-theme-border rounded-md py-2 px-3"
+                            />
+                        )}
+                        {transferImagePreview && (
+                            <img src={transferImagePreview} alt="Preview" className="mt-2 h-16 w-full object-cover rounded"/>
+                        )}
+                    </div>
+                </div>
+                <div className="mt-4 flex justify-end">
+                    <button onClick={addTransfer} className="bg-theme-primary text-theme-dark font-bold py-2 px-4 rounded-md">Publish</button>
+                </div>
+            </div>
+
+            <div className="mt-8">
+                <h3 className="text-xl font-semibold text-theme-dark mb-3">Your Club Transfers</h3>
+                {transfers.length === 0 ? (
+                    <div className="bg-theme-secondary-bg p-6 rounded-lg text-center text-theme-text-secondary">No transfers yet. Add your first one above.</div>
+                ) : (
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                        {transfers.map(t => (
+                            <div key={t.id} className="bg-theme-secondary-bg rounded-lg overflow-hidden shadow">
+                                <img src={t.imageUrl} alt={t.title} className="w-full h-40 object-cover" />
+                                <div className="p-4">
+                                    <h4 className="font-semibold text-theme-dark mb-1 line-clamp-2">{t.title}</h4>
+                                    <p className="text-xs text-theme-text-secondary">{new Date(t.createdAt).toLocaleDateString()} • {t.clubName}</p>
+                                    <div className="mt-3 flex justify-end">
+                                        <button onClick={()=>removeTransfer(t.id)} className="text-red-600 hover:text-red-800 text-sm">Remove</button>
+                                    </div>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                )}
+            </div>
+        </div>
+    );
+
+    const addBestGoal = async () => {
+        const title = bestGoalForm.title.trim();
+        let imageUrl = bestGoalForm.imageUrl.trim();
+        if (!title) { alert('Please enter a goal highlight title'); return; }
+        try {
+            if (bestGoalImageFile) {
+                const allowed = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
+                if (!allowed.includes(bestGoalImageFile.type)) { alert('Invalid image type. JPG, PNG or WEBP only.'); return; }
+                if (bestGoalImageFile.size > 5 * 1024 * 1024) { alert('Image too large. Max 5MB.'); return; }
+                imageUrl = await uploadToCloudinary(bestGoalImageFile, 'ml_default');
+            } else {
+                if (!/^https?:\/\//i.test(imageUrl)) { alert('Please upload an image or provide a valid image URL'); return; }
+            }
+        } catch (e: any) {
+            alert(e.message || 'Upload failed');
+            return;
+        }
+        const item: BestGoalItem = { id: String(Date.now()), title, imageUrl, clubName: club.name, createdAt: new Date().toISOString() };
+        try {
+            const raw = localStorage.getItem('ngl_best_goals');
+            const list: BestGoalItem[] = raw ? JSON.parse(raw) : [];
+            const updated = [item, ...list];
+            localStorage.setItem('ngl_best_goals', JSON.stringify(updated));
+            setBestGoals(prev => [item, ...prev]);
+            setBestGoalForm({ title: '', imageUrl: '' });
+            setBestGoalImageFile(null);
+            setBestGoalImagePreview('');
+            alert('Best goal added to homepage');
+        } catch {
+            alert('Failed to save goal. Please try again.');
+        }
+    };
+
+    const removeBestGoal = (id: string) => {
+        if (!confirm('Remove this best goal item?')) return;
+        try {
+            const raw = localStorage.getItem('ngl_best_goals');
+            const list: BestGoalItem[] = raw ? JSON.parse(raw) : [];
+            const updated = list.filter(g => g.id !== id);
+            localStorage.setItem('ngl_best_goals', JSON.stringify(updated));
+            setBestGoals(prev => prev.filter(g => g.id !== id));
+        } catch {
+            alert('Failed to remove goal.');
+        }
+    };
+
+    const renderManageBestGoals = () => (
+        <div>
+            <h2 className="text-3xl font-bold mb-8 text-theme-dark text-center">Manage Best Goals</h2>
+            <div className="max-w-4xl mx-auto bg-theme-secondary-bg p-6 rounded-xl shadow-lg">
+                <h3 className="text-xl font-semibold text-theme-dark mb-4">Add Best Goal</h3>
+                <div className="grid grid-cols-1 md:grid-cols-5 gap-3 items-end">
+                    <div className="md:col-span-3">
+                        <label className="block text-sm font-medium text-theme-text-secondary mb-1">Title</label>
+                        <input
+                            type="text"
+                            value={bestGoalForm.title}
+                            onChange={e=>setBestGoalForm(prev=>({ ...prev, title: e.target.value }))}
+                            placeholder="e.g., Player v Opponent"
+                            className="w-full bg-theme-page-bg border border-theme-border rounded-md py-2 px-3"
+                        />
+                    </div>
+                    <div className="md:col-span-2">
+                        <label className="block text-sm font-medium text-theme-text-secondary mb-1">Image</label>
+                        <input
+                            type="file"
+                            accept="image/jpeg,image/jpg,image/png,image/webp"
+                            onChange={(e)=>{
+                                const f = e.target.files?.[0] || null;
+                                setBestGoalImageFile(f);
+                                if (f && f.type.startsWith('image/')) setBestGoalImagePreview(URL.createObjectURL(f)); else setBestGoalImagePreview('');
+                            }}
+                            className="w-full"
+                        />
+                        {!bestGoalImageFile && (
+                            <input
+                                type="url"
+                                value={bestGoalForm.imageUrl}
+                                onChange={e=>setBestGoalForm(prev=>({ ...prev, imageUrl: e.target.value }))}
+                                placeholder="or paste an image URL"
+                                className="mt-2 w-full bg-theme-page-bg border border-theme-border rounded-md py-2 px-3"
+                            />
+                        )}
+                        {bestGoalImagePreview && (
+                            <img src={bestGoalImagePreview} alt="Preview" className="mt-2 h-16 w-full object-cover rounded"/>
+                        )}
+                    </div>
+                </div>
+                <div className="mt-4 flex items-center justify-between">
+                    <p className="text-xs text-theme-text-secondary">Tip: Use a public image link (JPG, PNG, WEBP).</p>
+                    <button onClick={addBestGoal} className="bg-theme-primary text-theme-dark font-bold py-2 px-5 rounded-md">Publish</button>
+                </div>
+            </div>
+
+            <div className="mt-8">
+                <h3 className="text-xl font-semibold text-theme-dark mb-3">Your Best Goals</h3>
+                {bestGoals.length === 0 ? (
+                    <div className="bg-theme-secondary-bg p-8 rounded-lg text-center text-theme-text-secondary">No goals yet. Add your first one above.</div>
+                ) : (
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+                        {bestGoals.map(g => (
+                            <div key={g.id} className="bg-theme-secondary-bg rounded-lg overflow-hidden shadow hover:shadow-md transition-shadow">
+                                <div className="relative h-44">
+                                    <img src={g.imageUrl} alt={g.title} className="w-full h-full object-cover" />
+                                    <span className="absolute top-2 left-2 bg-theme-accent text-white text-xs font-bold px-2 py-1 rounded">New</span>
+                                </div>
+                                <div className="p-4">
+                                    <h4 className="font-semibold text-theme-dark mb-1 line-clamp-2">{g.title}</h4>
+                                    <p className="text-xs text-theme-text-secondary">{new Date(g.createdAt).toLocaleDateString()} • {g.clubName}</p>
+                                    <div className="mt-3 flex justify-end">
+                                        <button onClick={()=>removeBestGoal(g.id)} className="text-red-600 hover:text-red-800 text-sm">Remove</button>
+                                    </div>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                )}
+            </div>
+        </div>
+    );
+
     const renderManagePlayers = () => (
         <div>
             <h2 className="text-3xl font-bold mb-8 text-theme-dark text-center">Player Management</h2>
@@ -1488,32 +1770,10 @@ const ClubManagerDashboard: React.FC<ClubManagerDashboardProps> = ({
                 return renderManagePlayers();
             case 'Manage Coaches':
                 return renderManageCoaches();
-            case 'Manage Videos':
-                return <>
-                    <h2 className="text-2xl font-bold mb-4 text-theme-dark">Manage Videos</h2>
-                     <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                        <div className="lg:col-span-1">
-                            <h3 className="text-xl font-semibold mb-3 text-theme-dark">Add New Video</h3>
-                            <form onSubmit={handleAddVideo} className="space-y-4 bg-theme-secondary-bg p-4 rounded-lg shadow-md">
-                                <InputFieldUncontrolled label="Video Title" name="title" required />
-                                <InputFieldUncontrolled label="YouTube URL" name="url" required />
-                                <InputFieldUncontrolled label="Thumbnail URL (Optional)" name="thumbnail" />
-                                <button type="submit" className="w-full bg-theme-primary text-theme-dark font-bold py-2 px-4 rounded-md hover:bg-theme-primary-dark transition-colors">Add Video</button>
-                            </form>
-                        </div>
-                        <div className="lg:col-span-2">
-                             <h3 className="text-xl font-semibold mb-3 text-theme-dark">Current Videos</h3>
-                             <div className="bg-theme-secondary-bg p-4 rounded-lg grid grid-cols-1 md:grid-cols-2 gap-4 max-h-[500px] overflow-y-auto shadow-md">
-                                {clubVideos.map(v => (
-                                    <a key={v.id} href={v.url} target="_blank" rel="noopener noreferrer" className="block bg-theme-page-bg p-2 rounded-md group">
-                                        <img src={v.thumbnail} alt={v.title} className="w-full h-32 object-cover rounded-md mb-2"/>
-                                        <p className="font-semibold text-theme-dark group-hover:text-theme-primary">{v.title}</p>
-                                    </a>
-                                ))}
-                             </div>
-                        </div>
-                    </div>
-                </>;
+            case 'Manage Transfers':
+                return renderManageTransfers();
+            case 'Manage Best Goals':
+                return renderManageBestGoals();
             case 'Profile':
                 return (
                     <div className="max-w-2xl mx-auto">
@@ -1626,7 +1886,7 @@ const ClubManagerDashboard: React.FC<ClubManagerDashboardProps> = ({
         </div>
     );
 
-    const sections: ManagerSection[] = ['Dashboard', 'Manage Players', 'Manage Coaches', 'Manage Videos', 'Profile'];
+    const sections: ManagerSection[] = ['Dashboard', 'Manage Players', 'Manage Coaches', 'Manage Transfers', 'Manage Best Goals', 'Profile'];
 
     return (
         <div className="flex min-h-screen bg-theme-light">
@@ -1651,6 +1911,19 @@ const ClubManagerDashboard: React.FC<ClubManagerDashboardProps> = ({
                 </nav>
             </aside>
             <main className="flex-1 p-6 md:p-8">
+                {/* Mobile section selector */}
+                <div className="lg:hidden mb-4">
+                    <label className="block text-sm font-medium text-theme-text-secondary mb-1">Section</label>
+                    <select
+                        value={activeSection}
+                        onChange={e=>setActiveSection(e.target.value as any)}
+                        className="w-full bg-theme-page-bg border border-theme-border rounded-md py-2 px-3"
+                    >
+                        {sections.map(s => (
+                            <option key={s} value={s}>{s}</option>
+                        ))}
+                    </select>
+                </div>
                 <div className="bg-theme-page-bg p-6 rounded-lg shadow-lg min-h-full">
                     {renderSection()}
                 </div>

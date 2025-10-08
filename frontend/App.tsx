@@ -25,6 +25,7 @@ import PlayerRegistrationPage from './pages/PlayerRegistrationPage';
 import LoginPage from './pages/LoginPage';
 
 import NotFoundPage from './pages/NotFoundPage';
+import NewsDetailPage from './pages/NewsDetailPage';
 import PlayerProfileModal from './components/PlayerProfileModal';
 import AuthBridge from './components/AuthBridge';
 import { UserRole, Club, Match as MatchType, TableEntry, GroupName, CreatedUser, Player, LeaderStat, Position, PlayerRegistration } from './types';
@@ -752,6 +753,7 @@ const App = () => {
             <Route path="/tickets/:matchId" element={<TicketsPage />} />
             <Route path="/store" element={<StorePage />} />
             <Route path="/media" element={<MediaPage />} />
+            <Route path="/news/:id" element={<NewsDetailPage />} />
             <Route path="/login" element={<LoginPage onLogin={handleLogin} onRegister={handleRegister} createdUsers={createdUsers} />} />
             <Route path="/player-registration" element={<PlayerRegistrationPage onSubmitRegistration={handleSubmitPlayerRegistration} />} />
 

@@ -90,13 +90,37 @@ const ClubRegistrationForm: React.FC<ClubRegistrationFormProps> = ({
         logoUrl = await uploadToCloudinary(logoFile, 'ml_default');
       }
 
+      // Clean optional fields: remove empty strings, coerce numbers
+      const stadiumCapacity = (data.stadiumCapacity === undefined || data.stadiumCapacity === null || data.stadiumCapacity === ''
+        ? undefined
+        : Number(data.stadiumCapacity));
+
+      const website = data.website && data.website.trim() !== '' ? data.website.trim() : undefined;
+      const email = data.email && data.email.trim() !== '' ? data.email.trim() : undefined;
+      const phone = data.phone && data.phone.trim() !== '' ? data.phone.trim() : undefined;
+
+      const socialMedia = {
+        twitter: data.socialMedia?.twitter && data.socialMedia.twitter.trim() !== '' ? data.socialMedia.twitter.trim() : undefined,
+        facebook: data.socialMedia?.facebook && data.socialMedia.facebook.trim() !== '' ? data.socialMedia.facebook.trim() : undefined,
+        instagram: data.socialMedia?.instagram && data.socialMedia.instagram.trim() !== '' ? data.socialMedia.instagram.trim() : undefined,
+        youtube: data.socialMedia?.youtube && data.socialMedia.youtube.trim() !== '' ? data.socialMedia.youtube.trim() : undefined,
+      };
+      const hasSocial = !!(socialMedia.twitter || socialMedia.facebook || socialMedia.instagram || socialMedia.youtube);
+
       const clubData: CreateClubData = {
-        ...data,
+        name: data.name,
         logo: logoUrl,
+        stadium: data.stadium,
+        stadiumCapacity,
+        founded: Number(data.founded),
+        website,
+        email,
+        phone,
+        city: data.city,
+        country: data.country,
         honours: honours.length > 0 ? honours : undefined,
-        socialMedia: (data.socialMedia?.twitter || data.socialMedia?.facebook ||
-                     data.socialMedia?.instagram || data.socialMedia?.youtube)
-                     ? data.socialMedia : undefined
+        description: data.description && data.description.trim() !== '' ? data.description.trim() : undefined,
+        socialMedia: hasSocial ? socialMedia : undefined
       };
 
       await onSubmit(clubData);

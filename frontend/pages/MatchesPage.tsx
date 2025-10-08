@@ -4,7 +4,6 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { Match } from '../types';
 import PageBanner from '../components/PageBanner';
-import LeagueTable from '../components/LeagueTable';
 import FinalMatch from '../components/FinalMatch';
 import ChampionDisplay from '../components/ChampionDisplay';
 import { FixtureDTO, listFixtures } from '../services/fixturesService';
@@ -47,12 +46,29 @@ const MatchesPage: React.FC<MatchesPageProps> = ({ matchesData }) => {
     return result;
   }, [liveFixtures]);
 
+  // Split fixtures into live (top) and the rest (scheduled + finished)
+  const liveNow = useMemo(() => {
+    return liveFixtures
+      .filter(f => (f.status === 'live') && (stageFilter === 'All' || (stageFilter === 'Final' ? f.isFinal : !f.isFinal)))
+      .sort((a,b) => {
+        const ka = a.kickoffAt ? new Date(a.kickoffAt).getTime() : 0;
+        const kb = b.kickoffAt ? new Date(b.kickoffAt).getTime() : 0;
+        return ka - kb; // earliest kickoff first among live
+      });
+  }, [liveFixtures, stageFilter]);
+
   const displayedFixtures = useMemo(() => {
-    const items = liveFixtures.filter(f => stageFilter === 'All' || (stageFilter === 'Final' ? f.isFinal : !f.isFinal));
+    const items = liveFixtures.filter(f => f.status !== 'live' && (stageFilter === 'All' || (stageFilter === 'Final' ? f.isFinal : !f.isFinal)));
     return items.sort((a,b) => {
+      const weight = (f: FixtureDTO) => (f.status === 'finished' ? 2 : 0); // finished last
+      const wa = weight(a);
+      const wb = weight(b);
+      if (wa !== wb) return wa - wb;
       const ka = a.kickoffAt ? new Date(a.kickoffAt).getTime() : 0;
       const kb = b.kickoffAt ? new Date(b.kickoffAt).getTime() : 0;
-      return ka - kb;
+      // For scheduled, sort ascending; for finished, sort descending to show most recent above other finished items
+      if (wa === 0) return ka - kb;
+      return kb - ka;
     });
   }, [liveFixtures, stageFilter]);
 
@@ -75,14 +91,24 @@ const MatchesPage: React.FC<MatchesPageProps> = ({ matchesData }) => {
           {home?.logo ? (<img src={home.logo} alt="home logo" className="h-8 w-8" />) : null}
         </div>
         <div className="w-[20%] text-center font-bold bg-theme-light py-2 px-1 rounded-md text-sm">
-          {f.status === 'scheduled' && kickoff}
+          {f.status === 'scheduled' && (
+            <div className="flex flex-col items-center gap-0.5">
+              <span>{kickoff}</span>
+              {f.venueName && <span className="text-[11px] font-normal text-theme-text-secondary">{f.venueName}</span>}
+            </div>
+          )}
           {f.status === 'live' && (
             <div className="flex items-center justify-center gap-2">
               <span className="text-theme-accent animate-pulse font-bold text-xs">LIVE</span>
               <span>{f.score.home} - {f.score.away}</span>
             </div>
           )}
-          {f.status === 'finished' && <span>{f.score.home} - {f.score.away}</span>}
+          {f.status === 'finished' && (
+            <div className="flex flex-col items-center gap-0.5">
+              <span>{f.score.home} - {f.score.away}</span>
+              <span className="text-[11px] font-semibold text-theme-text-secondary">FULL TIME</span>
+            </div>
+          )}
         </div>
         <div className="flex items-center justify-start w-[40%]">
           {away?.logo ? (<img src={away.logo} alt="away logo" className="h-8 w-8" />) : null}
@@ -96,17 +122,12 @@ const MatchesPage: React.FC<MatchesPageProps> = ({ matchesData }) => {
     <div className="min-h-screen">
       <PageBanner title="Matches" subtitle={stageFilter !== 'All' ? stageFilter : 'All Matches'} />
       <div className="container mx-auto p-4 md:p-6">
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
-          <div className="lg:col-span-2 space-y-4">
-            {liveFixtures.filter(m=>!m.isFinal).slice(0,1).map(m => (
-              <LiveMatch key={m._id} initial={m} />
-            ))}
-            <FinalMatch />
-            <ChampionDisplay />
-          </div>
-          <div>
-            <LeagueTable />
-          </div>
+        <div className="space-y-4 mb-6">
+          {liveNow.filter(m=>!m.isFinal).map(m => (
+            <LiveMatch key={m._id} initial={m} />
+          ))}
+          <FinalMatch />
+          <ChampionDisplay />
         </div>
         {/* Filters and Controls */}
         <div className="bg-gradient-to-r from-theme-primary/10 to-theme-accent/10 rounded-lg p-3 mb-6 flex items-center justify-center flex-wrap gap-2 shadow-md border border-theme-primary/20">

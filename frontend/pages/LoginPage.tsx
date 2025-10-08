@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { LeagueLogoIcon } from '../components/icons';
 import { useAuth } from '../contexts/AuthContext';
+import api from '../services/api';
 import toast from 'react-hot-toast';
 
 const LoginPage: React.FC = () => {
@@ -32,16 +33,10 @@ const LoginPage: React.FC = () => {
             const checkCurrentUserAuthMethod = async () => {
                 
                 try {
-                    const response = await fetch('/api/auth/check-auth-method', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ email: user.email })
-                    });
-                    
-                    if (response.ok) {
-                        const data = await response.json();
-                        setIsGoogleUser(data.isGoogleUser);
-                    } else if (response.status === 404) {
+                    const response = await api.post('/auth/check-auth-method', { email: user.email });
+                    setIsGoogleUser((response.data as any).isGoogleUser);
+                } catch (err: any) {
+                    if (err?.response?.status === 404) {
                         // User not found in backend - could be a Google user who hasn't been registered yet
                         // For security, we'll assume it's a Google user to prevent password reset abuse
                         console.warn('User not found in backend, assuming Google user for security');
@@ -51,8 +46,6 @@ const LoginPage: React.FC = () => {
                         console.warn('Failed to check auth method, assuming email/password user');
                         setIsGoogleUser(false);
                     }
-                } catch (error) {
-                    console.error('Error checking current user auth method:', error);
                 }
             };
 
@@ -66,23 +59,10 @@ const LoginPage: React.FC = () => {
             if (email && email.includes('@')) {
                 setIsCheckingGoogleUser(true);
                 try {
-                    // Add timeout to prevent hanging requests
-                    const controller = new AbortController();
-                    const timeoutId = setTimeout(() => controller.abort(), 5000); // 5 second timeout
-                    
-                    const response = await fetch('/api/auth/check-auth-method', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ email }),
-                        signal: controller.signal
-                    });
-                    
-                    clearTimeout(timeoutId);
-                    
-                    if (response.ok) {
-                        const data = await response.json();
-                        setIsGoogleUser(data.isGoogleUser);
-                    } else if (response.status === 404) {
+                    const response = await api.post('/auth/check-auth-method', { email });
+                    setIsGoogleUser((response.data as any).isGoogleUser);
+                } catch (err: any) {
+                    if (err?.response?.status === 404) {
                         // User not found in backend - could be a Google user who hasn't been registered yet
                         // For security, we'll assume it's a Google user to prevent password reset abuse
                         console.warn('User not found in backend, assuming Google user for security');
@@ -92,14 +72,6 @@ const LoginPage: React.FC = () => {
                         console.warn('Failed to check auth method, assuming email/password user');
                         setIsGoogleUser(false);
                     }
-                } catch (error: any) {
-                    // If API call fails, assume it's not a Google user
-                    if (error.name === 'AbortError') {
-                        console.warn('Auth method check timed out, assuming email/password user');
-                    } else {
-                        console.warn('Error checking auth method, assuming email/password user:', error);
-                    }
-                    setIsGoogleUser(false);
                 } finally {
                     setIsCheckingGoogleUser(false);
                 }

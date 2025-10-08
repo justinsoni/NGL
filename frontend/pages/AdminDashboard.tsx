@@ -10,7 +10,7 @@ import { listFixtures, generateFixtures, startMatch, addEvent, finishMatch, simu
 import playerService from '../services/playerService';
 import { getSocket } from '../services/socket';
 
-type AdminSection = 'Dashboard' | 'Manage Clubs' | 'Manage Players' | 'Manage Fixtures' | 'Manage News' | 'User Management' | 'Player Registrations';
+type AdminSection = 'Dashboard' | 'Manage Clubs' | 'Manage Fixtures' | 'Manage News' | 'Manage Match Reports' | 'User Management';
 
 interface AdminDashboardProps {
     matches: Match[];
@@ -46,6 +46,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
     const [matchScores, setMatchScores] = useState<Record<number, { home: string; away: string }>>({});
     const [fixtures, setFixtures] = useState<FixtureDTO[]>([]);
     const [eventInput, setEventInput] = useState<{ minute: string; type: 'goal'|'yellow_card'|'red_card'|'foul'; team: 'home'|'away'; player: string; targetId?: string }>({ minute: '', type: 'goal', team: 'home', player: '' });
+    const [scheduledOnce, setScheduledOnce] = useState<Record<string, boolean>>({});
     const [approvedPlayersByClub, setApprovedPlayersByClub] = useState<Record<string, { _id: string; name: string }[]>>({});
 
     const loadApprovedPlayers = async (clubId?: string) => {
@@ -60,10 +61,25 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
         }
     };
 
+    // News management state
+    const [showNewsForm, setShowNewsForm] = useState(false);
+    const [isSubmittingNews, setIsSubmittingNews] = useState(false);
+    const [newsArticles, setNewsArticles] = useState<any[]>([]);
+    const [editingNews, setEditingNews] = useState<any>(null);
+    
+    // News form state
+    const [newsForm, setNewsForm] = useState({
+        title: '',
+        summary: '',
+        imageUrl: '',
+        category: 'Features',
+        content: ''
+    });
+
     // Club management state
     const [showClubForm, setShowClubForm] = useState(false);
-    const [isLoadingClubs, setIsLoadingClubs] = useState(false);
     const [isSubmittingClub, setIsSubmittingClub] = useState(false);
+    const [isLoadingClubs, setIsLoadingClubs] = useState(false);
 
     // Form states for manager creation
     const [newManagerName, setNewManagerName] = useState('');
@@ -74,6 +90,90 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
     const [errorMessage, setErrorMessage] = useState('');
 
     const [clubs, setClubs] = useState<Club[]>(initialClubs || []);
+
+    // Validation helpers for fixture scheduling
+    const isValidFutureIso = (iso: string): boolean => {
+        try {
+            const dt = new Date(iso);
+            if (Number.isNaN(dt.getTime())) return false;
+            // Allow slight clock skew: 60 seconds tolerance
+            const now = new Date(Date.now() - 60 * 1000);
+            return dt > now;
+        } catch {
+            return false;
+        }
+    };
+    const validateVenueName = (name: string): { ok: boolean; message?: string } => {
+        const value = (name || '').trim();
+        if (value.length < 3) return { ok: false, message: 'Venue must be at least 3 characters' };
+        if (value.length > 100) return { ok: false, message: 'Venue must be 100 characters or less' };
+        // Allow letters (no digits), spaces, and common punctuation
+        const allowed = /^[A-Za-z .,&'\-()]+$/;
+        if (!allowed.test(value)) return { ok: false, message: 'Only letters, spaces, and . , & ( ) - \' are allowed' };
+        return { ok: true };
+    };
+
+    // Scheduling conflict helpers
+    const MATCH_DURATION_MS = 2 * 60 * 60 * 1000; // 2 hours window per match
+    const SLOT_STEP_MS = 15 * 60 * 1000; // 15 minutes step for auto-reschedule
+    const hasConflict = (teamId: string, kickoffIso: string, excludeFixtureId?: string) => {
+        if (!teamId || !kickoffIso) return false;
+        const start = new Date(kickoffIso).getTime();
+        return fixtures.some(other => {
+            if (!other.kickoffAt) return false;
+            if (excludeFixtureId && other._id === excludeFixtureId) return false;
+            const otherStart = new Date(other.kickoffAt).getTime();
+            const involvesTeam = [other.homeTeam, other.awayTeam].some(t => (typeof t==='string'?t:(t?._id)) === teamId);
+            if (!involvesTeam) return false;
+            const a1 = start, a2 = start + MATCH_DURATION_MS;
+            const b1 = otherStart, b2 = otherStart + MATCH_DURATION_MS;
+            return Math.max(a1, b1) < Math.min(a2, b2);
+        });
+    };
+    const findNextFreeSlot = (homeId: string, awayId: string, kickoffIso: string, excludeFixtureId?: string): string | null => {
+        if (!kickoffIso) return null;
+        let t = new Date(kickoffIso).getTime();
+        // search up to 2 days ahead to find a slot
+        const limit = t + 2 * 24 * 60 * 60 * 1000;
+        while (t < limit) {
+            const iso = new Date(t).toISOString();
+            if (!hasConflict(homeId, iso, excludeFixtureId) && !hasConflict(awayId, iso, excludeFixtureId)) return iso;
+            t += SLOT_STEP_MS;
+        }
+        return null;
+    };
+
+    // Helper: show ISO kickoff in datetime-local input format (YYYY-MM-DDTHH:mm)
+    const toLocalInputValue = (iso?: string): string => {
+        if (!iso) return '';
+        const d = new Date(iso);
+        if (Number.isNaN(d.getTime())) return '';
+        const tzOffset = d.getTimezoneOffset();
+        const local = new Date(d.getTime() - tzOffset * 60000);
+        return local.toISOString().slice(0,16);
+    };
+
+    // Match Reports management state
+    type MatchReportItem = { id: string; title: string; imageUrl: string; createdAt: string };
+    const [matchReportForm, setMatchReportForm] = useState<{ title: string; imageUrl: string }>({ title: '', imageUrl: '' });
+    const [matchReports, setMatchReports] = useState<MatchReportItem[]>([]);
+    const [matchReportImageFile, setMatchReportImageFile] = useState<File | null>(null);
+    const [matchReportImagePreview, setMatchReportImagePreview] = useState<string>('');
+
+    const uploadMatchImage = async (file: File, uploadPreset: string): Promise<string> => {
+        const url = `https://api.cloudinary.com/v1_1/dmuilu78u/auto/upload`;
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('upload_preset', uploadPreset);
+        const res = await fetch(url, { method: 'POST', body: formData });
+        if (!res.ok) {
+            const errorText = await res.text();
+            throw new Error(`Upload failed: ${res.status} ${errorText}`);
+        }
+        const data = await res.json();
+        if (!data.secure_url) throw new Error('No secure_url returned');
+        return data.secure_url as string;
+    };
 
     const handleScoreChange = (matchId: number, team: 'home' | 'away', score: string) => {
         setMatchScores(prev => ({
@@ -217,7 +317,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
             try {
                 const res = await clubService.getClubs();
                 // Map _id to id for all clubs
-                const clubsWithId = res.data.map((club: any) => ({
+                const clubsWithId = (res.data || []).map((club: any) => ({
                     ...club,
                     id: club._id
                 }));
@@ -251,14 +351,68 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
         };
     }, []);
 
+    // Load existing match reports from localStorage on mount
+    useEffect(() => {
+        try {
+            const raw = localStorage.getItem('ngl_match_reports');
+            const list: MatchReportItem[] = raw ? JSON.parse(raw) : [];
+            setMatchReports(list);
+        } catch {}
+    }, []);
+
+    const addMatchReport = async () => {
+        const title = matchReportForm.title.trim();
+        if (!title) { toast.error('Please enter a report title'); return; }
+        if (!matchReportImageFile) { toast.error('Please select an image to upload'); return; }
+        let imageUrl = '';
+        try {
+            const allowed = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
+            if (!allowed.includes(matchReportImageFile.type)) { toast.error('Invalid image type. Use JPG, PNG, or WEBP.'); return; }
+            if (matchReportImageFile.size > 5 * 1024 * 1024) { toast.error('Image too large. Max 5MB.'); return; }
+            imageUrl = await uploadMatchImage(matchReportImageFile, 'ml_default');
+        } catch (e: any) {
+            toast.error(e.message || 'Upload failed');
+            return;
+        }
+        const item: MatchReportItem = { id: String(Date.now()), title, imageUrl, createdAt: new Date().toISOString() };
+        try {
+            const raw = localStorage.getItem('ngl_match_reports');
+            const list: MatchReportItem[] = raw ? JSON.parse(raw) : [];
+            const updated = [item, ...list];
+            localStorage.setItem('ngl_match_reports', JSON.stringify(updated));
+            setMatchReports(prev => [item, ...prev]);
+            setMatchReportForm({ title: '', imageUrl: '' });
+            setMatchReportImageFile(null);
+            setMatchReportImagePreview('');
+            toast.success('Match report published to homepage');
+        } catch {
+            toast.error('Failed to save match report');
+        }
+    };
+
+    const removeMatchReport = (id: string) => {
+        if (!confirm('Remove this match report?')) return;
+        try {
+            const raw = localStorage.getItem('ngl_match_reports');
+            const list: MatchReportItem[] = raw ? JSON.parse(raw) : [];
+            const updated = list.filter(r => r.id !== id);
+            localStorage.setItem('ngl_match_reports', JSON.stringify(updated));
+            setMatchReports(prev => prev.filter(r => r.id !== id));
+            toast.success('Removed');
+        } catch {
+            toast.error('Failed to remove match report');
+        }
+    };
+
     const handleCreateClub = async (clubData: CreateClubData) => {
         setIsSubmittingClub(true);
         try {
             const response = await clubService.createClub(clubData);
             // Map _id to id for the new club
+            const created = response.data;
             const newClub = {
-                ...response.data,
-                id: (response.data as any)._id
+                ...created,
+                id: (created as any)._id
             };
             setClubs(prev => [...prev, newClub]);
             onAddClub(newClub); // If you want to keep parent in sync
@@ -286,6 +440,90 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
             const errorMessage = error.response?.data?.message || 'Failed to delete club';
             toast.error(errorMessage);
         }
+    };
+
+    // News management functions
+    const handleCreateNews = async (e: React.FormEvent) => {
+        e.preventDefault();
+        setIsSubmittingNews(true);
+        
+        try {
+            const newArticle = {
+                id: Date.now(), // Simple ID generation for demo
+                title: newsForm.title,
+                summary: newsForm.summary,
+                imageUrl: newsForm.imageUrl,
+                category: newsForm.category,
+                content: newsForm.content,
+                date: new Date().toLocaleDateString(),
+                createdAt: new Date().toISOString()
+            };
+
+            setNewsArticles(prev => [newArticle, ...prev]);
+            setNewsForm({ title: '', summary: '', imageUrl: '', category: 'Features', content: '' });
+            setShowNewsForm(false);
+            toast.success('News article created successfully!');
+        } catch (error: any) {
+            toast.error('Failed to create news article');
+        } finally {
+            setIsSubmittingNews(false);
+        }
+    };
+
+    const handleEditNews = (article: any) => {
+        setEditingNews(article);
+        setNewsForm({
+            title: article.title,
+            summary: article.summary,
+            imageUrl: article.imageUrl,
+            category: article.category,
+            content: article.content
+        });
+        setShowNewsForm(true);
+    };
+
+    const handleUpdateNews = async (e: React.FormEvent) => {
+        e.preventDefault();
+        setIsSubmittingNews(true);
+        
+        try {
+            const updatedArticle = {
+                ...editingNews,
+                title: newsForm.title,
+                summary: newsForm.summary,
+                imageUrl: newsForm.imageUrl,
+                category: newsForm.category,
+                content: newsForm.content,
+                updatedAt: new Date().toISOString()
+            };
+
+            setNewsArticles(prev => prev.map(article => 
+                article.id === editingNews.id ? updatedArticle : article
+            ));
+            
+            setNewsForm({ title: '', summary: '', imageUrl: '', category: 'Features', content: '' });
+            setEditingNews(null);
+            setShowNewsForm(false);
+            toast.success('News article updated successfully!');
+        } catch (error: any) {
+            toast.error('Failed to update news article');
+        } finally {
+            setIsSubmittingNews(false);
+        }
+    };
+
+    const handleDeleteNews = (articleId: number) => {
+        if (!confirm('Are you sure you want to delete this news article?')) {
+            return;
+        }
+        setNewsArticles(prev => prev.filter(article => article.id !== articleId));
+        toast.success('News article deleted successfully');
+    };
+
+    const resetNewsForm = () => {
+        setNewsForm({ title: '', summary: '', imageUrl: '', category: 'Features', content: '' });
+        setEditingNews(null);
+        setShowNewsForm(false);
     };
 
     const renderSection = () => {
@@ -332,9 +570,16 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                                     const homeId = (typeof f.homeTeam==='string'?f.homeTeam:f.homeTeam?._id);
                                                     const awayId = (typeof f.awayTeam==='string'?f.awayTeam:f.awayTeam?._id);
                                                     const isReady = !!(homeId && awayId && f.kickoffAt && f.venueName && f.venueName.trim().length>0);
-                                                    const label = f.status==='live' ? 'LIVE' : (f.status==='finished' ? 'FINISHED' : (isReady ? 'SCHEDULED' : 'DRAFT'));
-                                                    const cls = f.status==='live' ? 'bg-red-500 text-white' : (f.status==='finished' ? 'bg-gray-800 text-white' : (isReady ? 'bg-gray-200' : 'bg-yellow-100 text-yellow-800'));
-                                                    return <span className={`px-2 py-1 rounded text-xs ${cls}`}>{label}</span>;
+                                                    // Only display SCHEDULED badge when ready AND explicitly committed/saved
+                                                    const isCommitted = (f.status==='scheduled') || !!scheduledOnce[f._id];
+                                                    const showScheduled = isReady && isCommitted;
+                                                    const label = f.status==='live' ? 'LIVE' : (f.status==='finished' ? 'FINISHED' : (showScheduled ? 'SCHEDULED' : ''));
+                                                    const cls = f.status==='live' ? 'bg-red-500 text-white' : (f.status==='finished' ? 'bg-gray-800 text-white' : (showScheduled ? 'bg-gray-200' : ''));
+                                                    // If ready but not committed, show a subtle hint
+                                                    if (!label && isReady) {
+                                                        return <span className="px-2 py-1 rounded text-xs bg-yellow-100 text-yellow-800">READY</span>;
+                                                    }
+                                                    return label ? <span className={`px-2 py-1 rounded text-xs ${cls}`}>{label}</span> : null;
                                                 })()}
                                             </div>
                                             <div className="col-span-5 flex justify-end items-center gap-2">
@@ -363,17 +608,97 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                             <div className="mt-3 grid grid-cols-12 items-center gap-3">
                                                 <div className="col-span-6 flex items-center gap-2">
                                                     <label className="text-xs text-theme-text-secondary">Kickoff</label>
-                                                    <input type="datetime-local" onChange={async e=>{
-                                                        const kickoffAt = e.target.value ? new Date(e.target.value).toISOString() : '';
+                                                    {(() => { const alreadyCommitted = !!scheduledOnce[f._id]; return (
+                                                    <input type="datetime-local" disabled={alreadyCommitted} defaultValue={toLocalInputValue(f.kickoffAt)} onChange={async e=>{
+                                                        const raw = e.target.value;
+                                                        const kickoffAt = raw ? new Date(raw).toISOString() : '';
                                                         if (!kickoffAt) return;
-                                                        try { await scheduleMatch(f._id, { kickoffAt }); } catch { toast.error('Schedule failed'); }
-                                                    }} className="bg-theme-page-bg border border-theme-border rounded px-2 py-1"/>
+                                                        if (!isValidFutureIso(kickoffAt)) { toast.error('Kickoff must be a valid future date/time'); return; }
+                                                        try { 
+                                                            await scheduleMatch(f._id, { kickoffAt }); 
+                                                            const list = await listFixtures(); setFixtures(list);
+                                                        } catch { toast.error('Schedule failed'); }
+                                                    }} className={`bg-theme-page-bg border border-theme-border rounded px-2 py-1 ${alreadyCommitted?'opacity-60 cursor-not-allowed':''}`}/>
+                                                    ); })()}
                                                     <label className="text-xs text-theme-text-secondary ml-3">Venue</label>
-                                                    <input type="text" placeholder="Stadium name" onBlur={async e=>{
+                                                    {(() => { const alreadyCommitted = !!scheduledOnce[f._id]; return (
+                                                    <input type="text" placeholder="Stadium name" disabled={alreadyCommitted} onBlur={async e=>{
                                                         const venueName = e.target.value.trim();
-                                                        try { await scheduleMatch(f._id, { venueName }); } catch { toast.error('Venue save failed'); }
-                                                    }} className="bg-theme-page-bg border border-theme-border rounded px-2 py-1 min-w-[200px]"/>
-                                                    <button onClick={async()=>{ try { await scheduleMatch(f._id, {} as any); toast.success('Scheduled'); const list=await listFixtures(); setFixtures(list);} catch { toast.error('Schedule failed'); } }} className="h-9 px-3 rounded bg-theme-primary text-theme-dark font-bold">Schedule</button>
+                                                        const res = validateVenueName(venueName);
+                                                        if (!res.ok) { toast.error(res.message || 'Invalid venue'); return; }
+                                                        try { 
+                                                            await scheduleMatch(f._id, { venueName }); 
+                                                            const list = await listFixtures(); setFixtures(list);
+                                                        } catch { toast.error('Venue save failed'); }
+                                                    }} className={`bg-theme-page-bg border border-theme-border rounded px-2 py-1 min-w-[200px] ${alreadyCommitted?'opacity-60 cursor-not-allowed':''}`}/>
+                                                    ); })()}
+                                                    {(() => {
+                                                        const homeId = (typeof f.homeTeam==='string'?f.homeTeam:f.homeTeam?._id);
+                                                        const awayId = (typeof f.awayTeam==='string'?f.awayTeam:f.awayTeam?._id);
+                                                        const isReady = !!(homeId && awayId && f.kickoffAt && f.venueName && f.venueName.trim().length>0);
+                                                        const alreadyCommitted = !!scheduledOnce[f._id];
+                                                        if (!isReady) {
+                                                            return (
+                                                                <button
+                                                                    disabled
+                                                                    className="h-9 px-3 rounded font-bold bg-theme-secondary-bg text-theme-text-secondary opacity-60 cursor-not-allowed"
+                                                                >
+                                                                    Schedule
+                                                                </button>
+                                                            );
+                                                        }
+                                                        if (alreadyCommitted) {
+                                                            return (
+                                                                <div className="flex items-center gap-2">
+                                                                    <span className="px-2 py-1 text-xs font-semibold text-gray-700 bg-gray-50 border border-gray-400 rounded-sm uppercase tracking-wide">
+                                                                        SCHEDULED
+                                                                    </span>
+                                                                </div>
+                                                            );
+                                                        }
+                                                        return (
+                                                            <button
+                                                                onClick={async()=>{ 
+                                                                    try { 
+                                                                        // Double-check all required fields are present before scheduling
+                                                                        const homeId = (typeof f.homeTeam==='string'?f.homeTeam:f.homeTeam?._id);
+                                                                        const awayId = (typeof f.awayTeam==='string'?f.awayTeam:f.awayTeam?._id);
+                                                                        const hasKickoff = !!f.kickoffAt;
+                                                                        const hasVenue = !!(f.venueName && f.venueName.trim().length > 0);
+                                                                        
+                                                                        if (!homeId || !awayId || !hasKickoff || !hasVenue) {
+                                                                            toast.error('Please fill in teams, kickoff time, and venue before scheduling');
+                                                                            return;
+                                                                        }
+                                                                        
+                                                                        if (homeId === awayId) {
+                                                                            toast.error('Home and away teams must be different');
+                                                                            return;
+                                                                        }
+                                                                        // Validate kickoff again (future date)
+                                                                        if (!isValidFutureIso(String(f.kickoffAt))) { toast.error('Kickoff must be a future date/time'); return; }
+                                                                        const venueValidation = validateVenueName(f.venueName || '');
+                                                                        if (!venueValidation.ok) { toast.error(venueValidation.message || 'Invalid venue'); return; }
+                                                                        
+                                                                        const result = await scheduleMatch(f._id, {}); 
+                                                                        
+                                                                        // Only mark as scheduled if the backend confirms it's ready
+                                                                        if (result.isScheduled) {
+                                                                            setScheduledOnce(prev=>({ ...prev, [f._id]: true }));
+                                                                            const list=await listFixtures(); setFixtures(list);
+                                                                        } else {
+                                                                            toast.error('Match could not be scheduled. Please check all fields.');
+                                                                        }
+                                                                    } catch (e: any) { 
+                                                                        toast.error(e.response?.data?.message || 'Schedule failed'); 
+                                                                    } 
+                                                                }} 
+                                                                className="h-9 px-3 rounded bg-green-600 text-white font-bold"
+                                                            >
+                                                                Schedule
+                                                            </button>
+                                                        );
+                                                    })()}
                                                 </div>
                                                 <div className="col-span-6 flex items-center gap-2 justify-end">
                                                     <label className="text-xs text-theme-text-secondary">Set Teams</label>
@@ -395,17 +720,69 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                                         }
                                                         // If we don't have two, don't allow changing yet (generator should provide both)
                                                         const options = pairClubs.length === 2 ? pairClubs : [];
+                                                        const alreadyCommitted = !!scheduledOnce[f._id];
                                                         return (
                                                             <>
-                                                                <select disabled={options.length!==2} value={homeId} onChange={async e=>{ const newHome=e.target.value; if (!newHome || !awayId) return; if (newHome===awayId) { toast.error('Teams must be different'); return; } try { await scheduleMatch(f._id,{homeTeamId:newHome,awayTeamId:awayId}); toast.success('Home set'); const list=await listFixtures(); setFixtures(list);} catch{ toast.error('Update failed'); } }} className={`bg-theme-page-bg border border-theme-border rounded px-2 py-1 ${options.length!==2?'opacity-50 cursor-not-allowed':''}`}>
+                                                                <select disabled={options.length!==2 || alreadyCommitted} value={homeId} onChange={async e=>{ const newHome=e.target.value; if (!newHome || !awayId) return; if (newHome===awayId) { toast.error('Teams must be different'); return; } try { 
+                                                                    const kickoffIso = f.kickoffAt || '';
+                                                                    if (kickoffIso && (hasConflict(newHome, kickoffIso, f._id) || hasConflict(awayId, kickoffIso, f._id))) {
+                                                                        const nextSlot = findNextFreeSlot(newHome, awayId, kickoffIso, f._id);
+                                                                        if (nextSlot) {
+                                                                            await scheduleMatch(f._id,{homeTeamId:newHome,awayTeamId:awayId,kickoffAt:nextSlot});
+                                                                            toast.success('Home set with auto-reschedule');
+                                                                        } else {
+                                                                            toast.error('No free slot available in next 48h. Choose another time.');
+                                                                            return;
+                                                                        }
+                                                                    } else {
+                                                                        await scheduleMatch(f._id,{homeTeamId:newHome,awayTeamId:awayId});
+                                                                        toast.success('Home set');
+                                                                    }
+                                                                    const list=await listFixtures(); setFixtures(list);} catch{ toast.error('Update failed'); } }} className={`bg-theme-page-bg border border-theme-border rounded px-2 py-1 ${(options.length!==2||alreadyCommitted)?'opacity-50 cursor-not-allowed':''}`}>
                                                                     <option value="">Home Team</option>
                                                                     {options.map(c=> (<option key={c.id} value={c.id}>{c.name}</option>))}
                                                                 </select>
-                                                                <select disabled={options.length!==2} value={awayId} onChange={async e=>{ const newAway=e.target.value; if (!newAway || !homeId) return; if (newAway===homeId) { toast.error('Teams must be different'); return; } try { await scheduleMatch(f._id,{homeTeamId:homeId,awayTeamId:newAway}); toast.success('Away set'); const list=await listFixtures(); setFixtures(list);} catch{ toast.error('Update failed'); } }} className={`bg-theme-page-bg border border-theme-border rounded px-2 py-1 ${options.length!==2?'opacity-50 cursor-not-allowed':''}`}>
+                                                                <select disabled={options.length!==2 || alreadyCommitted} value={awayId} onChange={async e=>{ const newAway=e.target.value; if (!newAway || !homeId) return; if (newAway===homeId) { toast.error('Teams must be different'); return; } try { 
+                                                                    const kickoffIso = f.kickoffAt || '';
+                                                                    if (kickoffIso && (hasConflict(homeId, kickoffIso, f._id) || hasConflict(newAway, kickoffIso, f._id))) {
+                                                                        const nextSlot = findNextFreeSlot(homeId, newAway, kickoffIso, f._id);
+                                                                        if (nextSlot) {
+                                                                            await scheduleMatch(f._id,{homeTeamId:homeId,awayTeamId:newAway,kickoffAt:nextSlot});
+                                                                            toast.success('Away set with auto-reschedule');
+                                                                        } else {
+                                                                            toast.error('No free slot available in next 48h. Choose another time.');
+                                                                            return;
+                                                                        }
+                                                                    } else {
+                                                                        await scheduleMatch(f._id,{homeTeamId:homeId,awayTeamId:newAway});
+                                                                        toast.success('Away set');
+                                                                    }
+                                                                    const list=await listFixtures(); setFixtures(list);} catch{ toast.error('Update failed'); } }} className={`bg-theme-page-bg border border-theme-border rounded px-2 py-1 ${(options.length!==2||alreadyCommitted)?'opacity-50 cursor-not-allowed':''}`}>
                                                                     <option value="">Away Team</option>
                                                                     {options.map(c=> (<option key={c.id} value={c.id}>{c.name}</option>))}
                                                                 </select>
-                                                                <button disabled={options.length!==2} onClick={async()=>{ if (!homeId || !awayId || homeId===awayId) return; try { await scheduleMatch(f._id,{homeTeamId:awayId,awayTeamId:homeId}); toast.success('Swapped'); const list=await listFixtures(); setFixtures(list);} catch { toast.error('Swap failed'); } }} className={`h-9 px-3 rounded bg-theme-secondary-bg ${options.length!==2?'opacity-50 cursor-not-allowed':''}`}>Swap</button>
+                                                                <button disabled={options.length!==2 || alreadyCommitted} onClick={async()=>{ 
+                                                                    if (!homeId || !awayId || homeId===awayId) return; 
+                                                                    try { 
+                                                                        // If swapping causes a conflict for either team, auto-reschedule to next free slot
+                                                                        let kickoffIso = f.kickoffAt || '';
+                                                                        if (!kickoffIso) { toast.error('Set kickoff time before swapping'); return; }
+                                                                        const nextSlot = findNextFreeSlot(awayId, homeId, kickoffIso, f._id);
+                                                                        if (hasConflict(awayId, kickoffIso, f._id) || hasConflict(homeId, kickoffIso, f._id)) {
+                                                                            if (nextSlot) {
+                                                                                await scheduleMatch(f._id,{ homeTeamId: awayId, awayTeamId: homeId, kickoffAt: nextSlot });
+                                                                                toast.success('Swapped and auto-rescheduled to avoid conflict');
+                                                                            } else {
+                                                                                toast.error('No free slot found in the next 48 hours. Please pick a different time.');
+                                                                                return;
+                                                                            }
+                                                                        } else {
+                                                                            await scheduleMatch(f._id,{ homeTeamId: awayId, awayTeamId: homeId });
+                                                                            toast.success('Swapped');
+                                                                        }
+                                                                        const list=await listFixtures(); setFixtures(list);
+                                                                    } catch { toast.error('Swap failed'); } 
+                                                                }} className={`h-9 px-3 rounded bg-theme-secondary-bg ${(options.length!==2||alreadyCommitted)?'opacity-50 cursor-not-allowed':''}`}>Swap</button>
                                                             </>
                                                         );
                                                     })()}
@@ -519,57 +896,249 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                         )}
                     </div>
                 );
-            case 'Manage Players':
-                return <div>
-                    <h2 className="text-2xl font-bold mb-4 text-theme-dark">Manage All Players (CRUD)</h2>
-                    <p className="text-theme-text-secondary">A global list of all players from all clubs, with powerful search and filter capabilities.</p>
-                </div>;
             case 'Manage News':
-                 return <div>
-                    <h2 className="text-2xl font-bold mb-4 text-theme-dark">Manage League News</h2>
-                    <p className="text-theme-text-secondary">A form for creating and publishing league-wide news articles.</p>
-                </div>;
-            case 'Player Registrations':
                 return (
                     <div>
-                        <h2 className="text-2xl font-bold mb-4 text-theme-dark">Player Registrations</h2>
-                        <div className="space-y-4">
-                            {playerRegistrations.filter(reg => reg.status === 'pending').length === 0 ? (
-                                <p className="text-theme-text-secondary">No pending player registrations.</p>
-                            ) : (
-                                playerRegistrations
-                                    .filter(reg => reg.status === 'pending')
-                                    .map(registration => (
-                                        <div key={registration.id} className="bg-theme-secondary-bg p-4 rounded-lg">
-                                            <div className="flex items-start justify-between">
-                                                <div className="flex-1">
-                                                    <h3 className="text-lg font-semibold text-theme-dark">{registration.name}</h3>
-                                                    <p className="text-theme-text-secondary">{registration.position} • {registration.nationality}</p>
-                                                    <p className="text-sm text-theme-text-secondary">
-                                                        Club: {clubs.find(c => c.id === registration.clubId)?.name}
-                                                    </p>
-                                                    <p className="text-sm text-theme-text-secondary">Submitted: {new Date(registration.submittedAt).toLocaleDateString()}</p>
+                        <div className="flex justify-between items-center mb-6">
+                            <h2 className="text-2xl font-bold text-theme-dark">Manage League News</h2>
+                            <button
+                                onClick={() => setShowNewsForm(true)}
+                                className="px-4 py-2 bg-theme-primary text-theme-dark rounded-md hover:bg-theme-primary/80 transition-colors"
+                            >
+                                Add New Article
+                            </button>
+                        </div>
+
+                        {showNewsForm ? (
+                            <div className="bg-theme-secondary-bg p-6 rounded-lg mb-6">
+                                <h3 className="text-xl font-semibold mb-4 text-theme-dark border-b-2 border-theme-primary pb-2">
+                                    {editingNews ? 'Edit News Article' : 'Create New News Article'}
+                                </h3>
+                                
+                                <form onSubmit={editingNews ? handleUpdateNews : handleCreateNews} className="space-y-4">
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                        <div>
+                                            <label htmlFor="newsTitle" className="block text-sm font-medium text-theme-text-secondary mb-1">Article Title *</label>
+                                            <input 
+                                                type="text" 
+                                                id="newsTitle" 
+                                                value={newsForm.title} 
+                                                onChange={e => setNewsForm(prev => ({ ...prev, title: e.target.value }))} 
+                                                required 
+                                                className="w-full bg-theme-page-bg border border-theme-border rounded-md shadow-sm py-2 px-3 text-theme-dark focus:outline-none focus:ring-theme-primary focus:border-theme-primary" 
+                                                placeholder="Enter article title"
+                                            />
+                                        </div>
+                                        <div>
+                                            <label htmlFor="newsCategory" className="block text-sm font-medium text-theme-text-secondary mb-1">Category *</label>
+                                            <select 
+                                                id="newsCategory" 
+                                                value={newsForm.category}
+                                                onChange={e => setNewsForm(prev => ({ ...prev, category: e.target.value }))}
+                                                className="w-full bg-theme-page-bg border border-theme-border rounded-md shadow-sm py-2 px-3 text-theme-dark focus:outline-none focus:ring-theme-primary focus:border-theme-primary"
+                                            >
+                                                <option value="Features">Features</option>
+                                                <option value="News">News</option>
+                                                <option value="Analysis">Analysis</option>
+                                                <option value="Transfers">Transfers</option>
+                                                <option value="Match Reports">Match Reports</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                    
+                                    <div>
+                                        <label htmlFor="newsImageUrl" className="block text-sm font-medium text-theme-text-secondary mb-1">Image URL *</label>
+                                        <input 
+                                            type="url" 
+                                            id="newsImageUrl" 
+                                            value={newsForm.imageUrl} 
+                                            onChange={e => setNewsForm(prev => ({ ...prev, imageUrl: e.target.value }))} 
+                                            required 
+                                            className="w-full bg-theme-page-bg border border-theme-border rounded-md shadow-sm py-2 px-3 text-theme-dark focus:outline-none focus:ring-theme-primary focus:border-theme-primary" 
+                                            placeholder="https://example.com/image.jpg"
+                                        />
+                                    </div>
+                                    
+                                    <div>
+                                        <label htmlFor="newsSummary" className="block text-sm font-medium text-theme-text-secondary mb-1">Summary *</label>
+                                        <textarea 
+                                            id="newsSummary" 
+                                            value={newsForm.summary} 
+                                            onChange={e => setNewsForm(prev => ({ ...prev, summary: e.target.value }))} 
+                                            required 
+                                            rows={3}
+                                            className="w-full bg-theme-page-bg border border-theme-border rounded-md shadow-sm py-2 px-3 text-theme-dark focus:outline-none focus:ring-theme-primary focus:border-theme-primary" 
+                                            placeholder="Brief summary of the article"
+                                        />
+                                    </div>
+                                    
+                                    <div>
+                                        <label htmlFor="newsContent" className="block text-sm font-medium text-theme-text-secondary mb-1">Full Content</label>
+                                        <textarea 
+                                            id="newsContent" 
+                                            value={newsForm.content} 
+                                            onChange={e => setNewsForm(prev => ({ ...prev, content: e.target.value }))} 
+                                            rows={6}
+                                            className="w-full bg-theme-page-bg border border-theme-border rounded-md shadow-sm py-2 px-3 text-theme-dark focus:outline-none focus:ring-theme-primary focus:border-theme-primary" 
+                                            placeholder="Full article content (optional)"
+                                        />
+                                    </div>
+                                    
+                                    <div className="flex gap-3">
+                                        <button
+                                            type="submit"
+                                            disabled={isSubmittingNews}
+                                            className="bg-theme-primary text-theme-dark font-bold py-2 px-6 rounded-md hover:bg-theme-primary-dark transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                                        >
+                                            {isSubmittingNews ? (
+                                                <>
+                                                    <div className="animate-spin rounded-full h-4 w-4 border-2 border-theme-dark border-t-transparent"></div>
+                                                    {editingNews ? 'Updating...' : 'Creating...'}
+                                                </>
+                                            ) : (
+                                                <>
+                                                    📰 {editingNews ? 'Update Article' : 'Create Article'}
+                                                </>
+                                            )}
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={resetNewsForm}
+                                            className="bg-theme-secondary-bg text-theme-dark font-bold py-2 px-6 rounded-md hover:bg-theme-secondary-bg/80 transition-colors"
+                                        >
+                                            Cancel
+                                        </button>
                                                 </div>
+                                </form>
+                            </div>
+                        ) : (
+                            <div>
+                                <div className="mb-4 text-theme-text-secondary">
+                                    <p>Manage all news articles that appear in the "Latest News & Features" section on the homepage.</p>
+                                </div>
+
+                                {/* News Articles Grid */}
+                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                                    {newsArticles.map(article => (
+                                        <div key={article.id} className="bg-theme-secondary-bg rounded-lg overflow-hidden shadow-lg">
+                                            <div className="relative h-48">
+                                                <img 
+                                                    src={article.imageUrl} 
+                                                    alt={article.title} 
+                                                    className="w-full h-full object-cover"
+                                                />
+                                                <div className="absolute top-2 left-2">
+                                                    <span className="bg-theme-primary text-theme-dark text-xs font-bold px-2 py-1 rounded">
+                                                        {article.category}
+                                                    </span>
+                                                </div>
+                                            </div>
+                                            <div className="p-4">
+                                                <h3 className="font-semibold text-theme-dark mb-2 line-clamp-2">{article.title}</h3>
+                                                <p className="text-sm text-theme-text-secondary mb-3 line-clamp-3">{article.summary}</p>
+                                                <div className="flex justify-between items-center text-xs text-theme-text-secondary">
+                                                    <span>{article.date}</span>
                                                 <div className="flex gap-2">
                                                     <button
-                                                        onClick={() => onApprovePlayerRegistration(registration.id)}
-                                                        className="bg-green-600 text-white px-3 py-1 rounded text-sm hover:bg-green-700"
+                                                            onClick={() => handleEditNews(article)}
+                                                            className="text-blue-600 hover:text-blue-800"
                                                     >
-                                                        Approve
+                                                            Edit
                                                     </button>
                                                     <button
-                                                        onClick={() => {
-                                                            const reason = prompt('Reason for rejection:');
-                                                            if (reason) onRejectPlayerRegistration(registration.id, reason);
-                                                        }}
-                                                        className="bg-red-600 text-white px-3 py-1 rounded text-sm hover:bg-red-700"
-                                                    >
-                                                        Reject
+                                                            onClick={() => handleDeleteNews(article.id)}
+                                                            className="text-red-600 hover:text-red-800"
+                                                        >
+                                                            Delete
                                                     </button>
                                                 </div>
                                             </div>
                                         </div>
-                                    ))
+                                        </div>
+                                    ))}
+                                </div>
+
+                                {newsArticles.length === 0 && (
+                                    <div className="text-center py-12 bg-theme-secondary-bg rounded-lg">
+                                        <div className="text-6xl mb-4">📰</div>
+                                        <h3 className="text-xl font-semibold text-theme-dark mb-2">No News Articles Yet</h3>
+                                        <p className="text-theme-text-secondary mb-4">Create your first news article to get started.</p>
+                                        <button
+                                            onClick={() => setShowNewsForm(true)}
+                                            className="bg-theme-primary text-theme-dark font-bold py-2 px-6 rounded-md hover:bg-theme-primary-dark transition-colors"
+                                        >
+                                            Create First Article
+                                        </button>
+                                    </div>
+                            )}
+                        </div>
+                        )}
+                    </div>
+                );
+            case 'Manage Match Reports':
+                return (
+                    <div>
+                        <div className="flex justify-between items-center mb-6">
+                            <h2 className="text-2xl font-bold text-theme-dark">Manage Match Reports</h2>
+                        </div>
+
+                        <div className="max-w-4xl mx-auto bg-theme-secondary-bg p-6 rounded-xl shadow-lg mb-6">
+                            <h3 className="text-xl font-semibold mb-4 text-theme-dark border-b-2 border-theme-primary pb-2">Add Match Report</h3>
+                            <div className="grid grid-cols-1 md:grid-cols-5 gap-3 items-end">
+                                <div className="md:col-span-3">
+                                    <label className="block text-sm font-medium text-theme-text-secondary mb-1">Title *</label>
+                                    <input
+                                        type="text"
+                                        value={matchReportForm.title}
+                                        onChange={e=>setMatchReportForm(prev=>({ ...prev, title: e.target.value }))}
+                                        placeholder="e.g., Late header seals comeback win"
+                                        className="w-full bg-theme-page-bg border border-theme-border rounded-md shadow-sm py-2 px-3 text-theme-dark focus:outline-none focus:ring-theme-primary focus:border-theme-primary"
+                                    />
+                                </div>
+                                <div className="md:col-span-2">
+                                    <label className="block text-sm font-medium text-theme-text-secondary mb-1">Image *</label>
+                                    <input
+                                        type="file"
+                                        accept="image/jpeg,image/jpg,image/png,image/webp"
+                                        onChange={(e)=>{
+                                            const f = e.target.files?.[0] || null;
+                                            setMatchReportImageFile(f);
+                                            if (f && f.type.startsWith('image/')) setMatchReportImagePreview(URL.createObjectURL(f)); else setMatchReportImagePreview('');
+                                        }}
+                                        className="w-full"
+                                    />
+                                    {matchReportImagePreview && (
+                                        <img src={matchReportImagePreview} alt="Preview" className="mt-2 h-20 w-full object-cover rounded"/>
+                                    )}
+                                </div>
+                            </div>
+                            <div className="mt-4 flex items-center justify-end">
+                                <button onClick={addMatchReport} className="bg-theme-primary text-theme-dark font-bold py-2 px-5 rounded-md">Publish</button>
+                            </div>
+                        </div>
+
+                        <div>
+                            <h3 className="text-xl font-semibold mb-3 text-theme-dark">Published Reports</h3>
+                            {matchReports.length === 0 ? (
+                                <div className="bg-theme-secondary-bg p-8 rounded-lg text-center text-theme-text-secondary">No reports yet. Add your first one above.</div>
+                            ) : (
+                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+                                    {matchReports.map(r => (
+                                        <div key={r.id} className="bg-theme-secondary-bg rounded-lg overflow-hidden shadow hover:shadow-md transition-shadow">
+                                            <div className="relative h-44">
+                                                <img src={r.imageUrl} alt={r.title} className="w-full h-full object-cover"/>
+                                                <span className="absolute top-2 left-2 bg-theme-accent text-white text-xs font-bold px-2 py-1 rounded">Match report</span>
+                                            </div>
+                                            <div className="p-4">
+                                                <h4 className="font-semibold text-theme-dark mb-1 line-clamp-2">{r.title}</h4>
+                                                <p className="text-xs text-theme-text-secondary">{new Date(r.createdAt).toLocaleDateString()}</p>
+                                                <div className="mt-3 flex justify-end">
+                                                    <button onClick={()=>removeMatchReport(r.id)} className="text-red-600 hover:text-red-800 text-sm">Remove</button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
                             )}
                         </div>
                     </div>
@@ -759,7 +1328,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
         }
     };
 
-    const sections: AdminSection[] = ['Dashboard', 'Manage Clubs', 'Manage Players', 'Manage Fixtures', 'Manage News', 'User Management', 'Player Registrations'];
+    const sections: AdminSection[] = ['Dashboard', 'Manage Clubs', 'Manage Fixtures', 'Manage News', 'Manage Match Reports', 'User Management'];
 
     return (
         <div className="flex min-h-screen bg-theme-light">

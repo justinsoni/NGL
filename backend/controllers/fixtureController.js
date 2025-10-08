@@ -31,8 +31,8 @@ function generateRoundRobinPairings(clubIds) {
 // POST /api/fixtures/generate
 exports.generateFixtures = async (req, res) => {
   try {
-    const clubs = await Club.find({ isActive: true }).sort({ name: 1 }).limit(4);
-    if (clubs.length !== 4) return res.status(400).json({ success: false, message: 'Exactly 4 active clubs are required' });
+    const clubs = await Club.find({ isActive: true }).sort({ name: 1 });
+    if (clubs.length < 2) return res.status(400).json({ success: false, message: 'At least 2 active clubs are required' });
 
     await ensureTableForSeason('2025', 'Default League', clubs.map(c => c._id));
 
@@ -40,7 +40,46 @@ exports.generateFixtures = async (req, res) => {
     if (existing.length) await Fixture.deleteMany({ isFinal: false });
 
     const pairings = generateRoundRobinPairings(clubs.map(c => c._id));
-    const docs = await Fixture.insertMany(pairings.map(p => ({ homeTeam: p.home, awayTeam: p.away, status: 'scheduled', isFinal: false })));
+    // Assign conflict-free times with constraints:
+    // 1) unique kickoffAt
+    // 2) a club plays max 1 match per calendar day
+    const incrementMs = 2 * 60 * 60 * 1000; // 2 hours
+    const start = new Date(); start.setHours(14,0,0,0); // start at 14:00 today
+    let slot = new Date(start);
+    const docs = [];
+
+    const sameDayRange = (d) => {
+      const dayStart = new Date(d); dayStart.setHours(0,0,0,0);
+      const dayEnd = new Date(d); dayEnd.setHours(23,59,59,999);
+      return { dayStart, dayEnd };
+    };
+
+    const teamHasMatchOnDay = async (teamId, d) => {
+      const { dayStart, dayEnd } = sameDayRange(d);
+      return !!(await Fixture.exists({ kickoffAt: { $gte: dayStart, $lte: dayEnd }, $or: [{ homeTeam: teamId }, { awayTeam: teamId }] }));
+    };
+
+    for (const p of pairings) {
+      let assigned = false;
+      /* eslint no-await-in-loop: 0 */
+      while (!assigned) {
+        // Ensure unique timestamp
+        const taken = await Fixture.exists({ kickoffAt: slot });
+        // Ensure both teams don’t play another match on this same calendar day
+        const violatesHomeDay = await teamHasMatchOnDay(p.home, slot);
+        const violatesAwayDay = await teamHasMatchOnDay(p.away, slot);
+        if (!taken && !violatesHomeDay && !violatesAwayDay) {
+          const created = await Fixture.create({ homeTeam: p.home, awayTeam: p.away, status: 'scheduled', stage: 'league', isFinal: false, kickoffAt: new Date(slot), isScheduled: false });
+          docs.push(created);
+          assigned = true;
+          // Next game moves forward 2h from current slot baseline
+          slot = new Date(slot.getTime() + incrementMs);
+        } else {
+          // Move forward 2h; if we crossed midnight, that’s fine — daily rule still holds
+          slot = new Date(slot.getTime() + incrementMs);
+        }
+      }
+    }
     res.status(201).json({ success: true, message: 'Fixtures generated', data: docs });
   } catch (e) {
     console.error('generateFixtures error', e);
@@ -106,15 +145,43 @@ exports.finishMatch = async (req, res) => {
     io.emit('match:finished', populated);
     io.emit('table:updated', updatedTable);
 
-    // Check if all league matches finished and final not created yet
-    const remaining = await Fixture.countDocuments({ isFinal: false, status: { $ne: 'finished' } });
-    const finalExists = await Fixture.findOne({ isFinal: true });
-    if (remaining === 0 && !finalExists) {
-      const populatedTable = updatedTable; // already sorted
-      const [clubA, clubB] = pickTopTwo(populatedTable);
-      const final = await Fixture.create({ homeTeam: clubA, awayTeam: clubB, status: 'scheduled', isFinal: true });
-      const finalPop = await Fixture.findById(final._id).populate('homeTeam awayTeam');
-      io.emit('final:created', finalPop);
+    // If all league matches finished, seed playoffs (semis then final)
+    const remainingLeague = await Fixture.countDocuments({ stage: 'league', status: { $ne: 'finished' } });
+    const existingSemis = await Fixture.find({ stage: 'semi' });
+    const existingFinal = await Fixture.findOne({ stage: 'final' });
+    if (remainingLeague === 0 && existingSemis.length === 0 && !existingFinal) {
+      // Take top 4 from the table
+      const standings = updatedTable.standings.slice(0, 4);
+      if (standings.length >= 4) {
+        const c1 = standings[0].club; const c2 = standings[1].club; const c3 = standings[2].club; const c4 = standings[3].club;
+        const base = new Date(); base.setHours(18,0,0,0);
+        const semi1 = await Fixture.create({ homeTeam: c1, awayTeam: c4, status: 'scheduled', stage: 'semi', isFinal: false, kickoffAt: base });
+        const semi2 = await Fixture.create({ homeTeam: c2, awayTeam: c3, status: 'scheduled', stage: 'semi', isFinal: false, kickoffAt: new Date(base.getTime() + 2*60*60*1000) });
+        const [s1,s2] = await Promise.all([
+          Fixture.findById(semi1._id).populate('homeTeam awayTeam'),
+          Fixture.findById(semi2._id).populate('homeTeam awayTeam')
+        ]);
+        io.emit('semi:created', s1);
+        io.emit('semi:created', s2);
+      }
+    }
+
+    // If both semis are finished and the final doesn't exist, create final
+    const unfinishedSemis = await Fixture.countDocuments({ stage: 'semi', status: { $ne: 'finished' } });
+    const finalExists = await Fixture.findOne({ stage: 'final' });
+    if (unfinishedSemis === 0 && !finalExists) {
+      // Determine winners by finished semi scores
+      const semis = await Fixture.find({ stage: 'semi', status: 'finished' });
+      if (semis.length === 2) {
+        const winner = (m) => (m.score.home > m.score.away ? m.homeTeam : m.awayTeam);
+        const w1 = winner(semis[0]);
+        const w2 = winner(semis[1]);
+        const finalKick = new Date(); finalKick.setHours(20,0,0,0);
+        const final = await Fixture.create({ homeTeam: w1, awayTeam: w2, status: 'scheduled', stage: 'final', isFinal: true, kickoffAt: finalKick });
+        const finalPop = await Fixture.findById(final._id).populate('homeTeam awayTeam');
+        const io = req.app.get('io');
+        io.emit('final:created', finalPop);
+      }
     }
 
     res.json({ success: true, data: { match: populated, table: updatedTable } });
@@ -190,7 +257,16 @@ exports.finishFinalAndDeclareChampion = async (req, res) => {
 // GET /api/fixtures
 exports.listFixtures = async (req, res) => {
   const fixtures = await Fixture.find().populate('homeTeam awayTeam').sort({ createdAt: 1 });
-  res.json({ success: true, data: fixtures });
+  
+  // Add isScheduled field to each fixture
+  const fixturesWithScheduled = fixtures.map(fixture => {
+    const fixtureObj = fixture.toObject();
+    const isReady = !!(fixture.homeTeam && fixture.awayTeam && fixture.kickoffAt && fixture.venueName);
+    fixtureObj.isScheduled = isReady;
+    return fixtureObj;
+  });
+  
+  res.json({ success: true, data: fixturesWithScheduled });
 };
 
 // PUT /api/fixtures/:id/schedule
@@ -207,7 +283,34 @@ exports.scheduleMatch = async (req, res) => {
       return res.status(400).json({ success: false, message: 'Home and away teams must be different' });
     }
 
-    if (kickoffAt) match.kickoffAt = new Date(kickoffAt);
+    if (kickoffAt) {
+      const desired = new Date(kickoffAt);
+      // Validate uniqueness and assign next available slot if taken
+      const slotMs = 2 * 60 * 60 * 1000;
+      let t = desired;
+      let guard = 0;
+      while (guard < 96) { // up to 8 days max guard
+        const clash = await Fixture.exists({ _id: { $ne: match._id }, kickoffAt: t });
+        if (!clash) break;
+        t = new Date(t.getTime() + slotMs);
+        guard++;
+      }
+      if (guard >= 96) return res.status(409).json({ success: false, message: 'Time slot already occupied. Please choose another time.' });
+      match.kickoffAt = t;
+    } else if (match.kickoffAt) {
+      // Even if kickoffAt is not passed, validate the currently set time
+      const slotMs = 2 * 60 * 60 * 1000;
+      let t = new Date(match.kickoffAt);
+      let guard = 0;
+      while (guard < 96) {
+        const clash = await Fixture.exists({ _id: { $ne: match._id }, kickoffAt: t });
+        if (!clash) break;
+        t = new Date(t.getTime() + slotMs);
+        guard++;
+      }
+      if (guard >= 96) return res.status(409).json({ success: false, message: 'Time slot already occupied. Please choose another time.' });
+      match.kickoffAt = t;
+    }
     if (typeof autoSimulate === 'boolean') match.autoSimulate = autoSimulate;
     if (venueName !== undefined) match.venueName = venueName;
     if (homeTeamId) match.homeTeam = homeTeamId;
@@ -216,9 +319,22 @@ exports.scheduleMatch = async (req, res) => {
     // Mark as scheduled only when all fields present
     const isReady = !!(match.homeTeam && match.awayTeam && match.kickoffAt && match.venueName);
     match.isScheduled = isReady;
-    await match.save();
+    try {
+      await match.save();
+    } catch (err) {
+      // Handle unique index clashes from concurrent requests
+      if (err && err.code === 11000 && err.keyPattern && err.keyPattern.kickoffAt) {
+        return res.status(409).json({ success: false, message: 'Time slot already occupied. Please choose another time.' });
+      }
+      throw err;
+    }
     const populated = await Fixture.findById(match._id).populate('homeTeam awayTeam');
-    res.json({ success: true, data: populated });
+    
+    // Add isScheduled to the response
+    const responseData = populated.toObject();
+    responseData.isScheduled = isReady;
+    
+    res.json({ success: true, data: responseData });
   } catch (e) { res.status(500).json({ success: false, message: 'Failed to schedule match' }); }
 };
 

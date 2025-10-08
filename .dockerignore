@@ -1,0 +1,60 @@
+# Exclude docs and one-off scripts from Docker build context
+# Keep source code small and safe for production
+
+# Root docs and logs
+*.log
+log.txt
+CLEAN_SYSTEM_GUIDE.md
+EMAIL_SETUP_GUIDE.md
+LOGIN_PAGE_TESTING.md
+MANAGER_COACH_SETUP.md
+REAL_TIME_EMAIL_SETUP.md
+TEST_ADMIN_SETUP.md
+TEST_RESULTS.md
+WORKFLOW_VALIDATION.md
+
+# Backend docs and scripts
+backend/BREVO_SETUP.md
+backend/EMAIL_SETUP_GUIDE.md
+backend/test-*.js
+backend/*test*.js
+backend/check-justin-manager.js
+backend/check-managers.js
+backend/cleanup-and-fix-managers.js
+backend/cleanup-broken-managers.js
+backend/complete-manager-fix.js
+backend/fix-justin-manager.js
+backend/fix-kuts-manager.js
+backend/fix-manager-firebase.js
+backend/reset-manager-password.js
+backend/simple-manager-test.js
+backend/test-admin-manager-creation.js
+backend/test-brevo-email.js
+backend/test-email-service.js
+backend/test-email.js
+backend/test-manager-creation-direct.js
+
+# Root ad-hoc scripts
+check-admin-user.js
+check-managers.js
+fix-kuts-manager.js
+fix-manager-firebase.js
+debug-auth.js
+test-admin-token.js
+test-club-api.js
+test-club-creation.js
+test-manager-creation.js
+
+# Frontend preview static HTML (not part of SPA)
+frontend/CLUB_MANAGEMENT_NO_GROUP_PREVIEW.html
+frontend/COACH_FORM_NO_CERTIFICATIONS_PREVIEW.html
+frontend/COACH_FORM_PREVIEW.html
+frontend/FILE_UPLOAD_PREVIEW.html
+frontend/PLAYER_MANAGEMENT_PREVIEW.html
+
+# Node modules and caches (defensive)
+node_modules
+backend/node_modules
+frontend/node_modules
+npm-debug.log*
+**/.DS_Store

@@ -13,6 +13,7 @@ export interface FixtureDTO {
   kickoffAt?: string;
   autoSimulate?: boolean;
   venueName?: string;
+  isScheduled?: boolean;
 }
 
 export async function generateFixtures(): Promise<FixtureDTO[]> {
