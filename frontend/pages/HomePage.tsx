@@ -13,6 +13,7 @@ import MatchTicker from '../components/MatchTicker';
 import MediaHighlights from '../components/MediaHighlights';
 import SectionHeader from '../components/SectionHeader';
 import { GROUPS } from '../constants';
+import { fetchNews } from '@/api/news/fetchNews';
 
 // Using local images from assets - using correct asset paths
 const image103 = new URL('../src/assets/images/103.jpg', import.meta.url).href;
@@ -140,6 +141,20 @@ const HomePage: React.FC<HomePageProps> = ({ matchesData, tableData, competition
   const [activeStat, setActiveStat] = useState<string>(leaderStats.length > 0 ? leaderStats[0].statUnit : '');
   const activeLeaderStat = leaderStats.find(stat => stat.statUnit === activeStat);
 
+  const [newsArticles, setNewsArticles] = useState<Array<{ _id: string; title: string; imageUrl: string, summary: string, content: string, createdAt: string }>>([]);
+    
+    useEffect(() => {
+      async function getNews() {
+        try {
+          const data = await fetchNews();
+          setNewsArticles(data);
+        } catch (err) {
+          setNewsArticles([]);
+        }
+      }
+      getNews();
+    }, []);
+
   const trendingNowData = [
     { id: 1, title: 'Best of Madueke 24/25', imageUrl: 'https://images.pexels.com/photos/6203517/pexels-photo-6203517.jpeg?auto=compress&cs=tinysrgb&w=300&h=400&dpr=1', icon: '🔥' },
     { id: 2, title: 'Isak is electric', imageUrl: 'https://images.pexels.com/photos/4065137/pexels-photo-4065137.jpeg?auto=compress&cs=tinysrgb&w=300&h=400&dpr=1', icon: '⚡️' },
@@ -238,12 +253,12 @@ const HomePage: React.FC<HomePageProps> = ({ matchesData, tableData, competition
     <div className="py-10">
         <h2 className="text-3xl font-bold text-theme-dark mb-6">Key Summer 2025 Transfers</h2>
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-5">
-            {[...managerTransfers.map((t, idx) => ({ id: `m-${idx}-${t.id}`, title: t.title, imageUrl: t.imageUrl })), ...defaultTransfers].map(item => (
-                <Link to="/media" key={item.id} className="group">
+            {managerTransfers.map((t, idx) => (
+                <Link to="/media" key={`m-${idx}-${t.id}`} className="group">
                     <div className="rounded-lg overflow-hidden bg-transparent">
-                        <img src={item.imageUrl} alt={item.title} className="w-full h-36 object-cover rounded-lg group-hover:opacity-80 transition-opacity" />
+                        <img src={t.imageUrl} alt={t.title} className="w-full h-36 object-cover rounded-lg group-hover:opacity-80 transition-opacity" />
                         <div className="pt-3">
-                            <h3 className="font-semibold text-theme-dark group-hover:text-theme-primary transition-colors">{item.title}</h3>
+                            <h3 className="font-semibold text-theme-dark group-hover:text-theme-primary transition-colors">{t.title}</h3>
                             <p className="text-sm text-theme-text-secondary mt-1">Transfers</p>
                         </div>
                     </div>
@@ -289,10 +304,10 @@ const HomePage: React.FC<HomePageProps> = ({ matchesData, tableData, competition
         <section className="mb-10">
           <h2 className="text-3xl font-extrabold text-theme-dark mb-6">Latest News & Features</h2>
 
-          {NEWS.length > 0 && (
+          {newsArticles.length > 0 && (
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-6">
-              {NEWS.slice(0, 10).map((article) => (
-                <Link to={`/news/${article.id}`} key={article.id} className="group">
+              {newsArticles.slice(0, 10).map((article) => (
+                <Link to={`/news/${article._id}`} key={article._id} className="group">
                   <div className="relative h-64 rounded-lg overflow-hidden shadow-lg">
                     <img 
                       src={article.imageUrl} 

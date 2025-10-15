@@ -10,6 +10,7 @@ export interface FixtureDTO {
   score: { home: number; away: number };
   events: Array<{ minute: number; type: 'goal'|'yellow_card'|'red_card'|'foul'; team: 'home'|'away'; player?: string }>;
   isFinal: boolean;
+  stage?: 'league' | 'semi' | 'final';
   kickoffAt?: string;
   autoSimulate?: boolean;
   venueName?: string;

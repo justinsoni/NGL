@@ -22,6 +22,7 @@ const clubRoutes = require('./routes/clubs');
 const playerRoutes = require('./routes/player');
 const fixtureRoutes = require('./routes/fixtures');
 const tableRoutes = require('./routes/table');
+const newsItemRoutes = require('./routes/newsItemRoutes');
 
 // Initialize Express app
 const app = express();
@@ -65,6 +66,7 @@ app.use('/api/clubs', clubRoutes);
 app.use('/api/players', playerRoutes);
 app.use('/api/fixtures', fixtureRoutes);
 app.use('/api/table', tableRoutes);
+app.use('/api/news', newsItemRoutes);
 
 // 404 handler for undefined routes
 app.use('*', (req, res) => {
@@ -99,6 +101,10 @@ app.use('*', (req, res) => {
       'PUT /api/fixtures/:id/finish',
       'PUT /api/fixtures/final/:id/finish-and-declare',
       'GET /api/table',
+      'GET /api/news',
+      'POST /api/news',
+      'PUT /api/news/:id',
+      'DELETE /api/news/:id'
     ]
   });
 });
