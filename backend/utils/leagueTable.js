@@ -21,6 +21,33 @@ async function ensureTableForSeason(season = '2025', name = 'Default League', cl
   return table;
 }
 
+// Initialize table with all existing clubs
+async function initializeTableWithAllClubs(season = '2025', name = 'Default League') {
+  const Club = require('../models/Club');
+  const clubs = await Club.find({});
+  const clubIds = clubs.map(c => c._id);
+  
+  let table = await LeagueTable.findOne({ season, name });
+  if (!table) {
+    // Create new table with all clubs
+    table = await LeagueTable.create({ 
+      season, 
+      name, 
+      standings: clubIds.map(id => ({ club: id })) 
+    });
+  } else {
+    // Add any missing clubs to existing table
+    const existingIds = new Set(table.standings.map(s => s.club.toString()));
+    const toAdd = clubIds.filter(id => !existingIds.has(id.toString()));
+    if (toAdd.length) {
+      table.standings.push(...toAdd.map(id => ({ club: id })));
+      await table.save();
+    }
+  }
+  
+  return await sortTable(table._id);
+}
+
 async function updateTableForMatch({ season = '2025', name = 'Default League', homeClubId, awayClubId, homeGoals, awayGoals }) {
   const table = await ensureTableForSeason(season, name, [homeClubId, awayClubId]);
 
@@ -59,10 +86,17 @@ function pickTopTwo(table) {
   return topTwo;
 }
 
+function pickTopFour(table) {
+  const topFour = table.standings.slice(0, 4).map(s => s.club._id || s.club);
+  return topFour;
+}
+
 module.exports = {
   ensureTableForSeason,
+  initializeTableWithAllClubs,
   updateTableForMatch,
   sortTable,
-  pickTopTwo
+  pickTopTwo,
+  pickTopFour
 };
 

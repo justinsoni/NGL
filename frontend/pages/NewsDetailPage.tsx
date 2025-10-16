@@ -1,22 +1,44 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { Link, useParams, useNavigate } from 'react-router-dom';
-import { NEWS } from '../constants';
+import { fetchNewsById } from '../api/news/fetchNewsById';
 
 const NewsDetailPage: React.FC = () => {
     const { id } = useParams<{ id: string }>();
     const navigate = useNavigate();
-    
-    // Find the news article by ID
-    const article = NEWS.find(item => item.id.toString() === id);
-    
-    // If article not found, redirect to home
-    if (!article) {
-        navigate('/');
-        return null;
+
+    const [article, setArticle] = useState<any>(null);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState<string | null>(null);
+
+    useEffect(() => {
+        if (!id) return;
+        setLoading(true);
+        fetchNewsById(id)
+            .then(data => {
+                if (!data) {
+                    navigate('/');
+                } else {
+                    setArticle(data);
+                }
+            })
+            .catch(() => {
+                setError('Failed to fetch article.');
+                navigate('/');
+            })
+            .finally(() => setLoading(false));
+    }, [id, navigate]);
+
+    if (loading) {
+        return (
+            <div className="min-h-screen flex items-center justify-center">
+                <span>Loading...</span>
+            </div>
+        );
     }
 
-    // Get related articles (exclude current article)
-    const relatedArticles = NEWS.filter(item => item.id !== article.id).slice(0, 5);
+    if (error || !article) {
+        return null;
+    }
 
     return (
         <div className="min-h-screen bg-white">
@@ -72,7 +94,7 @@ const NewsDetailPage: React.FC = () => {
                             <div className="flex items-center gap-4 text-gray-600">
                                 <span className="text-sm">📝 Admin Editor</span>
                                 <span className="text-sm">•</span>
-                                <span className="text-sm">{article.date}</span>
+                                <span className="text-sm">{new Date(article.createdAt).toLocaleDateString()}</span>
                             </div>
                             <button className="text-gray-600 hover:text-gray-800 transition-colors">
                                 <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
@@ -91,29 +113,7 @@ const NewsDetailPage: React.FC = () => {
                                 
                                 {/* Main content */}
                                 <div className="space-y-4 text-gray-700 leading-relaxed">
-                                    <p>
-                                        In a stunning display of athleticism and skill, the latest developments in the football world 
-                                        continue to captivate fans worldwide. This remarkable performance showcases the incredible 
-                                        talent and dedication that defines modern football.
-                                    </p>
-                                    
-                                    <p>
-                                        The strategic approach taken by the team demonstrates exceptional planning and execution. 
-                                        Key players have stepped up their game, delivering outstanding performances that have 
-                                        reshaped the competitive landscape of the league.
-                                    </p>
-                                    
-                                    <p>
-                                        As the season progresses, these developments are setting new standards for excellence. 
-                                        The combination of tactical innovation and individual brilliance continues to push the 
-                                        boundaries of what's possible in professional football.
-                                    </p>
-                                    
-                                    <p>
-                                        Looking ahead, the implications of these achievements will undoubtedly influence 
-                                        future strategies and inspire the next generation of football talent. The impact 
-                                        extends far beyond the immediate results, shaping the future of the sport.
-                                    </p>
+                                    <p>{article.content}</p>
                                 </div>
                             </div>
                         </div>
@@ -124,35 +124,8 @@ const NewsDetailPage: React.FC = () => {
                         <div className="sticky top-8">
                             <h3 className="text-gray-900 text-xl font-bold mb-6">Related Content</h3>
                             <div className="space-y-4">
-                                {relatedArticles.map((relatedArticle) => (
-                                    <Link 
-                                        key={relatedArticle.id}
-                                        to={`/news/${relatedArticle.id}`}
-                                        className="block group"
-                                    >
-                                        <div className="bg-gray-50 rounded-lg overflow-hidden hover:bg-gray-100 transition-all duration-300">
-                                            <div className="relative h-32">
-                                                <img 
-                                                    src={relatedArticle.imageUrl} 
-                                                    alt={relatedArticle.title}
-                                                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                                                />
-                                                <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent"></div>
-                                                <div className="absolute top-2 left-2">
-                                                    <span className="bg-blue-600/80 text-white text-xs font-bold px-2 py-1 rounded">
-                                                        {relatedArticle.category}
-                                                    </span>
-                                                </div>
-                                            </div>
-                                            <div className="p-3">
-                                                <h4 className="text-gray-900 font-semibold text-sm leading-tight group-hover:text-blue-600 transition-colors line-clamp-2">
-                                                    {relatedArticle.title}
-                                                </h4>
-                                                <p className="text-gray-500 text-xs mt-1">{relatedArticle.date}</p>
-                                            </div>
-                                        </div>
-                                    </Link>
-                                ))}
+                                {/* You can fetch and display related articles here if your API supports it */}
+                                <div className="text-gray-500 text-sm">No related articles available.</div>
                             </div>
                             
                             {/* Additional Related Links */}

@@ -14,3 +14,13 @@ export async function getLeagueTable(): Promise<LeagueTableDTO> {
   return res.data.data!;
 }
 
+export async function initializeLeagueTable(season = '2025', name = 'Default League'): Promise<LeagueTableDTO> {
+  const res = await api.get<ApiResponse<LeagueTableDTO>>('/table/initialize', { params: { season, name } });
+  return res.data.data!;
+}
+
+export async function initializeLeagueTableAdmin(season = '2025', name = 'Default League'): Promise<LeagueTableDTO> {
+  const res = await api.post<ApiResponse<LeagueTableDTO>>('/table/initialize', { season, name });
+  return res.data.data!;
+}
+

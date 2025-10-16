@@ -9,8 +9,14 @@ import toast from 'react-hot-toast';
 import { listFixtures, generateFixtures, startMatch, addEvent, finishMatch, simulateMatch, scheduleMatch, resetLeague, updateTeams, FixtureDTO } from '../services/fixturesService';
 import playerService from '../services/playerService';
 import { getSocket } from '../services/socket';
+import { createNews } from '@/api/news/createNews';
+import { fetchNews } from '@/api/news/fetchNews';
+import { deleteNewsById } from '@/api/news/deleteNewsItemById';
+import { updateNewsById } from '@/api/news/updateNewsById';
+import { getLeagueConfig, updateLeagueConfig, resetLeagueConfig, LeagueConfigDTO } from '../services/leagueConfigService';
+import { initializeLeagueTableAdmin } from '../services/tableService';
 
-type AdminSection = 'Dashboard' | 'Manage Clubs' | 'Manage Fixtures' | 'Manage News' | 'Manage Match Reports' | 'User Management';
+type AdminSection = 'Dashboard' | 'Manage Clubs' | 'Manage Fixtures' | 'Manage News' | 'Manage Match Reports' | 'User Management' | 'League Settings';
 
 interface AdminDashboardProps {
     matches: Match[];
@@ -64,7 +70,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
     // News management state
     const [showNewsForm, setShowNewsForm] = useState(false);
     const [isSubmittingNews, setIsSubmittingNews] = useState(false);
-    const [newsArticles, setNewsArticles] = useState<any[]>([]);
+    const [newsArticles, setNewsArticles] = useState<Array<{ _id: string; title: string; imageUrl: string, summary: string, content: string, createdAt: string, category: string }>>([]);
     const [editingNews, setEditingNews] = useState<any>(null);
     
     // News form state
@@ -159,6 +165,55 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
     const [matchReports, setMatchReports] = useState<MatchReportItem[]>([]);
     const [matchReportImageFile, setMatchReportImageFile] = useState<File | null>(null);
     const [matchReportImagePreview, setMatchReportImagePreview] = useState<string>('');
+
+    // League configuration state
+    const [leagueConfig, setLeagueConfig] = useState<LeagueConfigDTO | null>(null);
+    const [isLoadingLeagueConfig, setIsLoadingLeagueConfig] = useState(false);
+    const [isUpdatingLeagueConfig, setIsUpdatingLeagueConfig] = useState(false);
+    const [leagueConfigForm, setLeagueConfigForm] = useState({
+        startDate: '',
+        endDate: '',
+        name: 'NGL',
+        description: ''
+    });
+
+
+    
+        
+    useEffect(() => {
+        async function getNews() {
+        try {
+            const data = await fetchNews();
+            setNewsArticles(data);
+        } catch (err) {
+            setNewsArticles([]);
+        }
+        }
+        getNews();
+    }, []);
+
+    // Load league configuration
+    useEffect(() => {
+        const loadLeagueConfig = async () => {
+            setIsLoadingLeagueConfig(true);
+            try {
+                const config = await getLeagueConfig();
+                setLeagueConfig(config);
+                setLeagueConfigForm({
+                    startDate: config.startDate ? new Date(config.startDate).toISOString().slice(0, 16) : '',
+                    endDate: config.endDate ? new Date(config.endDate).toISOString().slice(0, 16) : '',
+                    name: config.name || '',
+                    description: config.description || ''
+                });
+            } catch (error) {
+                console.error('Failed to load league config:', error);
+                toast.error('Failed to load league configuration');
+            } finally {
+                setIsLoadingLeagueConfig(false);
+            }
+        };
+        loadLeagueConfig();
+    }, []);
 
     const uploadMatchImage = async (file: File, uploadPreset: string): Promise<string> => {
         const url = `https://api.cloudinary.com/v1_1/dmuilu78u/auto/upload`;
@@ -340,24 +395,39 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
         s.on('match:event', refresh);
         s.on('match:finished', refresh);
         s.on('match:started', refresh);
+        s.on('semi:created', refresh);
         s.on('final:created', refresh);
         s.on('final:finished', refresh);
         return () => {
             s.off('match:event', refresh);
             s.off('match:finished', refresh);
             s.off('match:started', refresh);
+            s.off('semi:created', refresh);
             s.off('final:created', refresh);
             s.off('final:finished', refresh);
         };
     }, []);
 
-    // Load existing match reports from localStorage on mount
+    // Load existing match reports from MongoDB on mount
     useEffect(() => {
-        try {
-            const raw = localStorage.getItem('ngl_match_reports');
-            const list: MatchReportItem[] = raw ? JSON.parse(raw) : [];
-            setMatchReports(list);
-        } catch {}
+        async function loadMatchReports() {
+            try {
+                const data = await fetchNews();
+                const reports = data
+                    .filter((item: any) => item.type === 'match-report')
+                    .map((item: any) => ({
+                        id: item._id,
+                        title: item.title,
+                        imageUrl: item.imageUrl,
+                        createdAt: item.createdAt
+                    }));
+                setMatchReports(reports);
+            } catch (error) {
+                console.error('Failed to load match reports:', error);
+                setMatchReports([]);
+            }
+        }
+        loadMatchReports();
     }, []);
 
     const addMatchReport = async () => {
@@ -374,32 +444,51 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
             toast.error(e.message || 'Upload failed');
             return;
         }
-        const item: MatchReportItem = { id: String(Date.now()), title, imageUrl, createdAt: new Date().toISOString() };
+        
+        // Save to MongoDB instead of localStorage
         try {
-            const raw = localStorage.getItem('ngl_match_reports');
-            const list: MatchReportItem[] = raw ? JSON.parse(raw) : [];
-            const updated = [item, ...list];
-            localStorage.setItem('ngl_match_reports', JSON.stringify(updated));
-            setMatchReports(prev => [item, ...prev]);
+            const idToken = await user?.firebaseUser?.getIdToken();
+            if (!idToken) {
+                toast.error('Authentication required');
+                return;
+            }
+            
+            const matchReportData = {
+                title,
+                imageUrl,
+                category: 'Match Reports',
+                type: 'match-report',
+                content: title,
+                summary: title,
+                createdAt: new Date().toISOString()
+            };
+            
+            const created = await createNews(matchReportData, idToken);
+            setMatchReports(prev => [{ id: created._id, title: created.title, imageUrl: created.imageUrl, createdAt: created.createdAt }, ...prev]);
             setMatchReportForm({ title: '', imageUrl: '' });
             setMatchReportImageFile(null);
             setMatchReportImagePreview('');
             toast.success('Match report published to homepage');
-        } catch {
-            toast.error('Failed to save match report');
+        } catch (error: any) {
+            console.error('Error saving match report:', error);
+            toast.error('Failed to save match report: ' + (error.response?.data?.message || error.message));
         }
     };
 
-    const removeMatchReport = (id: string) => {
+    const removeMatchReport = async (id: string) => {
         if (!confirm('Remove this match report?')) return;
         try {
-            const raw = localStorage.getItem('ngl_match_reports');
-            const list: MatchReportItem[] = raw ? JSON.parse(raw) : [];
-            const updated = list.filter(r => r.id !== id);
-            localStorage.setItem('ngl_match_reports', JSON.stringify(updated));
+            const idToken = await user?.firebaseUser?.getIdToken();
+            if (!idToken) {
+                toast.error('Authentication required');
+                return;
+            }
+            
+            await deleteNewsById(id, idToken);
             setMatchReports(prev => prev.filter(r => r.id !== id));
-            toast.success('Removed');
-        } catch {
+            toast.success('Match report removed successfully');
+        } catch (error: any) {
+            console.error('Error removing match report:', error);
             toast.error('Failed to remove match report');
         }
     };
@@ -418,6 +507,15 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
             onAddClub(newClub); // If you want to keep parent in sync
             setShowClubForm(false);
             toast.success('Club created successfully!');
+            
+            // Automatically initialize/update the league table with the new club
+            try {
+                await initializeLeagueTableAdmin();
+                toast.success('League table updated with new club');
+            } catch (tableError) {
+                console.error('Failed to update league table:', tableError);
+                // Don't show error to user as club was created successfully
+            }
         } catch (error: any) {
             const errorMessage = error.response?.data?.message || 'Failed to create club';
             toast.error(errorMessage);
@@ -442,29 +540,45 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
         }
     };
 
-    // News management functions
     const handleCreateNews = async (e: React.FormEvent) => {
         e.preventDefault();
-        setIsSubmittingNews(true);
+        console.log('🔍 Starting news creation process...');
+        console.log('🔍 User:', user);
+        console.log('🔍 Firebase user:', user?.firebaseUser);
         
+        setIsSubmittingNews(true);
+
         try {
+            const idToken = await user?.firebaseUser?.getIdToken();
+            console.log('🔍 ID Token obtained:', idToken ? 'Yes' : 'No');
+
+            if (!idToken) {
+                console.error('❌ No ID token available');
+                toast.error('Failed to get ID token');
+                setIsSubmittingNews(false);
+                return;
+            }
+
             const newArticle = {
-                id: Date.now(), // Simple ID generation for demo
                 title: newsForm.title,
                 summary: newsForm.summary,
                 imageUrl: newsForm.imageUrl,
                 category: newsForm.category,
                 content: newsForm.content,
-                date: new Date().toLocaleDateString(),
                 createdAt: new Date().toISOString()
             };
+            
+            console.log('🔍 Article data:', newArticle);
+            const created = await createNews(newArticle, idToken);
+            console.log('🔍 Created article:', created);
 
-            setNewsArticles(prev => [newArticle, ...prev]);
+            setNewsArticles(prev => [created, ...prev]);
             setNewsForm({ title: '', summary: '', imageUrl: '', category: 'Features', content: '' });
             setShowNewsForm(false);
             toast.success('News article created successfully!');
         } catch (error: any) {
-            toast.error('Failed to create news article');
+            console.error('❌ Error in handleCreateNews:', error);
+            toast.error('Failed to create news article: ' + (error.response?.data?.message || error.message));
         } finally {
             setIsSubmittingNews(false);
         }
@@ -497,9 +611,17 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 updatedAt: new Date().toISOString()
             };
 
-            setNewsArticles(prev => prev.map(article => 
-                article.id === editingNews.id ? updatedArticle : article
-            ));
+            const idToken = await user?.firebaseUser?.getIdToken();
+
+            if (!idToken) {
+                toast.error('Failed to get ID token');
+                setIsSubmittingNews(false);
+                return;
+            }
+
+            const updated = await updateNewsById(editingNews._id, updatedArticle, idToken);
+
+            setNewsArticles(prev => prev.map(article => article._id === updated._id ? updated : article));
             
             setNewsForm({ title: '', summary: '', imageUrl: '', category: 'Features', content: '' });
             setEditingNews(null);
@@ -512,11 +634,17 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
         }
     };
 
-    const handleDeleteNews = (articleId: number) => {
+    const handleDeleteNews = async (articleId: string) => {
         if (!confirm('Are you sure you want to delete this news article?')) {
             return;
         }
-        setNewsArticles(prev => prev.filter(article => article.id !== articleId));
+        const idToken = await user?.firebaseUser?.getIdToken();
+        if (!idToken) {
+            toast.error('Failed to get ID token');
+            return;
+        }
+        await deleteNewsById(articleId, idToken);
+        setNewsArticles(prev => prev.filter(article => article._id !== articleId));
         toast.success('News article deleted successfully');
     };
 
@@ -524,6 +652,53 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
         setNewsForm({ title: '', summary: '', imageUrl: '', category: 'Features', content: '' });
         setEditingNews(null);
         setShowNewsForm(false);
+    };
+
+    // League configuration management functions
+    const handleUpdateLeagueConfig = async (e: React.FormEvent) => {
+        e.preventDefault();
+        setIsUpdatingLeagueConfig(true);
+
+        try {
+            const updatedConfig = await updateLeagueConfig({
+                startDate: new Date(leagueConfigForm.startDate).toISOString(),
+                endDate: new Date(leagueConfigForm.endDate).toISOString(),
+                name: leagueConfigForm.name,
+                description: leagueConfigForm.description
+            });
+            
+            setLeagueConfig(updatedConfig);
+            toast.success('League configuration updated successfully');
+        } catch (error: any) {
+            console.error('Failed to update league config:', error);
+            toast.error(error.response?.data?.message || 'Failed to update league configuration');
+        } finally {
+            setIsUpdatingLeagueConfig(false);
+        }
+    };
+
+    const handleResetLeagueConfig = async () => {
+        if (!confirm('Are you sure you want to reset the league configuration? This will create a new default configuration.')) {
+            return;
+        }
+
+        setIsUpdatingLeagueConfig(true);
+        try {
+            const resetConfig = await resetLeagueConfig();
+            setLeagueConfig(resetConfig);
+            setLeagueConfigForm({
+                startDate: resetConfig.startDate ? new Date(resetConfig.startDate).toISOString().slice(0, 16) : '',
+                endDate: resetConfig.endDate ? new Date(resetConfig.endDate).toISOString().slice(0, 16) : '',
+                name: resetConfig.name || '',
+                description: resetConfig.description || ''
+            });
+            toast.success('League configuration reset successfully');
+        } catch (error: any) {
+            console.error('Failed to reset league config:', error);
+            toast.error(error.response?.data?.message || 'Failed to reset league configuration');
+        } finally {
+            setIsUpdatingLeagueConfig(false);
+        }
     };
 
     const renderSection = () => {
@@ -541,27 +716,86 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                         {user?.role !== 'admin' && (
                             <div className="p-3 bg-red-50 border border-red-200 rounded text-red-700 text-sm mb-4">Admin access required.</div>
                         )}
-                        <div className="flex items-center gap-2 mb-4">
+                        
+                        {/* League Period Display */}
+                        {leagueConfig && (
+                            <div className="bg-gradient-to-r from-theme-primary to-theme-accent text-white p-4 rounded-lg shadow-lg mb-6">
+                                <div className="text-center">
+                                    <h3 className="text-xl font-bold mb-2">{leagueConfig.name} League</h3>
+                                    <p className="text-lg opacity-90">
+                                        League runs from{' '}
+                                        <span className="font-semibold">
+                                            {new Date(leagueConfig.startDate).toLocaleDateString('en-US', {
+                                                year: 'numeric',
+                                                month: '2-digit',
+                                                day: '2-digit'
+                                            })}
+                                        </span>
+                                        {' '}to{' '}
+                                        <span className="font-semibold">
+                                            {new Date(leagueConfig.endDate).toLocaleDateString('en-US', {
+                                                year: 'numeric',
+                                                month: '2-digit',
+                                                day: '2-digit'
+                                            })}
+                                        </span>
+                                    </p>
+                                    {leagueConfig.description && (
+                                        <p className="text-sm opacity-75 mt-1">{leagueConfig.description}</p>
+                                    )}
+                                </div>
+                            </div>
+                        )}
+                        
+                        <div className="flex items-center gap-2 mb-4 flex-wrap">
+                            <button onClick={async () => { try { await initializeLeagueTableAdmin(); toast.success('League table initialized with all clubs'); } catch (e: any) { toast.error('Failed to initialize table: ' + (e.response?.data?.message || e.message)); } }} className="bg-green-600 text-white font-bold py-2 px-4 rounded-md hover:bg-green-700">Initialize Table</button>
                             <button onClick={async () => { try { await generateFixtures(); toast.success('Fixtures generated'); const list = await listFixtures(); setFixtures(list); } catch { toast.error('Failed to generate'); } }} className="bg-theme-primary text-theme-dark font-bold py-2 px-4 rounded-md">Generate Fixtures</button>
                             <button onClick={async () => { try { const list = await listFixtures(); setFixtures(list); toast.success('Refreshed'); } catch { toast.error('Refresh failed'); } }} className="bg-theme-secondary-bg text-theme-dark font-bold py-2 px-4 rounded-md">Refresh</button>
                             <button onClick={async () => { if (!confirm('Reset league? This clears fixtures and table.')) return; try { await resetLeague(); toast.success('League reset'); const list = await listFixtures(); setFixtures(list); } catch { toast.error('Reset failed'); } }} className="bg-red-50 text-red-700 font-bold py-2 px-4 rounded-md border border-red-200">Reset League</button>
                         </div>
                         <div className="grid gap-4">
-                            {fixtures.map(f => {
+                            {fixtures.sort((a, b) => {
+                                // Priority: live > scheduled > finished
+                                const getPriority = (f: FixtureDTO) => {
+                                    if (f.status === 'live') return 1;
+                                    if (f.status === 'scheduled' && f.isScheduled) return 2;
+                                    if (f.status === 'scheduled' && !f.isScheduled) return 3;
+                                    if (f.status === 'finished') return 4;
+                                    return 5;
+                                };
+                                
+                                const priorityA = getPriority(a);
+                                const priorityB = getPriority(b);
+                                
+                                if (priorityA !== priorityB) {
+                                    return priorityA - priorityB;
+                                }
+                                
+                                // Within same priority, sort by kickoff time
+                                const kickoffA = a.kickoffAt ? new Date(a.kickoffAt).getTime() : 0;
+                                const kickoffB = b.kickoffAt ? new Date(b.kickoffAt).getTime() : 0;
+                                
+                                if (kickoffA !== kickoffB) {
+                                    return kickoffA - kickoffB;
+                                }
+                                
+                                // If no kickoff time, maintain original order (by _id)
+                                return 0;
+                            }).map(f => {
                                 const home = typeof f.homeTeam === 'string' ? undefined : f.homeTeam;
                                 const away = typeof f.awayTeam === 'string' ? undefined : f.awayTeam;
                                 return (
                                     <div key={f._id} className="bg-theme-secondary-bg p-4 rounded-lg shadow-sm">
                                         <div className="grid grid-cols-12 items-center gap-3">
                                             <div className="col-span-5 flex items-center gap-3 min-w-0">
-                                                <span className={`px-2 py-1 rounded text-xs whitespace-nowrap ${f.isFinal ? 'bg-yellow-500 text-white' : 'bg-gray-300'}`}>{f.isFinal ? 'FINAL' : 'LEAGUE'}</span>
+                                                {(() => { const isFinalStage = (f.stage==='final') || (!!f.isFinal); const isSemi = f.stage==='semi'; const label = isFinalStage ? 'FINAL' : (isSemi ? 'SEMIFINAL' : 'LEAGUE'); const cls = isFinalStage ? 'bg-yellow-500 text-white' : (isSemi ? 'bg-purple-600 text-white' : 'bg-gray-300'); return (<span className={`px-2 py-1 rounded text-xs whitespace-nowrap ${cls}`}>{label}</span>); })()}
                                                 <div className="flex items-center gap-2 min-w-0">
-                                                    {home?.logo && <img src={home.logo} className="h-6 w-6"/>}
+                                                    {home?.logo && <img src={home.logo} className="h-6 w-6" onError={(e) => { e.currentTarget.style.display = 'none'; }} />}
                                                     <span className="font-semibold truncate max-w-[140px]">{home?.name || 'Home'}</span>
                                                 </div>
                                                 <span className="text-lg font-extrabold">{f.score.home} - {f.score.away}</span>
                                                 <div className="flex items-center gap-2 min-w-0">
-                                                    {away?.logo && <img src={away.logo} className="h-6 w-6"/>}
+                                                    {away?.logo && <img src={away.logo} className="h-6 w-6" onError={(e) => { e.currentTarget.style.display = 'none'; }} />}
                                                     <span className="font-semibold truncate max-w-[140px]">{away?.name || 'Away'}</span>
                                                 </div>
                                             </div>
@@ -1020,7 +1254,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                 {/* News Articles Grid */}
                                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                                     {newsArticles.map(article => (
-                                        <div key={article.id} className="bg-theme-secondary-bg rounded-lg overflow-hidden shadow-lg">
+                                        <div key={article._id} className="bg-theme-secondary-bg rounded-lg overflow-hidden shadow-lg">
                                             <div className="relative h-48">
                                                 <img 
                                                     src={article.imageUrl} 
@@ -1037,7 +1271,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                                 <h3 className="font-semibold text-theme-dark mb-2 line-clamp-2">{article.title}</h3>
                                                 <p className="text-sm text-theme-text-secondary mb-3 line-clamp-3">{article.summary}</p>
                                                 <div className="flex justify-between items-center text-xs text-theme-text-secondary">
-                                                    <span>{article.date}</span>
+                                                    <span>{new Date(article.createdAt).toLocaleDateString()}</span>
                                                 <div className="flex gap-2">
                                                     <button
                                                             onClick={() => handleEditNews(article)}
@@ -1046,7 +1280,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                                             Edit
                                                     </button>
                                                     <button
-                                                            onClick={() => handleDeleteNews(article.id)}
+                                                            onClick={() => handleDeleteNews(article._id)}
                                                             className="text-red-600 hover:text-red-800"
                                                         >
                                                             Delete
@@ -1323,12 +1557,167 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                         </div>
                     </div>
                 );
+            case 'League Settings':
+                return (
+                    <div>
+                        <h2 className="text-3xl font-bold mb-6 text-theme-dark">League Settings</h2>
+                        
+                        {isLoadingLeagueConfig ? (
+                            <div className="flex items-center justify-center py-12">
+                                <div className="animate-spin rounded-full h-8 w-8 border-2 border-theme-primary border-t-transparent"></div>
+                                <span className="ml-3 text-theme-text-secondary">Loading league configuration...</span>
+                            </div>
+                        ) : (
+                            <div className="max-w-4xl">
+                                {/* Current League Configuration Display */}
+                                {leagueConfig && (
+                                    <div className="bg-theme-secondary-bg p-6 rounded-lg mb-6">
+                                        <h3 className="text-xl font-semibold mb-4 text-theme-dark border-b-2 border-theme-primary pb-2">
+                                            Current League Configuration
+                                        </h3>
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                            <div>
+                                                <label className="block text-sm font-medium text-theme-text-secondary mb-1">League Name</label>
+                                                <p className="text-theme-dark font-semibold">{leagueConfig.name}</p>
+                                            </div>
+                                            <div>
+                                                <label className="block text-sm font-medium text-theme-text-secondary mb-1">Season</label>
+                                                <p className="text-theme-dark font-semibold">{leagueConfig.season}</p>
+                                            </div>
+                                            <div>
+                                                <label className="block text-sm font-medium text-theme-text-secondary mb-1">Start Date</label>
+                                                <p className="text-theme-dark font-semibold">
+                                                    {new Date(leagueConfig.startDate).toLocaleDateString('en-US', {
+                                                        year: 'numeric',
+                                                        month: '2-digit',
+                                                        day: '2-digit'
+                                                    })}
+                                                </p>
+                                            </div>
+                                            <div>
+                                                <label className="block text-sm font-medium text-theme-text-secondary mb-1">End Date</label>
+                                                <p className="text-theme-dark font-semibold">
+                                                    {new Date(leagueConfig.endDate).toLocaleDateString('en-US', {
+                                                        year: 'numeric',
+                                                        month: '2-digit',
+                                                        day: '2-digit'
+                                                    })}
+                                                </p>
+                                            </div>
+                                            {leagueConfig.description && (
+                                                <div className="md:col-span-2">
+                                                    <label className="block text-sm font-medium text-theme-text-secondary mb-1">Description</label>
+                                                    <p className="text-theme-dark">{leagueConfig.description}</p>
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* League Configuration Form */}
+                                <div className="bg-theme-secondary-bg p-6 rounded-lg">
+                                    <h3 className="text-xl font-semibold mb-4 text-theme-dark border-b-2 border-theme-primary pb-2">
+                                        Update League Configuration
+                                    </h3>
+                                    
+                                    <form onSubmit={handleUpdateLeagueConfig} className="space-y-4">
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                            <div>
+                                                <label htmlFor="leagueName" className="block text-sm font-medium text-theme-text-secondary mb-1">League Name *</label>
+                                                <input
+                                                    type="text"
+                                                    id="leagueName"
+                                                    value={leagueConfigForm.name}
+                                                    onChange={e => setLeagueConfigForm(prev => ({ ...prev, name: e.target.value }))}
+                                                    required
+                                                    className="w-full bg-theme-page-bg border border-theme-border rounded-md shadow-sm py-2 px-3 text-theme-dark focus:outline-none focus:ring-theme-primary focus:border-theme-primary"
+                                                    placeholder="Enter league name"
+                                                />
+                                            </div>
+                                            <div>
+                                                <label htmlFor="leagueDescription" className="block text-sm font-medium text-theme-text-secondary mb-1">Description</label>
+                                                <input
+                                                    type="text"
+                                                    id="leagueDescription"
+                                                    value={leagueConfigForm.description}
+                                                    onChange={e => setLeagueConfigForm(prev => ({ ...prev, description: e.target.value }))}
+                                                    className="w-full bg-theme-page-bg border border-theme-border rounded-md shadow-sm py-2 px-3 text-theme-dark focus:outline-none focus:ring-theme-primary focus:border-theme-primary"
+                                                    placeholder="Enter league description (optional)"
+                                                />
+                                            </div>
+                                        </div>
+                                        
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                            <div>
+                                                <label htmlFor="startDate" className="block text-sm font-medium text-theme-text-secondary mb-1">Start Date *</label>
+                                                <input
+                                                    type="datetime-local"
+                                                    id="startDate"
+                                                    value={leagueConfigForm.startDate}
+                                                    onChange={e => setLeagueConfigForm(prev => ({ ...prev, startDate: e.target.value }))}
+                                                    required
+                                                    className="w-full bg-theme-page-bg border border-theme-border rounded-md shadow-sm py-2 px-3 text-theme-dark focus:outline-none focus:ring-theme-primary focus:border-theme-primary"
+                                                />
+                                            </div>
+                                            <div>
+                                                <label htmlFor="endDate" className="block text-sm font-medium text-theme-text-secondary mb-1">End Date *</label>
+                                                <input
+                                                    type="datetime-local"
+                                                    id="endDate"
+                                                    value={leagueConfigForm.endDate}
+                                                    onChange={e => setLeagueConfigForm(prev => ({ ...prev, endDate: e.target.value }))}
+                                                    required
+                                                    className="w-full bg-theme-page-bg border border-theme-border rounded-md shadow-sm py-2 px-3 text-theme-dark focus:outline-none focus:ring-theme-primary focus:border-theme-primary"
+                                                />
+                                            </div>
+                                        </div>
+                                        
+                                        <div className="bg-blue-50 border-l-4 border-blue-400 text-blue-700 p-4 rounded-lg text-sm">
+                                            <p className="font-semibold mb-1">📅 League Period Information:</p>
+                                            <ul className="list-disc list-inside space-y-1 text-xs">
+                                                <li>All league matches will be scheduled within this time period</li>
+                                                <li>Fixture generation will respect these dates</li>
+                                                <li>Matches cannot be scheduled outside this period</li>
+                                                <li>Start date cannot be in the past</li>
+                                            </ul>
+                                        </div>
+                                        
+                                        <div className="flex gap-3">
+                                            <button
+                                                type="submit"
+                                                disabled={isUpdatingLeagueConfig}
+                                                className="bg-theme-primary text-theme-dark font-bold py-2 px-6 rounded-md hover:bg-theme-primary-dark transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                                            >
+                                                {isUpdatingLeagueConfig ? (
+                                                    <>
+                                                        <div className="animate-spin rounded-full h-4 w-4 border-2 border-theme-dark border-t-transparent"></div>
+                                                        Updating...
+                                                    </>
+                                                ) : (
+                                                    'Update League Configuration'
+                                                )}
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={handleResetLeagueConfig}
+                                                disabled={isUpdatingLeagueConfig}
+                                                className="bg-red-50 text-red-700 font-bold py-2 px-6 rounded-md hover:bg-red-100 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                            >
+                                                Reset to Default
+                                            </button>
+                                        </div>
+                                    </form>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                );
             default:
                 return null;
         }
     };
 
-    const sections: AdminSection[] = ['Dashboard', 'Manage Clubs', 'Manage Fixtures', 'Manage News', 'Manage Match Reports', 'User Management'];
+    const sections: AdminSection[] = ['Dashboard', 'Manage Clubs', 'Manage Fixtures', 'Manage News', 'Manage Match Reports', 'User Management', 'League Settings'];
 
     return (
         <div className="flex min-h-screen bg-theme-light">

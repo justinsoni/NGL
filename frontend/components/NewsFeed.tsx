@@ -19,7 +19,7 @@ const NewsFeed: React.FC<NewsFeedProps> = ({ articles }) => {
             {/* Featured Article */}
             <Link to="/media" className="group block mb-8">
                 <div className="relative overflow-hidden rounded-lg shadow-lg">
-                    <img src={featuredArticle.imageUrl} alt={featuredArticle.title} className="w-full h-80 object-cover group-hover:scale-105 transition-transform duration-300"/>
+                    <img src={featuredArticle.imageUrl} alt={featuredArticle.title} className="w-full h-80 object-cover group-hover:scale-105 transition-transform duration-300" onError={(e) => { e.currentTarget.style.display = 'none'; }} />
                     <div className="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent"></div>
                     <div className="absolute bottom-0 left-0 p-6 text-theme-dark">
                         <span className="text-sm bg-theme-primary px-2 py-1 rounded font-bold uppercase">Featured</span>

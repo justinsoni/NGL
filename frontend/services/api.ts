@@ -71,7 +71,8 @@ export interface UpdateProfileData {
 // Create axios instance
 const api: AxiosInstance = axios.create({
   baseURL: (import.meta as any).env?.VITE_API_BASE_URL || 'http://localhost:5000/api',
-  timeout: 10000,
+  // Increase timeout to accommodate fixture generation and heavy operations
+  timeout: 60000,
   headers: {
     'Content-Type': 'application/json',
   },

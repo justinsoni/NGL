@@ -1,14 +1,32 @@
 const cron = require('node-cron');
 const Fixture = require('../models/Fixture');
-const { updateTableForMatch, pickTopTwo, ensureTableForSeason } = require('./leagueTable');
+const { updateTableForMatch, pickTopTwo, pickTopFour, ensureTableForSeason } = require('./leagueTable');
+
+async function getSemiFinalWinners() {
+  const semiFinals = await Fixture.find({ stage: 'semi', status: 'finished' }).populate('homeTeam awayTeam');
+  const winners = [];
+  
+  for (const semi of semiFinals) {
+    if (semi.score.home > semi.score.away) {
+      winners.push(semi.homeTeam._id || semi.homeTeam);
+    } else if (semi.score.away > semi.score.home) {
+      winners.push(semi.awayTeam._id || semi.awayTeam);
+    } else {
+      // In case of a draw, we'll pick the home team (or implement penalty logic later)
+      winners.push(semi.homeTeam._id || semi.homeTeam);
+    }
+  }
+  
+  return winners;
+}
 
 function startScheduler(io) {
   // Every minute, check scheduled and live matches
   cron.schedule('* * * * *', async () => {
     const now = new Date();
     try {
-      // Start matches whose kickoff time has arrived
-      const toStart = await Fixture.find({ status: 'scheduled', kickoffAt: { $lte: now } });
+      // Start matches whose kickoff time has arrived AND are properly scheduled
+      const toStart = await Fixture.find({ status: 'scheduled', isScheduled: true, kickoffAt: { $lte: now } });
       for (const m of toStart) {
         m.status = 'live';
         await m.save();
@@ -44,15 +62,35 @@ function startScheduler(io) {
           const populated = await Fixture.findById(m._id).populate('homeTeam awayTeam');
           io.emit('match:finished', populated);
           io.emit('table:updated', table);
+          
+          // Emit final:finished event if this is a final match
+          if (m.isFinal) {
+            io.emit('final:finished', populated);
+          }
 
           const remaining = await Fixture.countDocuments({ isFinal: false, status: { $ne: 'finished' } });
+          const semiExists = await Fixture.findOne({ stage: 'semi' });
           const finalExists = await Fixture.findOne({ isFinal: true });
-          if (remaining === 0 && !finalExists) {
-            await ensureTableForSeason('2025','Default League');
-            const [clubA, clubB] = pickTopTwo(table);
-            const final = await Fixture.create({ homeTeam: clubA, awayTeam: clubB, status: 'scheduled', isFinal: true, kickoffAt: new Date(Date.now()+ 2*60*1000), autoSimulate: true });
-            const finalPop = await Fixture.findById(final._id).populate('homeTeam awayTeam');
-            io.emit('final:created', finalPop);
+          
+          // Semi-finals are now created by fixture controller, not scheduler
+          // This prevents conflicts between scheduler and controller
+          
+          // Create final when semi-finals are finished
+          const remainingSemis = await Fixture.countDocuments({ stage: 'semi', status: { $ne: 'finished' } });
+          if (remainingSemis === 0 && semiExists && !finalExists) {
+            const semiWinners = await getSemiFinalWinners();
+            if (semiWinners.length >= 2) {
+              const final = await Fixture.create({ 
+                homeTeam: semiWinners[0], 
+                awayTeam: semiWinners[1], 
+                status: 'scheduled', 
+                isFinal: true, 
+                kickoffAt: new Date(Date.now() + 2*60*1000), 
+                autoSimulate: true 
+              });
+              const finalPop = await Fixture.findById(final._id).populate('homeTeam awayTeam');
+              io.emit('final:created', finalPop);
+            }
           }
         }
       }

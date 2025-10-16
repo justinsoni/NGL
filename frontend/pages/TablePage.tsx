@@ -7,6 +7,7 @@ import { Link } from 'react-router-dom';
 import { clubService } from '../services/clubService';
 import { getLeagueTable } from '../services/tableService';
 import { getSocket } from '../services/socket';
+import ChampionCelebration from '../components/ChampionCelebration';
 
 interface TablePageProps {
   tableData: Record<GroupName, TableEntry[]>;
@@ -16,6 +17,8 @@ const TablePage: React.FC<TablePageProps> = ({ tableData }) => {
   const [activeClubIds, setActiveClubIds] = useState<Set<string | number>>(new Set());
   const [activeClubNames, setActiveClubNames] = useState<Set<string>>(new Set());
   const [liveTeams, setLiveTeams] = useState<TableEntry[]>([]);
+  const [showChampionCelebration, setShowChampionCelebration] = useState(false);
+  const [championTeam, setChampionTeam] = useState<{ name: string; logo?: string } | null>(null);
 
   useEffect(() => {
     const fetchActiveClubs = async () => {
@@ -64,24 +67,79 @@ const TablePage: React.FC<TablePageProps> = ({ tableData }) => {
       });
     };
 
-    // Initial load
-    getLeagueTable()
-      .then(t => setLiveTeams(mapStandingsToTeams(t.standings)))
-      .catch(() => {});
+    // Initial load - automatically initialize if empty
+    const loadTable = async () => {
+      try {
+        const table = await getLeagueTable();
+        if (!table.standings || table.standings.length === 0) {
+          // Table is empty, automatically initialize with all clubs
+          console.log('Table is empty, auto-initializing with all clubs...');
+          const { initializeLeagueTable } = await import('../services/tableService');
+          const initializedTable = await initializeLeagueTable();
+          setLiveTeams(mapStandingsToTeams(initializedTable.standings));
+        } else {
+          setLiveTeams(mapStandingsToTeams(table.standings));
+        }
+      } catch (error) {
+        console.error('Failed to load table:', error);
+        setLiveTeams([]);
+      }
+    };
+    
+    loadTable();
 
     // Subscribe to realtime updates
     const s = getSocket();
     const onUpdate = (table: any) => {
       setLiveTeams(mapStandingsToTeams(table?.standings || []));
     };
+    
+    // Handle final match completion for champion celebration
+    const handleFinalFinished = (finalMatch: any) => {
+      // Check both isFinal and stage for final matches
+      const isFinalMatch = (finalMatch?.isFinal === true) || (finalMatch?.stage === 'final');
+      
+      if (finalMatch && isFinalMatch && finalMatch.status === 'finished') {
+        console.log('🏆 Final match finished! Triggering celebration...');
+        // Determine the winner
+        let winner;
+        if (finalMatch.score.home > finalMatch.score.away) {
+          winner = finalMatch.homeTeam;
+        } else if (finalMatch.score.away > finalMatch.score.home) {
+          winner = finalMatch.awayTeam;
+        } else {
+          // In case of a draw, we'll show the home team (or implement penalty logic later)
+          winner = finalMatch.homeTeam;
+        }
+        
+        // Set champion team data
+        const championData = {
+          name: typeof winner === 'string' ? 'Champion Team' : (winner?.name || 'Champion Team'),
+          logo: typeof winner === 'string' ? undefined : winner?.logo
+        };
+        
+        setChampionTeam(championData);
+        setShowChampionCelebration(true);
+      }
+    };
+    
     s.on('table:updated', onUpdate);
-    s.on('match:finished', () => {
+    s.on('match:finished', (match) => {
       // On match finish, refetch to be safe in case server didn't emit table yet
       getLeagueTable().then(t => setLiveTeams(mapStandingsToTeams(t.standings))).catch(()=>{});
+      
+      // Check if this is a final match that just finished
+      const isFinalMatch = (match?.isFinal === true) || (match?.stage === 'final');
+      if (match && isFinalMatch && match.status === 'finished') {
+        console.log('🏆 Final match detected! Triggering celebration...');
+        handleFinalFinished(match);
+      }
     });
+    s.on('final:finished', handleFinalFinished);
     return () => {
       s.off('table:updated', onUpdate);
       s.off('match:finished');
+      s.off('final:finished', handleFinalFinished);
     };
   }, []);
   // Flatten all group arrays into one
@@ -110,9 +168,23 @@ const TablePage: React.FC<TablePageProps> = ({ tableData }) => {
     }
   };
 
+
+
   return (
     <div className="min-h-screen">
+      {/* Champion Celebration Modal */}
+      {showChampionCelebration && championTeam && (
+        <ChampionCelebration
+          championTeam={championTeam}
+          onClose={() => {
+            setShowChampionCelebration(false);
+            setChampionTeam(null);
+          }}
+        />
+      )}
+      
       <PageBanner title="League Table" subtitle="Unified Standings for All Clubs" />
+      
       <div className="container mx-auto p-4 md:p-6">
         <div className="overflow-x-auto shadow-2xl rounded-lg">
           <table className="min-w-full bg-theme-page-bg text-theme-dark">
@@ -141,7 +213,7 @@ const TablePage: React.FC<TablePageProps> = ({ tableData }) => {
                   </td>
                   <td className="py-3 px-2 md:px-4">
                     <Link to={`/clubs/${team.id}`} className="flex items-center hover:underline">
-                      <img src={team.logo} alt={`${team.club} logo`} className="w-6 h-6 mr-3" />
+                      <img src={team.logo} alt={`${team.club} logo`} className="w-6 h-6 mr-3" onError={(e) => { e.currentTarget.style.display = 'none'; }} />
                       <span className="font-bold">{team.club}</span>
                     </Link>
                   </td>

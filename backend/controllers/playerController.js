@@ -61,7 +61,7 @@ const registerPlayer = async (req, res) => {
       isVerified: false
     });
 
-    await player.populate('clubId', 'name city');
+    await player.populate('clubId', 'name city logo');
 
     res.status(201).json({
       success: true,
@@ -99,7 +99,7 @@ const getPendingPlayers = async (req, res) => {
       }
     }
     
-    const players = await Player.find(filter).populate('clubId', 'name city');
+    const players = await Player.find(filter).populate('clubId', 'name city logo');
     // Filter out orphaned players where the club no longer exists
     const filtered = players.filter(p => !!p.clubId);
     res.json({
@@ -188,7 +188,7 @@ const getApprovedPlayers = async (req, res) => {
         filter.clubId = club._id;
       }
     }
-    const players = await Player.find(filter).populate('clubId', 'name city');
+    const players = await Player.find(filter).populate('clubId', 'name city logo');
     const filtered = players.filter(p => !!p.clubId);
     console.log('Approved players fetched:', filtered);
     res.json({

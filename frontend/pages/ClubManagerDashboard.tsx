@@ -6,6 +6,11 @@ import { EmailService } from '../utils/emailService';
 import { useAuth } from '../contexts/AuthContext';
 import { coachService, CreateCoachData } from '../services/coachService';
 import { playerService } from '../services/playerService';
+import { createNews } from '@/api/news/createNews';
+import { fetchNews } from '@/api/news/fetchNews';
+import { deleteNewsById } from '@/api/news/deleteNewsItemById';
+import { updateNewsById } from '@/api/news/updateNewsById';
+import toast from 'react-hot-toast';
 
 interface ClubManagerDashboardProps {
     club: Club;
@@ -20,7 +25,7 @@ interface ClubManagerDashboardProps {
     playerRegistrations: PlayerRegistration[];
 }
 
-type ManagerSection = 'Dashboard' | 'Manage Players' | 'Manage Coaches' | 'Manage Transfers' | 'Manage Best Goals' | 'Profile';
+type ManagerSection = 'Dashboard' | 'Manage Players' | 'Manage Coaches' | 'Manage Transfers' | 'Manage Best Goals' | 'Manage News' | 'Profile';
 
 const ClubManagerDashboard: React.FC<ClubManagerDashboardProps> = ({
     club,
@@ -77,6 +82,21 @@ const ClubManagerDashboard: React.FC<ClubManagerDashboardProps> = ({
     const [coachPhotoPreview, setCoachPhotoPreview] = useState<string>('');
     const [pendingPlayers, setPendingPlayers] = useState<Player[]>([]);
     const [approvedPlayers, setApprovedPlayers] = useState<Player[]>([]);
+    
+    // News management state
+    const [showNewsForm, setShowNewsForm] = useState(false);
+    const [isSubmittingNews, setIsSubmittingNews] = useState(false);
+    const [newsArticles, setNewsArticles] = useState<Array<{ _id: string; title: string; imageUrl: string, summary: string, content: string, createdAt: string, category: string, author: string, club: string }>>([]);
+    const [editingNews, setEditingNews] = useState<any>(null);
+    
+    // News form state
+    const [newsForm, setNewsForm] = useState({
+        title: '',
+        summary: '',
+        imageUrl: '',
+        category: 'Features',
+        content: ''
+    });
 
     // Transfer news state (manager-managed)
     type TransferItem = { id: string; title: string; imageUrl: string; clubName: string; createdAt: string };
@@ -162,21 +182,66 @@ const ClubManagerDashboard: React.FC<ClubManagerDashboardProps> = ({
         fetchApprovedPlayers();
     }, [club.id]);
 
-    // Load existing transfers for this manager's club from localStorage
+    // Load news articles
     useEffect(() => {
-        try {
-            const raw = localStorage.getItem('ngl_transfers');
-            const list: TransferItem[] = raw ? JSON.parse(raw) : [];
-            setTransfers(list.filter(t => t.clubName === club.name));
-        } catch {}
+        async function getNews() {
+            try {
+                const data = await fetchNews();
+                // Filter news articles to show only those from this club or all if admin
+                const filteredData = user?.role === 'admin' 
+                    ? data 
+                    : data.filter((article: any) => article.club === club.name);
+                setNewsArticles(filteredData);
+            } catch (err) {
+                setNewsArticles([]);
+            }
+        }
+        getNews();
+    }, [club.name, user?.role]);
+
+    // Load existing transfers for this manager's club from MongoDB
+    useEffect(() => {
+        async function loadTransfers() {
+            try {
+                const data = await fetchNews();
+                const transfers = data
+                    .filter((item: any) => item.type === 'transfer' && item.club === club.name)
+                    .map((item: any) => ({
+                        id: item._id,
+                        title: item.title,
+                        imageUrl: item.imageUrl,
+                        clubName: item.club,
+                        createdAt: item.createdAt
+                    }));
+                setTransfers(transfers);
+            } catch (error) {
+                console.error('Failed to load transfers:', error);
+                setTransfers([]);
+            }
+        }
+        loadTransfers();
     }, [club.name]);
 
     useEffect(() => {
-        try {
-            const raw = localStorage.getItem('ngl_best_goals');
-            const list: BestGoalItem[] = raw ? JSON.parse(raw) : [];
-            setBestGoals(list.filter(g => g.clubName === club.name));
-        } catch {}
+        async function loadBestGoals() {
+            try {
+                const data = await fetchNews();
+                const bestGoals = data
+                    .filter((item: any) => item.type === 'best-goal' && item.club === club.name)
+                    .map((item: any) => ({
+                        id: item._id,
+                        title: item.title,
+                        imageUrl: item.imageUrl,
+                        clubName: item.club,
+                        createdAt: item.createdAt
+                    }));
+                setBestGoals(bestGoals);
+            } catch (error) {
+                console.error('Failed to load best goals:', error);
+                setBestGoals([]);
+            }
+        }
+        loadBestGoals();
     }, [club.name]);
 
     const clubPlayers = players.filter(p => p.club === club.name);
@@ -452,6 +517,121 @@ const ClubManagerDashboard: React.FC<ClubManagerDashboardProps> = ({
             name: user?.name || 'Club Manager',
             profilePicture: 'https://via.placeholder.com/150'
         });
+    };
+
+    // News management functions
+    const handleCreateNews = async (e: React.FormEvent) => {
+        e.preventDefault();
+        console.log('🔍 [Club Manager] Starting news creation process...');
+        console.log('🔍 [Club Manager] User:', user);
+        console.log('🔍 [Club Manager] Firebase user:', user?.firebaseUser);
+        
+        setIsSubmittingNews(true);
+
+        try {
+            const idToken = await user?.firebaseUser?.getIdToken();
+            console.log('🔍 [Club Manager] ID Token obtained:', idToken ? 'Yes' : 'No');
+
+            if (!idToken) {
+                console.error('❌ [Club Manager] No ID token available');
+                toast.error('Failed to get ID token');
+                setIsSubmittingNews(false);
+                return;
+            }
+
+            const newArticle = {
+                title: newsForm.title,
+                summary: newsForm.summary,
+                imageUrl: newsForm.imageUrl,
+                category: newsForm.category,
+                content: newsForm.content,
+                createdAt: new Date().toISOString()
+            };
+            
+            console.log('🔍 [Club Manager] Article data:', newArticle);
+            const created = await createNews(newArticle, idToken);
+            console.log('🔍 [Club Manager] Created article:', created);
+
+            setNewsArticles(prev => [created, ...prev]);
+            setNewsForm({ title: '', summary: '', imageUrl: '', category: 'Features', content: '' });
+            setShowNewsForm(false);
+            toast.success('News article created successfully!');
+        } catch (error: any) {
+            console.error('❌ [Club Manager] Error in handleCreateNews:', error);
+            toast.error('Failed to create news article: ' + (error.response?.data?.message || error.message));
+        } finally {
+            setIsSubmittingNews(false);
+        }
+    };
+
+    const handleEditNews = (article: any) => {
+        setEditingNews(article);
+        setNewsForm({
+            title: article.title,
+            summary: article.summary,
+            imageUrl: article.imageUrl,
+            category: article.category,
+            content: article.content
+        });
+        setShowNewsForm(true);
+    };
+
+    const handleUpdateNews = async (e: React.FormEvent) => {
+        e.preventDefault();
+        setIsSubmittingNews(true);
+        
+        try {
+            const updatedArticle = {
+                ...editingNews,
+                title: newsForm.title,
+                summary: newsForm.summary,
+                imageUrl: newsForm.imageUrl,
+                category: newsForm.category,
+                content: newsForm.content,
+                updatedAt: new Date().toISOString()
+            };
+
+            const idToken = await user?.firebaseUser?.getIdToken();
+
+            if (!idToken) {
+                toast.error('Failed to get ID token');
+                setIsSubmittingNews(false);
+                return;
+            }
+
+            const updated = await updateNewsById(editingNews._id, updatedArticle, idToken);
+
+            setNewsArticles(prev => prev.map(article => article._id === updated._id ? updated : article));
+            
+            setNewsForm({ title: '', summary: '', imageUrl: '', category: 'Features', content: '' });
+            setEditingNews(null);
+            setShowNewsForm(false);
+            toast.success('News article updated successfully!');
+        } catch (error: any) {
+            toast.error('Failed to update news article');
+        } finally {
+            setIsSubmittingNews(false);
+        }
+    };
+
+    const handleDeleteNews = async (articleId: string) => {
+        if (!confirm('Are you sure you want to delete this news article?')) {
+            return;
+        }
+        const idToken = await user?.firebaseUser?.getIdToken();
+        if (!idToken) {
+            toast.error('Failed to get ID token');
+            return;
+        }
+        await deleteNewsById(articleId, idToken);
+        setNewsArticles(prev => prev.filter(article => article._id !== articleId));
+        toast.success('News article deleted successfully');
+    };
+
+    const resetNewsForm = () => {
+        setNewsForm({ title: '', summary: '', imageUrl: '', category: 'Features', content: '' });
+        setEditingNews(null);
+        setShowNewsForm(false);
     };
 
     const handleProfessionalCoachSubmit = async (e: React.FormEvent) => {
@@ -1271,46 +1451,67 @@ const ClubManagerDashboard: React.FC<ClubManagerDashboardProps> = ({
     const addTransfer = async () => {
         const title = transferForm.title.trim();
         let imageUrl = transferForm.imageUrl.trim();
-        if (!title) { alert('Please enter a transfer headline'); return; }
+        if (!title) { toast.error('Please enter a transfer headline'); return; }
+        
         try {
             if (transferImageFile) {
                 const allowed = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
-                if (!allowed.includes(transferImageFile.type)) { alert('Invalid image type. JPG, PNG or WEBP only.'); return; }
-                if (transferImageFile.size > 5 * 1024 * 1024) { alert('Image too large. Max 5MB.'); return; }
+                if (!allowed.includes(transferImageFile.type)) { toast.error('Invalid image type. JPG, PNG or WEBP only.'); return; }
+                if (transferImageFile.size > 5 * 1024 * 1024) { toast.error('Image too large. Max 5MB.'); return; }
                 imageUrl = await uploadToCloudinary(transferImageFile, 'ml_default');
             } else {
-                if (!/^https?:\/\//i.test(imageUrl)) { alert('Please upload an image or provide a valid image URL'); return; }
+                if (!/^https?:\/\//i.test(imageUrl)) { toast.error('Please upload an image or provide a valid image URL'); return; }
             }
         } catch (e: any) {
-            alert(e.message || 'Upload failed');
+            toast.error(e.message || 'Upload failed');
             return;
         }
-        const item: TransferItem = { id: String(Date.now()), title, imageUrl, clubName: club.name, createdAt: new Date().toISOString() };
+        
+        // Save to MongoDB instead of localStorage
         try {
-            const raw = localStorage.getItem('ngl_transfers');
-            const list: TransferItem[] = raw ? JSON.parse(raw) : [];
-            const updated = [item, ...list];
-            localStorage.setItem('ngl_transfers', JSON.stringify(updated));
-            setTransfers(prev => [item, ...prev]);
+            const idToken = await user?.firebaseUser?.getIdToken();
+            if (!idToken) {
+                toast.error('Authentication required');
+                return;
+            }
+            
+            const transferData = {
+                title,
+                imageUrl,
+                category: 'Transfer News',
+                type: 'transfer',
+                content: title,
+                summary: title,
+                createdAt: new Date().toISOString()
+            };
+            
+            const created = await createNews(transferData, idToken);
+            setTransfers(prev => [{ id: created._id, title: created.title, imageUrl: created.imageUrl, clubName: club.name, createdAt: created.createdAt }, ...prev]);
             setTransferForm({ title: '', imageUrl: '' });
             setTransferImageFile(null);
             setTransferImagePreview('');
-            alert('Transfer news published to homepage');
-        } catch {
-            alert('Failed to save transfer. Please try again.');
+            toast.success('Transfer news published to homepage');
+        } catch (error: any) {
+            console.error('Error saving transfer:', error);
+            toast.error('Failed to save transfer: ' + (error.response?.data?.message || error.message));
         }
     };
 
-    const removeTransfer = (id: string) => {
+    const removeTransfer = async (id: string) => {
         if (!confirm('Remove this transfer news item?')) return;
         try {
-            const raw = localStorage.getItem('ngl_transfers');
-            const list: TransferItem[] = raw ? JSON.parse(raw) : [];
-            const updated = list.filter(t => t.id !== id);
-            localStorage.setItem('ngl_transfers', JSON.stringify(updated));
+            const idToken = await user?.firebaseUser?.getIdToken();
+            if (!idToken) {
+                toast.error('Authentication required');
+                return;
+            }
+            
+            await deleteNewsById(id, idToken);
             setTransfers(prev => prev.filter(t => t.id !== id));
-        } catch {
-            alert('Failed to remove transfer.');
+            toast.success('Transfer removed successfully');
+        } catch (error: any) {
+            console.error('Error removing transfer:', error);
+            toast.error('Failed to remove transfer');
         }
     };
 
@@ -1388,46 +1589,67 @@ const ClubManagerDashboard: React.FC<ClubManagerDashboardProps> = ({
     const addBestGoal = async () => {
         const title = bestGoalForm.title.trim();
         let imageUrl = bestGoalForm.imageUrl.trim();
-        if (!title) { alert('Please enter a goal highlight title'); return; }
+        if (!title) { toast.error('Please enter a goal highlight title'); return; }
+        
         try {
             if (bestGoalImageFile) {
                 const allowed = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
-                if (!allowed.includes(bestGoalImageFile.type)) { alert('Invalid image type. JPG, PNG or WEBP only.'); return; }
-                if (bestGoalImageFile.size > 5 * 1024 * 1024) { alert('Image too large. Max 5MB.'); return; }
+                if (!allowed.includes(bestGoalImageFile.type)) { toast.error('Invalid image type. JPG, PNG or WEBP only.'); return; }
+                if (bestGoalImageFile.size > 5 * 1024 * 1024) { toast.error('Image too large. Max 5MB.'); return; }
                 imageUrl = await uploadToCloudinary(bestGoalImageFile, 'ml_default');
             } else {
-                if (!/^https?:\/\//i.test(imageUrl)) { alert('Please upload an image or provide a valid image URL'); return; }
+                if (!/^https?:\/\//i.test(imageUrl)) { toast.error('Please upload an image or provide a valid image URL'); return; }
             }
         } catch (e: any) {
-            alert(e.message || 'Upload failed');
+            toast.error(e.message || 'Upload failed');
             return;
         }
-        const item: BestGoalItem = { id: String(Date.now()), title, imageUrl, clubName: club.name, createdAt: new Date().toISOString() };
+        
+        // Save to MongoDB instead of localStorage
         try {
-            const raw = localStorage.getItem('ngl_best_goals');
-            const list: BestGoalItem[] = raw ? JSON.parse(raw) : [];
-            const updated = [item, ...list];
-            localStorage.setItem('ngl_best_goals', JSON.stringify(updated));
-            setBestGoals(prev => [item, ...prev]);
+            const idToken = await user?.firebaseUser?.getIdToken();
+            if (!idToken) {
+                toast.error('Authentication required');
+                return;
+            }
+            
+            const bestGoalData = {
+                title,
+                imageUrl,
+                category: 'Best Goals',
+                type: 'best-goal',
+                content: title,
+                summary: title,
+                createdAt: new Date().toISOString()
+            };
+            
+            const created = await createNews(bestGoalData, idToken);
+            setBestGoals(prev => [{ id: created._id, title: created.title, imageUrl: created.imageUrl, clubName: club.name, createdAt: created.createdAt }, ...prev]);
             setBestGoalForm({ title: '', imageUrl: '' });
             setBestGoalImageFile(null);
             setBestGoalImagePreview('');
-            alert('Best goal added to homepage');
-        } catch {
-            alert('Failed to save goal. Please try again.');
+            toast.success('Best goal added to homepage');
+        } catch (error: any) {
+            console.error('Error saving best goal:', error);
+            toast.error('Failed to save goal: ' + (error.response?.data?.message || error.message));
         }
     };
 
-    const removeBestGoal = (id: string) => {
+    const removeBestGoal = async (id: string) => {
         if (!confirm('Remove this best goal item?')) return;
         try {
-            const raw = localStorage.getItem('ngl_best_goals');
-            const list: BestGoalItem[] = raw ? JSON.parse(raw) : [];
-            const updated = list.filter(g => g.id !== id);
-            localStorage.setItem('ngl_best_goals', JSON.stringify(updated));
+            const idToken = await user?.firebaseUser?.getIdToken();
+            if (!idToken) {
+                toast.error('Authentication required');
+                return;
+            }
+            
+            await deleteNewsById(id, idToken);
             setBestGoals(prev => prev.filter(g => g.id !== id));
-        } catch {
-            alert('Failed to remove goal.');
+            toast.success('Best goal removed successfully');
+        } catch (error: any) {
+            console.error('Error removing best goal:', error);
+            toast.error('Failed to remove goal');
         }
     };
 
@@ -1503,6 +1725,185 @@ const ClubManagerDashboard: React.FC<ClubManagerDashboardProps> = ({
                     </div>
                 )}
             </div>
+        </div>
+    );
+
+    const renderManageNews = () => (
+        <div>
+            <div className="flex justify-between items-center mb-6">
+                <h2 className="text-2xl font-bold text-theme-dark">Manage Club News</h2>
+                <button
+                    onClick={() => setShowNewsForm(true)}
+                    className="px-4 py-2 bg-theme-primary text-theme-dark rounded-md hover:bg-theme-primary/80 transition-colors"
+                >
+                    Add New Article
+                </button>
+            </div>
+
+            {showNewsForm ? (
+                <div className="bg-theme-secondary-bg p-6 rounded-lg mb-6">
+                    <h3 className="text-xl font-semibold mb-4 text-theme-dark border-b-2 border-theme-primary pb-2">
+                        {editingNews ? 'Edit News Article' : 'Create New News Article'}
+                    </h3>
+                    
+                    <form onSubmit={editingNews ? handleUpdateNews : handleCreateNews} className="space-y-4">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                                <label htmlFor="newsTitle" className="block text-sm font-medium text-theme-text-secondary mb-1">Article Title *</label>
+                                <input 
+                                    type="text" 
+                                    id="newsTitle" 
+                                    value={newsForm.title} 
+                                    onChange={e => setNewsForm(prev => ({ ...prev, title: e.target.value }))} 
+                                    required 
+                                    className="w-full bg-theme-page-bg border border-theme-border rounded-md shadow-sm py-2 px-3 text-theme-dark focus:outline-none focus:ring-theme-primary focus:border-theme-primary" 
+                                    placeholder="Enter article title"
+                                />
+                            </div>
+                            <div>
+                                <label htmlFor="newsCategory" className="block text-sm font-medium text-theme-text-secondary mb-1">Category *</label>
+                                <select 
+                                    id="newsCategory" 
+                                    value={newsForm.category}
+                                    onChange={e => setNewsForm(prev => ({ ...prev, category: e.target.value }))}
+                                    className="w-full bg-theme-page-bg border border-theme-border rounded-md shadow-sm py-2 px-3 text-theme-dark focus:outline-none focus:ring-theme-primary focus:border-theme-primary"
+                                >
+                                    <option value="Features">Features</option>
+                                    <option value="News">News</option>
+                                    <option value="Analysis">Analysis</option>
+                                    <option value="Transfers">Transfers</option>
+                                    <option value="Match Reports">Match Reports</option>
+                                </select>
+                            </div>
+                        </div>
+                        
+                        <div>
+                            <label htmlFor="newsImageUrl" className="block text-sm font-medium text-theme-text-secondary mb-1">Image URL *</label>
+                            <input 
+                                type="url" 
+                                id="newsImageUrl" 
+                                value={newsForm.imageUrl} 
+                                onChange={e => setNewsForm(prev => ({ ...prev, imageUrl: e.target.value }))} 
+                                required 
+                                className="w-full bg-theme-page-bg border border-theme-border rounded-md shadow-sm py-2 px-3 text-theme-dark focus:outline-none focus:ring-theme-primary focus:border-theme-primary" 
+                                placeholder="https://example.com/image.jpg"
+                            />
+                        </div>
+                        
+                        <div>
+                            <label htmlFor="newsSummary" className="block text-sm font-medium text-theme-text-secondary mb-1">Summary *</label>
+                            <textarea 
+                                id="newsSummary" 
+                                value={newsForm.summary} 
+                                onChange={e => setNewsForm(prev => ({ ...prev, summary: e.target.value }))} 
+                                required 
+                                rows={3}
+                                className="w-full bg-theme-page-bg border border-theme-border rounded-md shadow-sm py-2 px-3 text-theme-dark focus:outline-none focus:ring-theme-primary focus:border-theme-primary" 
+                                placeholder="Brief summary of the article"
+                            />
+                        </div>
+                        
+                        <div>
+                            <label htmlFor="newsContent" className="block text-sm font-medium text-theme-text-secondary mb-1">Full Content</label>
+                            <textarea 
+                                id="newsContent" 
+                                value={newsForm.content} 
+                                onChange={e => setNewsForm(prev => ({ ...prev, content: e.target.value }))} 
+                                rows={6}
+                                className="w-full bg-theme-page-bg border border-theme-border rounded-md shadow-sm py-2 px-3 text-theme-dark focus:outline-none focus:ring-theme-primary focus:border-theme-primary" 
+                                placeholder="Full article content (optional)"
+                            />
+                        </div>
+                        
+                        <div className="flex gap-3">
+                            <button
+                                type="submit"
+                                disabled={isSubmittingNews}
+                                className="bg-theme-primary text-theme-dark font-bold py-2 px-6 rounded-md hover:bg-theme-primary-dark transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                            >
+                                {isSubmittingNews ? (
+                                    <>
+                                        <div className="animate-spin rounded-full h-4 w-4 border-2 border-theme-dark border-t-transparent"></div>
+                                        {editingNews ? 'Updating...' : 'Creating...'}
+                                    </>
+                                ) : (
+                                    <>
+                                        📰 {editingNews ? 'Update Article' : 'Create Article'}
+                                    </>
+                                )}
+                            </button>
+                            <button
+                                type="button"
+                                onClick={resetNewsForm}
+                                className="bg-theme-secondary-bg text-theme-dark font-bold py-2 px-6 rounded-md hover:bg-theme-secondary-bg/80 transition-colors"
+                            >
+                                Cancel
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            ) : (
+                <div>
+                    <div className="mb-4 text-theme-text-secondary">
+                        <p>Manage news articles for {club.name}. These articles will appear on the homepage.</p>
+                    </div>
+
+                    {/* News Articles Grid */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                        {newsArticles.map(article => (
+                            <div key={article._id} className="bg-theme-secondary-bg rounded-lg overflow-hidden shadow-lg">
+                                <div className="relative h-48">
+                                    <img 
+                                        src={article.imageUrl} 
+                                        alt={article.title} 
+                                        className="w-full h-full object-cover"
+                                    />
+                                    <div className="absolute top-2 left-2">
+                                        <span className="bg-theme-primary text-theme-dark text-xs font-bold px-2 py-1 rounded">
+                                            {article.category}
+                                        </span>
+                                    </div>
+                                </div>
+                                <div className="p-4">
+                                    <h3 className="font-semibold text-theme-dark mb-2 line-clamp-2">{article.title}</h3>
+                                    <p className="text-sm text-theme-text-secondary mb-3 line-clamp-3">{article.summary}</p>
+                                    <div className="flex justify-between items-center text-xs text-theme-text-secondary">
+                                        <span>{new Date(article.createdAt).toLocaleDateString()}</span>
+                                        <div className="flex gap-2">
+                                            <button
+                                                onClick={() => handleEditNews(article)}
+                                                className="text-blue-600 hover:text-blue-800"
+                                            >
+                                                Edit
+                                            </button>
+                                            <button
+                                                onClick={() => handleDeleteNews(article._id)}
+                                                className="text-red-600 hover:text-red-800"
+                                            >
+                                                Delete
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+
+                    {newsArticles.length === 0 && (
+                        <div className="text-center py-12 bg-theme-secondary-bg rounded-lg">
+                            <div className="text-6xl mb-4">📰</div>
+                            <h3 className="text-xl font-semibold text-theme-dark mb-2">No News Articles Yet</h3>
+                            <p className="text-theme-text-secondary mb-4">Create your first news article to get started.</p>
+                            <button
+                                onClick={() => setShowNewsForm(true)}
+                                className="bg-theme-primary text-theme-dark font-bold py-2 px-6 rounded-md hover:bg-theme-primary-dark transition-colors"
+                            >
+                                Create First Article
+                            </button>
+                        </div>
+                    )}
+                </div>
+            )}
         </div>
     );
 
@@ -1774,6 +2175,8 @@ const ClubManagerDashboard: React.FC<ClubManagerDashboardProps> = ({
                 return renderManageTransfers();
             case 'Manage Best Goals':
                 return renderManageBestGoals();
+            case 'Manage News':
+                return renderManageNews();
             case 'Profile':
                 return (
                     <div className="max-w-2xl mx-auto">
@@ -1886,7 +2289,7 @@ const ClubManagerDashboard: React.FC<ClubManagerDashboardProps> = ({
         </div>
     );
 
-    const sections: ManagerSection[] = ['Dashboard', 'Manage Players', 'Manage Coaches', 'Manage Transfers', 'Manage Best Goals', 'Profile'];
+    const sections: ManagerSection[] = ['Dashboard', 'Manage Players', 'Manage Coaches', 'Manage Transfers', 'Manage Best Goals', 'Manage News', 'Profile'];
 
     return (
         <div className="flex min-h-screen bg-theme-light">

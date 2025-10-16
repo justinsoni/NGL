@@ -27,20 +27,21 @@ export default function LiveMatch({ initial }: { initial: FixtureDTO }) {
     <div className="bg-theme-page-bg p-4 rounded-lg shadow-lg">
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-2">
-          {home?.logo && <img src={home.logo} className="h-8 w-8" />}
+          {home?.logo && <img src={home.logo} className="h-8 w-8" onError={(e) => { e.currentTarget.style.display = 'none'; }} />}
           <span className="font-bold">{home?.name || 'Home'}</span>
         </div>
         <div className="text-xl font-extrabold">
           {match.score.home} - {match.score.away}
         </div>
         <div className="flex items-center gap-2">
-          {away?.logo && <img src={away.logo} className="h-8 w-8" />}
+          {away?.logo && <img src={away.logo} className="h-8 w-8" onError={(e) => { e.currentTarget.style.display = 'none'; }} />}
           <span className="font-bold">{away?.name || 'Away'}</span>
         </div>
       </div>
       <div className="mb-2">
         <span className={`px-2 py-1 rounded text-xs ${match.status === 'live' ? 'bg-red-500 text-white' : 'bg-gray-200'}`}>{match.status.toUpperCase()}</span>
         {match.isFinal && <span className="ml-2 px-2 py-1 rounded text-xs bg-yellow-400">FINAL</span>}
+        {match.stage === 'semi' && <span className="ml-2 px-2 py-1 rounded text-xs bg-purple-600 text-white">SEMI-FINAL</span>}
       </div>
       <div className="mt-4 max-h-64 overflow-auto">
         <div className="grid grid-cols-3 gap-2 text-sm font-semibold text-theme-text-secondary mb-2">

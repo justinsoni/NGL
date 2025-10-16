@@ -1,5 +1,6 @@
 const Fixture = require('../models/Fixture');
 const Club = require('../models/Club');
+const LeagueConfig = require('../models/LeagueConfig');
 const { ensureTableForSeason, updateTableForMatch, pickTopTwo } = require('../utils/leagueTable');
 
 function generateRoundRobinPairings(clubIds) {
@@ -34,7 +35,23 @@ exports.generateFixtures = async (req, res) => {
     const clubs = await Club.find({ isActive: true }).sort({ name: 1 });
     if (clubs.length < 2) return res.status(400).json({ success: false, message: 'At least 2 active clubs are required' });
 
-    await ensureTableForSeason('2025', 'Default League', clubs.map(c => c._id));
+    // Get league configuration
+    let leagueConfig = await LeagueConfig.findOne({ isActive: true });
+    if (!leagueConfig) {
+      // Create default league config if none exists
+      const now = new Date();
+      const startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      const endDate = new Date(now.getFullYear(), now.getMonth() + 2, now.getDate());
+      leagueConfig = await LeagueConfig.create({
+        season: '2025',
+        name: 'NGL',
+        startDate,
+        endDate,
+        isActive: true
+      });
+    }
+
+    await ensureTableForSeason(leagueConfig.season, leagueConfig.name, clubs.map(c => c._id));
 
     const existing = await Fixture.find({ isFinal: false });
     if (existing.length) await Fixture.deleteMany({ isFinal: false });
@@ -43,9 +60,14 @@ exports.generateFixtures = async (req, res) => {
     // Assign conflict-free times with constraints:
     // 1) unique kickoffAt
     // 2) a club plays max 1 match per calendar day
+    // 3) matches must be within league period
     const incrementMs = 2 * 60 * 60 * 1000; // 2 hours
-    const start = new Date(); start.setHours(14,0,0,0); // start at 14:00 today
-    let slot = new Date(start);
+    const leagueStart = new Date(leagueConfig.startDate);
+    const leagueEnd = new Date(leagueConfig.endDate);
+    
+    // Start scheduling from league start date at 14:00
+    leagueStart.setHours(14, 0, 0, 0);
+    let slot = new Date(leagueStart);
     const docs = [];
 
     const sameDayRange = (d) => {
@@ -63,9 +85,17 @@ exports.generateFixtures = async (req, res) => {
       let assigned = false;
       /* eslint no-await-in-loop: 0 */
       while (!assigned) {
+        // Check if slot is within league period
+        if (slot > leagueEnd) {
+          return res.status(400).json({ 
+            success: false, 
+            message: `Cannot schedule all matches within league period (${leagueConfig.startDate.toLocaleDateString()} - ${leagueConfig.endDate.toLocaleDateString()}). Please extend the league period or reduce the number of clubs.` 
+          });
+        }
+        
         // Ensure unique timestamp
         const taken = await Fixture.exists({ kickoffAt: slot });
-        // Ensure both teams don’t play another match on this same calendar day
+        // Ensure both teams don't play another match on this same calendar day
         const violatesHomeDay = await teamHasMatchOnDay(p.home, slot);
         const violatesAwayDay = await teamHasMatchOnDay(p.away, slot);
         if (!taken && !violatesHomeDay && !violatesAwayDay) {
@@ -75,7 +105,7 @@ exports.generateFixtures = async (req, res) => {
           // Next game moves forward 2h from current slot baseline
           slot = new Date(slot.getTime() + incrementMs);
         } else {
-          // Move forward 2h; if we crossed midnight, that’s fine — daily rule still holds
+          // Move forward 2h; if we crossed midnight, that's fine — daily rule still holds
           slot = new Date(slot.getTime() + incrementMs);
         }
       }
@@ -142,8 +172,19 @@ exports.finishMatch = async (req, res) => {
     });
     const populated = await Fixture.findById(match._id).populate('homeTeam awayTeam');
     const io = req.app.get('io');
+    
+    // Log final match completion
+    if (match.isFinal) {
+      console.log('🏆 Final match finished! Emitting events...');
+    }
+    
     io.emit('match:finished', populated);
     io.emit('table:updated', updatedTable);
+    
+    // Emit final:finished event if this is a final match
+    if (match.isFinal) {
+      io.emit('final:finished', populated);
+    }
 
     // If all league matches finished, seed playoffs (semis then final)
     const remainingLeague = await Fixture.countDocuments({ stage: 'league', status: { $ne: 'finished' } });
@@ -220,15 +261,44 @@ exports.simulateMatch = async (req, res) => {
     const io = req.app.get('io');
     io.emit('match:finished', populated);
     io.emit('table:updated', updatedTable);
+    
+    // Emit final:finished event if this is a final match
+    if (match.isFinal) {
+      io.emit('final:finished', populated);
+    }
 
-    // Final creation check
-    const remaining = await Fixture.countDocuments({ isFinal: false, status: { $ne: 'finished' } });
-    const finalExists = await Fixture.findOne({ isFinal: true });
-    if (remaining === 0 && !finalExists) {
-      const [clubA, clubB] = pickTopTwo(updatedTable);
-      const final = await Fixture.create({ homeTeam: clubA, awayTeam: clubB, status: 'scheduled', isFinal: true });
-      const finalPop = await Fixture.findById(final._id).populate('homeTeam awayTeam');
-      io.emit('final:created', finalPop);
+    // Playoffs pipeline for simulation as well
+    const remainingLeague = await Fixture.countDocuments({ stage: 'league', status: { $ne: 'finished' } });
+    const existingSemis = await Fixture.find({ stage: 'semi' });
+    const existingFinal = await Fixture.findOne({ stage: 'final' });
+    if (remainingLeague === 0 && existingSemis.length === 0 && !existingFinal) {
+      const standings = updatedTable.standings.slice(0, 4);
+      if (standings.length >= 4) {
+        const c1 = standings[0].club; const c2 = standings[1].club; const c3 = standings[2].club; const c4 = standings[3].club;
+        const base = new Date(); base.setHours(18,0,0,0);
+        const semi1 = await Fixture.create({ homeTeam: c1, awayTeam: c4, status: 'scheduled', stage: 'semi', isFinal: false, kickoffAt: base });
+        const semi2 = await Fixture.create({ homeTeam: c2, awayTeam: c3, status: 'scheduled', stage: 'semi', isFinal: false, kickoffAt: new Date(base.getTime() + 2*60*60*1000) });
+        const [s1,s2] = await Promise.all([
+          Fixture.findById(semi1._id).populate('homeTeam awayTeam'),
+          Fixture.findById(semi2._id).populate('homeTeam awayTeam')
+        ]);
+        io.emit('semi:created', s1);
+        io.emit('semi:created', s2);
+      }
+    }
+    const unfinishedSemis = await Fixture.countDocuments({ stage: 'semi', status: { $ne: 'finished' } });
+    const finalExists = await Fixture.findOne({ stage: 'final' });
+    if (unfinishedSemis === 0 && !finalExists) {
+      const semis = await Fixture.find({ stage: 'semi', status: 'finished' });
+      if (semis.length === 2) {
+        const winner = (m) => (m.score.home > m.score.away ? m.homeTeam : m.awayTeam);
+        const w1 = winner(semis[0]);
+        const w2 = winner(semis[1]);
+        const finalKick = new Date(); finalKick.setHours(20,0,0,0);
+        const final = await Fixture.create({ homeTeam: w1, awayTeam: w2, status: 'scheduled', stage: 'final', isFinal: true, kickoffAt: finalKick });
+        const finalPop = await Fixture.findById(final._id).populate('homeTeam awayTeam');
+        io.emit('final:created', finalPop);
+      }
     }
 
     res.json({ success: true, data: { match: populated, table: updatedTable } });
@@ -266,7 +336,37 @@ exports.listFixtures = async (req, res) => {
     return fixtureObj;
   });
   
-  res.json({ success: true, data: fixturesWithScheduled });
+  // Sort fixtures by priority: live > scheduled > finished, then by kickoff time
+  const sortedFixtures = fixturesWithScheduled.sort((a, b) => {
+    // Priority order: live (1), scheduled (2), finished (3)
+    const getPriority = (fixture) => {
+      if (fixture.status === 'live') return 1;
+      if (fixture.status === 'scheduled' && fixture.isScheduled) return 2;
+      if (fixture.status === 'scheduled' && !fixture.isScheduled) return 3;
+      if (fixture.status === 'finished') return 4;
+      return 5;
+    };
+    
+    const priorityA = getPriority(a);
+    const priorityB = getPriority(b);
+    
+    if (priorityA !== priorityB) {
+      return priorityA - priorityB;
+    }
+    
+    // Within same priority, sort by kickoff time (earliest first)
+    const kickoffA = a.kickoffAt ? new Date(a.kickoffAt).getTime() : 0;
+    const kickoffB = b.kickoffAt ? new Date(b.kickoffAt).getTime() : 0;
+    
+    if (kickoffA !== kickoffB) {
+      return kickoffA - kickoffB;
+    }
+    
+    // If no kickoff time, sort by creation time (newest first for unscheduled)
+    return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+  });
+  
+  res.json({ success: true, data: sortedFixtures });
 };
 
 // PUT /api/fixtures/:id/schedule

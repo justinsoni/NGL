@@ -53,7 +53,7 @@ const App = () => {
   const [tableData, setTableData] = useState<Record<GroupName, TableEntry[]>>(TABLE_DATA);
   const [competitionStage, setCompetitionStage] = useState<'League Stage' | 'Semi-Finals' | 'Final' | 'Finished'>('League Stage');
   
-  const [players, setPlayers] = useState<Player[]>(PLAYERS);
+  const [players, setPlayers] = useState<Player[]>([]);
   const [leaderStats, setLeaderStats] = useState<LeaderStat[]>([]);
   const [viewingPlayer, setViewingPlayer] = useState<Player | null>(null);
 
@@ -745,7 +745,7 @@ const App = () => {
             <Route path="/" element={<HomePage matchesData={matchesData} tableData={tableData} competitionStage={competitionStage} leaderStats={leaderStats} onPlayerSelect={handlePlayerSelect} />} />
             <Route path="/matches" element={<MatchesPage matchesData={matchesData} />} />
             <Route path="/matches/:matchId" element={<MatchDetailPage matchesData={matchesData} />} />
-            <Route path="/players" element={<PlayersPage players={players} onPlayerSelect={handlePlayerSelect} />} />
+            <Route path="/players" element={<PlayersPage onPlayerSelect={handlePlayerSelect} />} />
             <Route path="/table" element={<TablePage tableData={tableData} />} />
             <Route path="/clubs" element={<ClubsPage />} />
             <Route path="/clubs/:clubId" element={<ClubDetailPage players={players} onPlayerSelect={handlePlayerSelect} />} />

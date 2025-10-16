@@ -7,18 +7,20 @@ import { SearchIcon, ChevronRightIcon } from '../components/icons';
 import { playerService } from '../services/playerService';
 
 interface PlayersPageProps {
-  players: Player[];
   onPlayerSelect: (playerId: number) => void;
 }
 
-const PlayersPage: React.FC<PlayersPageProps> = ({ players, onPlayerSelect }) => {
+const PlayersPage: React.FC<PlayersPageProps> = ({ onPlayerSelect }) => {
   const [positionFilter, setPositionFilter] = useState<Position | 'All'>('All');
   const [clubFilter, setClubFilter] = useState<string>('All');
   const [searchQuery, setSearchQuery] = useState('');
-  const [approvedFromApi, setApprovedFromApi] = useState<Player[]>([]);
+  const [players, setPlayers] = useState<Player[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
 
+  // Load players from MongoDB only
   useEffect(() => {
     const fetchApproved = async () => {
+      setIsLoading(true);
       try {
         const res = await playerService.getApprovedPlayers();
         if (res.success) {
@@ -33,7 +35,7 @@ const PlayersPage: React.FC<PlayersPageProps> = ({ players, onPlayerSelect }) =>
             nationality: p.nationality,
             flag: '🏳️',
             club: p.clubId?.name || 'Unknown',
-            clubLogo: '',
+            clubLogo: p.clubId?.logo || '',
             previousClub: p.previousClub || 'Free Agent',
             leaguesPlayed: p.leaguesPlayed || [],
             imageUrl: p.imageUrl || `https://picsum.photos/seed/${p.name}/400/400`,
@@ -43,23 +45,22 @@ const PlayersPage: React.FC<PlayersPageProps> = ({ players, onPlayerSelect }) =>
             addedBy: 0,
             stats: { matches: 0, goals: 0, assists: 0, yellowCards: 0, redCards: 0 }
           }));
-          setApprovedFromApi(mapped);
+          setPlayers(mapped);
         }
       } catch (e) {
-        // silent fail keeps page usable with local players
+        console.error('Failed to load players:', e);
+        setPlayers([]);
+      } finally {
+        setIsLoading(false);
       }
     };
     fetchApproved();
   }, []);
 
   const combinedPlayers = useMemo(() => {
-    // Combine local players (if any) with approved ones from API without duplicates by email
-    const byEmail = new Map<string, Player>();
-    [...players, ...approvedFromApi].forEach(p => {
-      byEmail.set(p.email, p);
-    });
-    return Array.from(byEmail.values());
-  }, [players, approvedFromApi]);
+    // Return players from MongoDB only
+    return players;
+  }, [players]);
 
   const clubs = useMemo(() => ['All', ...Array.from(new Set(combinedPlayers.map(p => p.club)))], [combinedPlayers]);
 
@@ -79,7 +80,20 @@ const PlayersPage: React.FC<PlayersPageProps> = ({ players, onPlayerSelect }) =>
         <span className="font-bold">{player.name}</span>
       </div>
       <div className="w-1/6 flex items-center">
-        <img src={player.clubLogo} alt={player.club} className="w-6 h-6 mr-2" />
+        {player.clubLogo ? (
+          <img 
+            src={player.clubLogo} 
+            alt={player.club} 
+            className="w-6 h-6 mr-2 object-contain" 
+            onError={(e) => {
+              e.currentTarget.style.display = 'none';
+            }}
+          />
+        ) : (
+          <div className="w-6 h-6 mr-2 bg-gray-200 rounded flex items-center justify-center text-xs font-bold text-gray-600">
+            {player.club.charAt(0).toUpperCase()}
+          </div>
+        )}
         <span className="hidden md:inline">{player.club}</span>
       </div>
       <div className="w-1/6 text-theme-text-secondary">{player.position}</div>
@@ -134,10 +148,17 @@ const PlayersPage: React.FC<PlayersPageProps> = ({ players, onPlayerSelect }) =>
           </div>
           {/* Rows */}
           <div className="space-y-1 mt-2">
-            {filteredPlayers.length > 0 ? (
+            {isLoading ? (
+              <div className="text-center py-12">
+                <div className="animate-spin rounded-full h-12 w-12 border-4 border-theme-primary border-t-transparent mx-auto mb-4"></div>
+                <p className="text-theme-text-secondary">Loading players from database...</p>
+              </div>
+            ) : filteredPlayers.length > 0 ? (
               filteredPlayers.map(player => <PlayerRow key={player.id} player={player} />)
             ) : (
-              <p className="text-center col-span-full text-theme-text-secondary p-8">No players match the current filters.</p>
+              <p className="text-center col-span-full text-theme-text-secondary p-8">
+                {players.length === 0 ? 'No players in the database yet. Club managers can approve player registrations.' : 'No players match the current filters.'}
+              </p>
             )}
           </div>
         </div>

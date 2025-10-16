@@ -13,6 +13,7 @@ import MatchTicker from '../components/MatchTicker';
 import MediaHighlights from '../components/MediaHighlights';
 import SectionHeader from '../components/SectionHeader';
 import { GROUPS } from '../constants';
+import { fetchNews } from '@/api/news/fetchNews';
 
 // Using local images from assets - using correct asset paths
 const image103 = new URL('../src/assets/images/103.jpg', import.meta.url).href;
@@ -140,6 +141,20 @@ const HomePage: React.FC<HomePageProps> = ({ matchesData, tableData, competition
   const [activeStat, setActiveStat] = useState<string>(leaderStats.length > 0 ? leaderStats[0].statUnit : '');
   const activeLeaderStat = leaderStats.find(stat => stat.statUnit === activeStat);
 
+  const [newsArticles, setNewsArticles] = useState<Array<{ _id: string; title: string; imageUrl: string, summary: string, content: string, createdAt: string }>>([]);
+    
+    useEffect(() => {
+      async function getNews() {
+        try {
+          const data = await fetchNews();
+          setNewsArticles(data);
+        } catch (err) {
+          setNewsArticles([]);
+        }
+      }
+      getNews();
+    }, []);
+
   const trendingNowData = [
     { id: 1, title: 'Best of Madueke 24/25', imageUrl: 'https://images.pexels.com/photos/6203517/pexels-photo-6203517.jpeg?auto=compress&cs=tinysrgb&w=300&h=400&dpr=1', icon: '🔥' },
     { id: 2, title: 'Isak is electric', imageUrl: 'https://images.pexels.com/photos/4065137/pexels-photo-4065137.jpeg?auto=compress&cs=tinysrgb&w=300&h=400&dpr=1', icon: '⚡️' },
@@ -151,62 +166,75 @@ const HomePage: React.FC<HomePageProps> = ({ matchesData, tableData, competition
     { id: 8, title: 'Diaz da', imageUrl: 'https://images.pexels.com/photos/1189955/pexels-photo-1189955.jpeg?auto=compress&cs=tinysrgb&w=300&h=400&dpr=1', icon: '🏃‍♂️' },
   ];
 
-  // Merge manager-submitted transfers from localStorage with defaults
-  const defaultTransfers = [
-    { id: 1, title: 'Newcastle sign Ramsdale on loan from Southampton', imageUrl: 'https://images.pexels.com/photos/3621180/pexels-photo-3621180.jpeg?auto=compress&cs=tinysrgb&w=400&h=300&dpr=1' },
-    { id: 2, title: 'West Ham sign former Newcastle striker Wilson', imageUrl: 'https://images.pexels.com/photos/879629/pexels-photo-879629.jpeg?auto=compress&cs=tinysrgb&w=400&h=300&dpr=1' },
-    { id: 3, title: 'Wolves sign Norwegian David Moller Wolfe from AZ Alkmaar', imageUrl: 'https://images.pexels.com/photos/6203433/pexels-photo-6203433.jpeg?auto=compress&cs=tinysrgb&w=400&h=300&dpr=1' },
-    { id: 4, title: 'Sunderland sign goalkeeper Robin Roefs from NEC Nijmegen', imageUrl: 'https://images.pexels.com/photos/6203513/pexels-photo-6203513.jpeg?auto=compress&cs=tinysrgb&w=400&h=300&dpr=1' },
-    { id: 5, title: 'Brighton sign midfielder Show from Bristol Rovers', imageUrl: 'https://images.pexels.com/photos/7718641/pexels-photo-7718641.jpeg?auto=compress&cs=tinysrgb&w=400&h=300&dpr=1' },
-  ];
-  const [managerTransfers, setManagerTransfers] = useState<Array<{ id: string; title: string; imageUrl: string; clubName: string; createdAt: string }>>([]);
+  // Load transfers from MongoDB
+  const [transfers, setTransfers] = useState<Array<{ id: string; title: string; imageUrl: string; clubName: string; createdAt: string }>>([]);
   useEffect(() => {
-    try {
-      const raw = localStorage.getItem('ngl_transfers');
-      const list = raw ? JSON.parse(raw) : [];
-      setManagerTransfers(list);
-    } catch {}
+    async function loadTransfers() {
+      try {
+        const data = await fetchNews();
+        const transferItems = data
+          .filter((item: any) => item.type === 'transfer')
+          .map((item: any) => ({
+            id: item._id,
+            title: item.title,
+            imageUrl: item.imageUrl,
+            clubName: item.club || 'Unknown',
+            createdAt: item.createdAt
+          }));
+        setTransfers(transferItems);
+      } catch (error) {
+        console.error('Failed to load transfers:', error);
+        setTransfers([]);
+      }
+    }
+    loadTransfers();
   }, []);
 
-  const defaultBestGoals = [
-    { id: 1, title: "Marmoush v B'nemouth", imageUrl: 'https://images.pexels.com/photos/7718641/pexels-photo-7718641.jpeg?auto=compress&cs=tinysrgb&w=300&h=400&dpr=1' },
-    { id: 2, title: 'De Bruyne v Palace', imageUrl: 'https://images.pexels.com/photos/6203517/pexels-photo-6203517.jpeg?auto=compress&cs=tinysrgb&w=300&h=400&dpr=1' },
-    { id: 3, title: 'Bowen v Forest', imageUrl: 'https://images.pexels.com/photos/7292850/pexels-photo-7292850.jpeg?auto=compress&cs=tinysrgb&w=300&h=400&dpr=1' },
-    { id: 4, title: 'Sancho v Spurs', imageUrl: 'https://images.pexels.com/photos/4065137/pexels-photo-4065137.jpeg?auto=compress&cs=tinysrgb&w=300&h=400&dpr=1' },
-    { id: 5, title: 'Wilson v Brentford', imageUrl: 'https://images.pexels.com/photos/7991584/pexels-photo-7991584.jpeg?auto=compress&cs=tinysrgb&w=300&h=400&dpr=1' },
-    { id: 6, title: 'Eze v Chelsea', imageUrl: 'https://images.pexels.com/photos/2296277/pexels-photo-2296277.jpeg?auto=compress&cs=tinysrgb&w=300&h=400&dpr=1' },
-    { id: 7, title: 'Tonali v Brentford', imageUrl: 'https://images.pexels.com/photos/1429536/pexels-photo-1429536.jpeg?auto=compress&cs=tinysrgb&w=300&h=400&dpr=1' },
-    { id: 8, title: 'Cunha v Wolves', imageUrl: 'https://images.pexels.com/photos/1189955/pexels-photo-1189955.jpeg?auto=compress&cs=tinysrgb&w=300&h=400&dpr=1' }
-  ];
-  const [managerBestGoals, setManagerBestGoals] = useState<Array<{ id: string; title: string; imageUrl: string; clubName: string; createdAt: string }>>([]);
+  // Load best goals from MongoDB
+  const [bestGoals, setBestGoals] = useState<Array<{ id: string; title: string; imageUrl: string; clubName: string; createdAt: string }>>([]);
   useEffect(() => {
-    try {
-      const raw = localStorage.getItem('ngl_best_goals');
-      const list = raw ? JSON.parse(raw) : [];
-      setManagerBestGoals(list);
-    } catch {}
+    async function loadBestGoals() {
+      try {
+        const data = await fetchNews();
+        const goalItems = data
+          .filter((item: any) => item.type === 'best-goal')
+          .map((item: any) => ({
+            id: item._id,
+            title: item.title,
+            imageUrl: item.imageUrl,
+            clubName: item.club || 'Unknown',
+            createdAt: item.createdAt
+          }));
+        setBestGoals(goalItems);
+      } catch (error) {
+        console.error('Failed to load best goals:', error);
+        setBestGoals([]);
+      }
+    }
+    loadBestGoals();
   }, []);
 
-  // Match Reports data for homepage grid
-  const defaultMatchReports = [
-    { id: 1, title: "Bowen earns point in Nuno's first match in charge of West Ham", imageUrl: 'https://images.pexels.com/photos/17668033/pexels-photo-17668033.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=1' },
-    { id: 2, title: 'Last-gasp Gabriel header secures comeback win for Arsenal at Newcastle', imageUrl: 'https://images.pexels.com/photos/17668039/pexels-photo-17668039.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=1' },
-    { id: 3, title: 'Villa come from behind to claim first win of the season', imageUrl: 'https://images.pexels.com/photos/2202685/pexels-photo-2202685.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=1' },
-    { id: 4, title: 'Alderete and Roefs star as Sunderland enter top four with first away win', imageUrl: 'https://images.pexels.com/photos/17668030/pexels-photo-17668030.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=1' },
-    { id: 5, title: 'Nketiah stuns Liverpool as Palace end champions\' perfect start', imageUrl: 'https://images.pexels.com/photos/17668035/pexels-photo-17668035.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=1' },
-    { id: 6, title: 'Welbeck scores twice as Brighton beat 10-man Chelsea', imageUrl: 'https://images.pexels.com/photos/17668036/pexels-photo-17668036.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=1' },
-    { id: 7, title: 'Substitute Kroupi rescues point for Bournemouth at Leeds', imageUrl: 'https://images.pexels.com/photos/17668038/pexels-photo-17668038.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=1' },
-    { id: 8, title: 'Thiago and Kelleher lead Brentford to win over Man Utd', imageUrl: 'https://images.pexels.com/photos/17668034/pexels-photo-17668034.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=1' },
-    { id: 9, title: 'Haaland double hands five-star Man City victory over Burnley', imageUrl: 'https://images.pexels.com/photos/17668032/pexels-photo-17668032.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=1' },
-    { id: 10, title: 'Palhinha strikes late to deny Wolves first league win', imageUrl: 'https://images.pexels.com/photos/17668037/pexels-photo-17668037.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=1' },
-  ];
-  const [adminReports, setAdminReports] = useState<Array<{ id: string; title: string; imageUrl: string; createdAt: string }>>([]);
+  // Load match reports from MongoDB
+  const [matchReports, setMatchReports] = useState<Array<{ id: string; title: string; imageUrl: string; createdAt: string }>>([]);
   useEffect(() => {
-    try {
-      const raw = localStorage.getItem('ngl_match_reports');
-      const list = raw ? JSON.parse(raw) : [];
-      setAdminReports(list);
-    } catch {}
+    async function loadMatchReports() {
+      try {
+        const data = await fetchNews();
+        const reports = data
+          .filter((item: any) => item.type === 'match-report')
+          .map((item: any) => ({
+            id: item._id,
+            title: item.title,
+            imageUrl: item.imageUrl,
+            createdAt: item.createdAt
+          }));
+        setMatchReports(reports);
+      } catch (error) {
+        console.error('Failed to load match reports:', error);
+        setMatchReports([]);
+      }
+    }
+    loadMatchReports();
   }, []);
 
   const TrendingNowSection = () => (
@@ -235,49 +263,53 @@ const HomePage: React.FC<HomePageProps> = ({ matchesData, tableData, competition
   );
 
   const KeyTransfersSection = () => (
-    <div className="py-10">
-        <h2 className="text-3xl font-bold text-theme-dark mb-6">Key Summer 2025 Transfers</h2>
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-5">
-            {[...managerTransfers.map((t, idx) => ({ id: `m-${idx}-${t.id}`, title: t.title, imageUrl: t.imageUrl })), ...defaultTransfers].map(item => (
-                <Link to="/media" key={item.id} className="group">
-                    <div className="rounded-lg overflow-hidden bg-transparent">
-                        <img src={item.imageUrl} alt={item.title} className="w-full h-36 object-cover rounded-lg group-hover:opacity-80 transition-opacity" />
-                        <div className="pt-3">
-                            <h3 className="font-semibold text-theme-dark group-hover:text-theme-primary transition-colors">{item.title}</h3>
-                            <p className="text-sm text-theme-text-secondary mt-1">Transfers</p>
-                        </div>
-                    </div>
-                </Link>
-            ))}
-        </div>
-        <div className="text-center mt-8">
-            <Link to="/media" className="inline-block bg-white text-theme-dark font-semibold px-6 py-3 rounded-full shadow hover:shadow-md transition-shadow">
-                View More
-            </Link>
-        </div>
-    </div>
+    transfers.length > 0 ? (
+      <div className="py-10">
+          <h2 className="text-3xl font-bold text-theme-dark mb-6">Key Summer 2025 Transfers</h2>
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-5">
+              {transfers.map(item => (
+                  <Link to="/media" key={item.id} className="group">
+                      <div className="rounded-lg overflow-hidden bg-transparent">
+                          {item.imageUrl && <img src={item.imageUrl} alt={item.title} className="w-full h-36 object-cover rounded-lg group-hover:opacity-80 transition-opacity" onError={(e) => { e.currentTarget.style.display = 'none'; }} />}
+                          <div className="pt-3">
+                              <h3 className="font-semibold text-theme-dark group-hover:text-theme-primary transition-colors">{item.title}</h3>
+                              <p className="text-sm text-theme-text-secondary mt-1">Transfers</p>
+                          </div>
+                      </div>
+                  </Link>
+              ))}
+          </div>
+          <div className="text-center mt-8">
+              <Link to="/media" className="inline-block bg-white text-theme-dark font-semibold px-6 py-3 rounded-full shadow hover:shadow-md transition-shadow">
+                  View More
+              </Link>
+          </div>
+      </div>
+    ) : null
   );
   
   const BestGoalsSection = () => (
-      <div className="my-12 py-10 rounded-lg bg-theme-page-bg">
-        <div className="container mx-auto px-4">
-            <h2 className="text-3xl font-bold text-theme-dark mb-6">Best Goals 2024/25</h2>
-            <div className="flex overflow-x-auto space-x-6 pb-4 -mx-4 px-4 scrollbar-hide">
-                {[...managerBestGoals.map((g, idx) => ({ id: `g-${idx}-${g.id}`, title: g.title, imageUrl: g.imageUrl })), ...defaultBestGoals].map(item => (
-                    <Link to="/media" key={item.id} className="group flex-shrink-0 w-52">
-                        <div className="relative rounded-lg overflow-hidden h-72 shadow-lg">
-                            <img src={item.imageUrl} alt={item.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
-                            <div className="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent"></div>
-                            <span className="absolute top-2 left-2 bg-theme-accent text-white text-xs font-bold px-2 py-1 rounded">New</span>
-                            <div className="absolute bottom-0 left-0 p-3 text-theme-dark">
-                                <h3 className="font-semibold leading-tight">{item.title}</h3>
-                            </div>
-                        </div>
-                    </Link>
-                ))}
-            </div>
+      bestGoals.length > 0 ? (
+        <div className="my-12 py-10 rounded-lg bg-theme-page-bg">
+          <div className="container mx-auto px-4">
+              <h2 className="text-3xl font-bold text-theme-dark mb-6">Best Goals 2024/25</h2>
+              <div className="flex overflow-x-auto space-x-6 pb-4 -mx-4 px-4 scrollbar-hide">
+                  {bestGoals.map(item => (
+                      <Link to="/media" key={item.id} className="group flex-shrink-0 w-52">
+                          <div className="relative rounded-lg overflow-hidden h-72 shadow-lg">
+                              {item.imageUrl && <img src={item.imageUrl} alt={item.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" onError={(e) => { e.currentTarget.style.display = 'none'; }} />}
+                              <div className="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent"></div>
+                              <span className="absolute top-2 left-2 bg-theme-accent text-white text-xs font-bold px-2 py-1 rounded">New</span>
+                              <div className="absolute bottom-0 left-0 p-3 text-theme-dark">
+                                  <h3 className="font-semibold leading-tight">{item.title}</h3>
+                              </div>
+                          </div>
+                      </Link>
+                  ))}
+              </div>
+          </div>
         </div>
-      </div>
+      ) : null
   );
 
   return (
@@ -289,16 +321,19 @@ const HomePage: React.FC<HomePageProps> = ({ matchesData, tableData, competition
         <section className="mb-10">
           <h2 className="text-3xl font-extrabold text-theme-dark mb-6">Latest News & Features</h2>
 
-          {NEWS.length > 0 && (
+          {newsArticles.length > 0 && (
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-6">
-              {NEWS.slice(0, 10).map((article) => (
-                <Link to={`/news/${article.id}`} key={article.id} className="group">
+              {newsArticles.slice(0, 10).map((article, index) => (
+                <Link to={`/news/${article._id}`} key={article._id || `news-${index}`} className="group">
                   <div className="relative h-64 rounded-lg overflow-hidden shadow-lg">
-                    <img 
-                      src={article.imageUrl} 
-                      alt={article.title} 
-                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" 
-                    />
+                    {article.imageUrl && (
+                      <img 
+                        src={article.imageUrl} 
+                        alt={article.title} 
+                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" 
+                        onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                      />
+                    )}
                     <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent"></div>
                     <div className="absolute bottom-0 left-0 right-0 p-4 text-white">
                       <h3 className="font-semibold leading-tight drop-shadow text-sm mb-1">{article.title}</h3>
@@ -318,31 +353,33 @@ const HomePage: React.FC<HomePageProps> = ({ matchesData, tableData, competition
         </section>
       </main>
 
-      {/* Match Reports Section */}
-      <section className="py-12 bg-transparent">
-        <div className="container mx-auto px-4">
-          <h2 className="text-3xl font-extrabold text-theme-dark mb-6">Match Reports</h2>
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-6">
-            {[...adminReports.map((r, idx) => ({ id: `r-${idx}-${r.id}`, title: r.title, imageUrl: r.imageUrl })), ...defaultMatchReports].slice(0, 10).map((mr) => (
-              <Link to="/matches" key={mr.id} className="group">
-                <div className="relative h-56 rounded-lg overflow-hidden bg-black/30">
-                  <img src={mr.imageUrl} alt={mr.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300 opacity-95" />
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent"></div>
-                  <div className="absolute bottom-0 left-0 right-0 p-3">
-                    <h3 className="text-white font-semibold leading-tight drop-shadow">{mr.title}</h3>
-                    <p className="text-theme-text-secondary text-sm">Match report</p>
+      {/* Match Reports Section - Load from MongoDB */}
+      {matchReports.length > 0 && (
+        <section className="py-12 bg-transparent">
+          <div className="container mx-auto px-4">
+            <h2 className="text-3xl font-extrabold text-theme-dark mb-6">Match Reports</h2>
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-6">
+              {matchReports.slice(0, 10).map((mr) => (
+                <Link to="/matches" key={mr.id} className="group">
+                  <div className="relative h-56 rounded-lg overflow-hidden bg-black/30">
+                    {mr.imageUrl && <img src={mr.imageUrl} alt={mr.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300 opacity-95" onError={(e) => { e.currentTarget.style.display = 'none'; }} />}
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent"></div>
+                    <div className="absolute bottom-0 left-0 right-0 p-3">
+                      <h3 className="text-white font-semibold leading-tight drop-shadow">{mr.title}</h3>
+                      <p className="text-theme-text-secondary text-sm">Match report</p>
+                    </div>
                   </div>
-                </div>
+                </Link>
+              ))}
+            </div>
+            <div className="flex justify-center mt-10">
+              <Link to="/matches" className="bg-white text-theme-dark font-semibold px-6 py-3 rounded-full shadow hover:shadow-md transition-shadow">
+                View More
               </Link>
-            ))}
+            </div>
           </div>
-          <div className="flex justify-center mt-10">
-            <Link to="/matches" className="bg-white text-theme-dark font-semibold px-6 py-3 rounded-full shadow hover:shadow-md transition-shadow">
-              View More
-            </Link>
-          </div>
-        </div>
-      </section>
+        </section>
+      )}
 
       {/* Top Performers Section */}
       {leaderStats.length > 0 && (
@@ -377,7 +414,7 @@ const HomePage: React.FC<HomePageProps> = ({ matchesData, tableData, competition
                                     <button onClick={() => onPlayerSelect(player.playerId)} className="w-full flex items-center justify-between p-3 rounded-lg transition-colors hover:bg-theme-secondary-bg text-left">
                                       <div className="flex items-center gap-4">
                                           <span className="font-bold text-theme-text-secondary text-lg w-6 text-center">{index + 1}.</span>
-                                          <img src={player.clubLogo} alt="Club Logo" className="w-6 h-6"/>
+                                          <img src={player.clubLogo} alt="Club Logo" className="w-6 h-6" onError={(e) => { e.currentTarget.style.display = 'none'; }} />
                                           <span className="font-semibold text-theme-dark uppercase">{player.playerName}</span>
                                       </div>
                                       <span className="font-bold text-xl text-theme-primary">{player.value}</span>
