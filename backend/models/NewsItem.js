@@ -10,6 +10,7 @@ const newsItemSchema = new mongoose.Schema({
   category: {
     type: String,
     trim: true,
+<<<<<<< HEAD
     maxlength: 50,
     default: 'Features',
     enum: ['Features', 'News', 'Analysis', 'Transfers', 'Match Reports', 'Best Goals', 'Transfer News']
@@ -29,10 +30,18 @@ const newsItemSchema = new mongoose.Schema({
       },
       message: 'Image URL must be a valid HTTP/HTTPS URL ending with an image extension'
     }
+=======
+    maxlength: 50
+  },
+  imageUrl: {
+    type: String,
+    trim: true
+>>>>>>> c2993bc032a26f6e84ff085a81c8101413c869db
   },
   summary: {
     type: String,
     trim: true,
+<<<<<<< HEAD
     maxlength: 500
   },
   content: {
@@ -49,10 +58,19 @@ const newsItemSchema = new mongoose.Schema({
     type: String,
     trim: true,
     maxlength: 100
+=======
+    maxlength: 300
+  },
+  content: {
+    type: String,
+    required: true,
+    maxlength: 5000
+>>>>>>> c2993bc032a26f6e84ff085a81c8101413c869db
   },
   createdAt: {
     type: Date,
     default: Date.now
+<<<<<<< HEAD
   },
   updatedAt: {
     type: Date,
@@ -66,4 +84,9 @@ newsItemSchema.pre('save', function(next) {
   next();
 });
 
+=======
+  }
+});
+
+>>>>>>> c2993bc032a26f6e84ff085a81c8101413c869db
 module.exports = mongoose.model('NewsItem', newsItemSchema);

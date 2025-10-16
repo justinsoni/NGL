@@ -13,8 +13,11 @@ import { createNews } from '@/api/news/createNews';
 import { fetchNews } from '@/api/news/fetchNews';
 import { deleteNewsById } from '@/api/news/deleteNewsItemById';
 import { updateNewsById } from '@/api/news/updateNewsById';
+<<<<<<< HEAD
 import { getLeagueConfig, updateLeagueConfig, resetLeagueConfig, LeagueConfigDTO } from '../services/leagueConfigService';
 import { initializeLeagueTableAdmin } from '../services/tableService';
+=======
+>>>>>>> c2993bc032a26f6e84ff085a81c8101413c869db
 
 type AdminSection = 'Dashboard' | 'Manage Clubs' | 'Manage Fixtures' | 'Manage News' | 'Manage Match Reports' | 'User Management' | 'League Settings';
 
@@ -81,6 +84,8 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
         category: 'Features',
         content: ''
     });
+    const [newsImageFile, setNewsImageFile] = useState<File | null>(null);
+    const [newsImagePreview, setNewsImagePreview] = useState<string>('');
 
     // Club management state
     const [showClubForm, setShowClubForm] = useState(false);
@@ -166,6 +171,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
     const [matchReportImageFile, setMatchReportImageFile] = useState<File | null>(null);
     const [matchReportImagePreview, setMatchReportImagePreview] = useState<string>('');
 
+<<<<<<< HEAD
     // League configuration state
     const [leagueConfig, setLeagueConfig] = useState<LeagueConfigDTO | null>(null);
     const [isLoadingLeagueConfig, setIsLoadingLeagueConfig] = useState(false);
@@ -178,6 +184,8 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
     });
 
 
+=======
+>>>>>>> c2993bc032a26f6e84ff085a81c8101413c869db
     
         
     useEffect(() => {
@@ -192,6 +200,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
         getNews();
     }, []);
 
+<<<<<<< HEAD
     // Load league configuration
     useEffect(() => {
         const loadLeagueConfig = async () => {
@@ -215,6 +224,8 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
         loadLeagueConfig();
     }, []);
 
+=======
+>>>>>>> c2993bc032a26f6e84ff085a81c8101413c869db
     const uploadMatchImage = async (file: File, uploadPreset: string): Promise<string> => {
         const url = `https://api.cloudinary.com/v1_1/dmuilu78u/auto/upload`;
         const formData = new FormData();
@@ -397,6 +408,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
         s.on('match:started', refresh);
         s.on('semi:created', refresh);
         s.on('final:created', refresh);
+        s.on('semi:created', refresh);
         s.on('final:finished', refresh);
         return () => {
             s.off('match:event', refresh);
@@ -404,6 +416,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
             s.off('match:started', refresh);
             s.off('semi:created', refresh);
             s.off('final:created', refresh);
+            s.off('semi:created', refresh);
             s.off('final:finished', refresh);
         };
     }, []);
@@ -542,6 +555,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
     const handleCreateNews = async (e: React.FormEvent) => {
         e.preventDefault();
+<<<<<<< HEAD
         console.log('🔍 Starting news creation process...');
         console.log('🔍 User:', user);
         console.log('🔍 Firebase user:', user?.firebaseUser);
@@ -555,25 +569,64 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
             if (!idToken) {
                 console.error('❌ No ID token available');
                 toast.error('Failed to get ID token');
+=======
+        setIsSubmittingNews(true);
+
+        const idToken = await user?.firebaseUser?.getIdToken();
+
+        if (!idToken) {
+            toast.error('Failed to get ID token');
+            setIsSubmittingNews(false);
+            return;
+        }
+
+        if (!newsImageFile) {
+            toast.error('Please select an image to upload');
+            setIsSubmittingNews(false);
+            return;
+        }
+
+        try {
+            // Upload image first
+            const allowed = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
+            if (!allowed.includes(newsImageFile.type)) {
+                toast.error('Invalid image type. Use JPG, PNG, or WEBP.');
+                setIsSubmittingNews(false);
+                return;
+            }
+            if (newsImageFile.size > 5 * 1024 * 1024) {
+                toast.error('Image too large. Max 5MB.');
+>>>>>>> c2993bc032a26f6e84ff085a81c8101413c869db
                 setIsSubmittingNews(false);
                 return;
             }
 
+<<<<<<< HEAD
+=======
+            const imageUrl = await uploadMatchImage(newsImageFile, 'ml_default');
+
+>>>>>>> c2993bc032a26f6e84ff085a81c8101413c869db
             const newArticle = {
                 title: newsForm.title,
                 summary: newsForm.summary,
-                imageUrl: newsForm.imageUrl,
+                imageUrl: imageUrl,
                 category: newsForm.category,
                 content: newsForm.content,
                 createdAt: new Date().toISOString()
             };
+<<<<<<< HEAD
             
             console.log('🔍 Article data:', newArticle);
             const created = await createNews(newArticle, idToken);
             console.log('🔍 Created article:', created);
+=======
+            const created = await createNews(newArticle, idToken);
+>>>>>>> c2993bc032a26f6e84ff085a81c8101413c869db
 
             setNewsArticles(prev => [created, ...prev]);
             setNewsForm({ title: '', summary: '', imageUrl: '', category: 'Features', content: '' });
+            setNewsImageFile(null);
+            setNewsImagePreview('');
             setShowNewsForm(false);
             toast.success('News article created successfully!');
         } catch (error: any) {
@@ -593,6 +646,8 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
             category: article.category,
             content: article.content
         });
+        setNewsImageFile(null);
+        setNewsImagePreview('');
         setShowNewsForm(true);
     };
 
@@ -601,11 +656,29 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
         setIsSubmittingNews(true);
         
         try {
+            let imageUrl = editingNews.imageUrl; // Keep existing image by default
+            
+            // If a new image file is selected, upload it
+            if (newsImageFile) {
+                const allowed = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
+                if (!allowed.includes(newsImageFile.type)) {
+                    toast.error('Invalid image type. Use JPG, PNG, or WEBP.');
+                    setIsSubmittingNews(false);
+                    return;
+                }
+                if (newsImageFile.size > 5 * 1024 * 1024) {
+                    toast.error('Image too large. Max 5MB.');
+                    setIsSubmittingNews(false);
+                    return;
+                }
+                imageUrl = await uploadMatchImage(newsImageFile, 'ml_default');
+            }
+
             const updatedArticle = {
                 ...editingNews,
                 title: newsForm.title,
                 summary: newsForm.summary,
-                imageUrl: newsForm.imageUrl,
+                imageUrl: imageUrl,
                 category: newsForm.category,
                 content: newsForm.content,
                 updatedAt: new Date().toISOString()
@@ -624,6 +697,8 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
             setNewsArticles(prev => prev.map(article => article._id === updated._id ? updated : article));
             
             setNewsForm({ title: '', summary: '', imageUrl: '', category: 'Features', content: '' });
+            setNewsImageFile(null);
+            setNewsImagePreview('');
             setEditingNews(null);
             setShowNewsForm(false);
             toast.success('News article updated successfully!');
@@ -650,6 +725,8 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
     const resetNewsForm = () => {
         setNewsForm({ title: '', summary: '', imageUrl: '', category: 'Features', content: '' });
+        setNewsImageFile(null);
+        setNewsImagePreview('');
         setEditingNews(null);
         setShowNewsForm(false);
     };
@@ -1181,16 +1258,32 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                     </div>
                                     
                                     <div>
-                                        <label htmlFor="newsImageUrl" className="block text-sm font-medium text-theme-text-secondary mb-1">Image URL *</label>
+                                        <label htmlFor="newsImageFile" className="block text-sm font-medium text-theme-text-secondary mb-1">Image *</label>
                                         <input 
-                                            type="url" 
-                                            id="newsImageUrl" 
-                                            value={newsForm.imageUrl} 
-                                            onChange={e => setNewsForm(prev => ({ ...prev, imageUrl: e.target.value }))} 
-                                            required 
+                                            type="file" 
+                                            id="newsImageFile" 
+                                            accept="image/jpeg,image/jpg,image/png,image/webp"
+                                            onChange={(e) => {
+                                                const file = e.target.files?.[0] || null;
+                                                setNewsImageFile(file);
+                                                if (file && file.type.startsWith('image/')) {
+                                                    setNewsImagePreview(URL.createObjectURL(file));
+                                                } else {
+                                                    setNewsImagePreview('');
+                                                }
+                                            }}
+                                            required={!editingNews}
                                             className="w-full bg-theme-page-bg border border-theme-border rounded-md shadow-sm py-2 px-3 text-theme-dark focus:outline-none focus:ring-theme-primary focus:border-theme-primary" 
-                                            placeholder="https://example.com/image.jpg"
                                         />
+                                        {newsImagePreview && (
+                                            <img src={newsImagePreview} alt="Preview" className="mt-2 h-32 w-full object-cover rounded"/>
+                                        )}
+                                        {editingNews && !newsImagePreview && (
+                                            <div className="mt-2">
+                                                <p className="text-sm text-theme-text-secondary mb-2">Current image:</p>
+                                                <img src={editingNews.imageUrl} alt="Current" className="h-32 w-full object-cover rounded"/>
+                                            </div>
+                                        )}
                                     </div>
                                     
                                     <div>

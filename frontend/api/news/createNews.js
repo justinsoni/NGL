@@ -7,6 +7,7 @@ import axios from 'axios';
  * @returns {Promise<Object>} - Created article data.
  */
 export async function createNews(article, idToken) {
+<<<<<<< HEAD
     console.log('🔍 Creating news article:', article);
     console.log('🔍 Using token:', idToken ? 'Present' : 'Missing');
     
@@ -25,4 +26,13 @@ export async function createNews(article, idToken) {
         console.error('❌ Error status:', error.response?.status);
         throw error;
     }
+=======
+    const response = await axios.post('http://localhost:5000/api/news', article, {
+        headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${idToken}`
+        }
+    });
+    return response.data;
+>>>>>>> c2993bc032a26f6e84ff085a81c8101413c869db
 }

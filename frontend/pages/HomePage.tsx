@@ -263,6 +263,7 @@ const HomePage: React.FC<HomePageProps> = ({ matchesData, tableData, competition
   );
 
   const KeyTransfersSection = () => (
+<<<<<<< HEAD
     transfers.length > 0 ? (
       <div className="py-10">
           <h2 className="text-3xl font-bold text-theme-dark mb-6">Key Summer 2025 Transfers</h2>
@@ -286,6 +287,29 @@ const HomePage: React.FC<HomePageProps> = ({ matchesData, tableData, competition
           </div>
       </div>
     ) : null
+=======
+    <div className="py-10">
+        <h2 className="text-3xl font-bold text-theme-dark mb-6">Key Summer 2025 Transfers</h2>
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-5">
+            {managerTransfers.map((t, idx) => (
+                <Link to="/media" key={`m-${idx}-${t.id}`} className="group">
+                    <div className="rounded-lg overflow-hidden bg-transparent">
+                        <img src={t.imageUrl} alt={t.title} className="w-full h-36 object-cover rounded-lg group-hover:opacity-80 transition-opacity" />
+                        <div className="pt-3">
+                            <h3 className="font-semibold text-theme-dark group-hover:text-theme-primary transition-colors">{t.title}</h3>
+                            <p className="text-sm text-theme-text-secondary mt-1">Transfers</p>
+                        </div>
+                    </div>
+                </Link>
+            ))}
+        </div>
+        <div className="text-center mt-8">
+            <Link to="/media" className="inline-block bg-white text-theme-dark font-semibold px-6 py-3 rounded-full shadow hover:shadow-md transition-shadow">
+                View More
+            </Link>
+        </div>
+    </div>
+>>>>>>> c2993bc032a26f6e84ff085a81c8101413c869db
   );
   
   const BestGoalsSection = () => (
@@ -323,8 +347,13 @@ const HomePage: React.FC<HomePageProps> = ({ matchesData, tableData, competition
 
           {newsArticles.length > 0 && (
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-6">
+<<<<<<< HEAD
               {newsArticles.slice(0, 10).map((article, index) => (
                 <Link to={`/news/${article._id}`} key={article._id || `news-${index}`} className="group">
+=======
+              {newsArticles.slice(0, 10).map((article) => (
+                <Link to={`/news/${article._id}`} key={article._id} className="group">
+>>>>>>> c2993bc032a26f6e84ff085a81c8101413c869db
                   <div className="relative h-64 rounded-lg overflow-hidden shadow-lg">
                     {article.imageUrl && (
                       <img 

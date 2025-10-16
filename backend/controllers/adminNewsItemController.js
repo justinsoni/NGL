@@ -3,6 +3,7 @@ const { validationResult } = require('express-validator');
 
 // @desc    Create new news item
 // @route   POST /api/news
+<<<<<<< HEAD
 // @access  Private (Admin and Club Manager)
 const createNewsItem = async (req, res) => {
   try {
@@ -14,6 +15,12 @@ const createNewsItem = async (req, res) => {
     };
 
     const newsItem = await NewsItem.create(newsData);
+=======
+// @access  Private (Admin only)
+const createNewsItem = async (req, res) => {
+  try {
+    const newsItem = await NewsItem.create(req.body);
+>>>>>>> c2993bc032a26f6e84ff085a81c8101413c869db
 
     res.status(201).json({
       success: true,
@@ -32,6 +39,7 @@ const createNewsItem = async (req, res) => {
 
 const updateNewsItem = async (req, res) => {
   try {
+<<<<<<< HEAD
     // Add author and club information from the authenticated user
     const updateData = {
       ...req.body,
@@ -40,6 +48,9 @@ const updateNewsItem = async (req, res) => {
     };
 
     const newsItem = await NewsItem.findByIdAndUpdate(req.params.id, updateData, { new: true });
+=======
+    const newsItem = await NewsItem.findByIdAndUpdate(req.params.id, req.body, { new: true });
+>>>>>>> c2993bc032a26f6e84ff085a81c8101413c869db
 
     if (!newsItem) {
       return res.status(404).json({
@@ -92,6 +103,7 @@ const deleteNewsItem = async (req, res) => {
 // @access  Public or Private (set as needed)
 const getAllNewsItems = async (req, res) => {
   try {
+<<<<<<< HEAD
     // Support filtering by type and category
     const { type, category, club } = req.query;
     const filter = {};
@@ -101,6 +113,9 @@ const getAllNewsItems = async (req, res) => {
     if (club) filter.club = club;
     
     const newsItems = await NewsItem.find(filter).sort({ createdAt: -1 });
+=======
+    const newsItems = await NewsItem.find().sort({ createdAt: -1 });
+>>>>>>> c2993bc032a26f6e84ff085a81c8101413c869db
 
     res.status(200).json({
       success: true,
