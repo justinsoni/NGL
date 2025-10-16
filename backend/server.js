@@ -23,10 +23,7 @@ const playerRoutes = require('./routes/player');
 const fixtureRoutes = require('./routes/fixtures');
 const tableRoutes = require('./routes/table');
 const newsItemRoutes = require('./routes/newsItemRoutes');
-<<<<<<< HEAD
 const leagueConfigRoutes = require('./routes/leagueConfig');
-=======
->>>>>>> c2993bc032a26f6e84ff085a81c8101413c869db
 
 // Initialize Express app
 const app = express();
@@ -71,10 +68,7 @@ app.use('/api/players', playerRoutes);
 app.use('/api/fixtures', fixtureRoutes);
 app.use('/api/table', tableRoutes);
 app.use('/api/news', newsItemRoutes);
-<<<<<<< HEAD
 app.use('/api/league-config', leagueConfigRoutes);
-=======
->>>>>>> c2993bc032a26f6e84ff085a81c8101413c869db
 
 // 404 handler for undefined routes
 app.use('*', (req, res) => {

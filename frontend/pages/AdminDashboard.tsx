@@ -13,11 +13,8 @@ import { createNews } from '@/api/news/createNews';
 import { fetchNews } from '@/api/news/fetchNews';
 import { deleteNewsById } from '@/api/news/deleteNewsItemById';
 import { updateNewsById } from '@/api/news/updateNewsById';
-<<<<<<< HEAD
 import { getLeagueConfig, updateLeagueConfig, resetLeagueConfig, LeagueConfigDTO } from '../services/leagueConfigService';
 import { initializeLeagueTableAdmin } from '../services/tableService';
-=======
->>>>>>> c2993bc032a26f6e84ff085a81c8101413c869db
 
 type AdminSection = 'Dashboard' | 'Manage Clubs' | 'Manage Fixtures' | 'Manage News' | 'Manage Match Reports' | 'User Management' | 'League Settings';
 
@@ -171,7 +168,6 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
     const [matchReportImageFile, setMatchReportImageFile] = useState<File | null>(null);
     const [matchReportImagePreview, setMatchReportImagePreview] = useState<string>('');
 
-<<<<<<< HEAD
     // League configuration state
     const [leagueConfig, setLeagueConfig] = useState<LeagueConfigDTO | null>(null);
     const [isLoadingLeagueConfig, setIsLoadingLeagueConfig] = useState(false);
@@ -184,8 +180,6 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
     });
 
 
-=======
->>>>>>> c2993bc032a26f6e84ff085a81c8101413c869db
     
         
     useEffect(() => {
@@ -200,7 +194,6 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
         getNews();
     }, []);
 
-<<<<<<< HEAD
     // Load league configuration
     useEffect(() => {
         const loadLeagueConfig = async () => {
@@ -224,8 +217,6 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
         loadLeagueConfig();
     }, []);
 
-=======
->>>>>>> c2993bc032a26f6e84ff085a81c8101413c869db
     const uploadMatchImage = async (file: File, uploadPreset: string): Promise<string> => {
         const url = `https://api.cloudinary.com/v1_1/dmuilu78u/auto/upload`;
         const formData = new FormData();
@@ -555,7 +546,6 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
     const handleCreateNews = async (e: React.FormEvent) => {
         e.preventDefault();
-<<<<<<< HEAD
         console.log('🔍 Starting news creation process...');
         console.log('🔍 User:', user);
         console.log('🔍 Firebase user:', user?.firebaseUser);
@@ -569,24 +559,16 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
             if (!idToken) {
                 console.error('❌ No ID token available');
                 toast.error('Failed to get ID token');
-=======
-        setIsSubmittingNews(true);
+                setIsSubmittingNews(false);
+                return;
+            }
 
-        const idToken = await user?.firebaseUser?.getIdToken();
+            if (!newsImageFile) {
+                toast.error('Please select an image to upload');
+                setIsSubmittingNews(false);
+                return;
+            }
 
-        if (!idToken) {
-            toast.error('Failed to get ID token');
-            setIsSubmittingNews(false);
-            return;
-        }
-
-        if (!newsImageFile) {
-            toast.error('Please select an image to upload');
-            setIsSubmittingNews(false);
-            return;
-        }
-
-        try {
             // Upload image first
             const allowed = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
             if (!allowed.includes(newsImageFile.type)) {
@@ -596,16 +578,12 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
             }
             if (newsImageFile.size > 5 * 1024 * 1024) {
                 toast.error('Image too large. Max 5MB.');
->>>>>>> c2993bc032a26f6e84ff085a81c8101413c869db
                 setIsSubmittingNews(false);
                 return;
             }
 
-<<<<<<< HEAD
-=======
             const imageUrl = await uploadMatchImage(newsImageFile, 'ml_default');
 
->>>>>>> c2993bc032a26f6e84ff085a81c8101413c869db
             const newArticle = {
                 title: newsForm.title,
                 summary: newsForm.summary,
@@ -614,14 +592,10 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 content: newsForm.content,
                 createdAt: new Date().toISOString()
             };
-<<<<<<< HEAD
             
             console.log('🔍 Article data:', newArticle);
             const created = await createNews(newArticle, idToken);
             console.log('🔍 Created article:', created);
-=======
-            const created = await createNews(newArticle, idToken);
->>>>>>> c2993bc032a26f6e84ff085a81c8101413c869db
 
             setNewsArticles(prev => [created, ...prev]);
             setNewsForm({ title: '', summary: '', imageUrl: '', category: 'Features', content: '' });
