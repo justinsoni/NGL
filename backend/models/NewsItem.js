@@ -12,12 +12,12 @@ const newsItemSchema = new mongoose.Schema({
     trim: true,
     maxlength: 50,
     default: 'Features',
-    enum: ['Features', 'News', 'Analysis', 'Transfers', 'Match Reports', 'Best Goals', 'Transfer News']
+    enum: ['Features', 'News', 'Analysis', 'Transfers', 'Match Reports', 'Best Goals', 'Transfer News', 'Trending']
   },
   type: {
     type: String,
     trim: true,
-    enum: ['article', 'transfer', 'best-goal', 'match-report'],
+    enum: ['article', 'transfer', 'best-goal', 'match-report', 'trending'],
     default: 'article'
   },
   imageUrl: {
@@ -29,6 +29,12 @@ const newsItemSchema = new mongoose.Schema({
       },
       message: 'Image URL must be a valid HTTP/HTTPS URL ending with an image extension'
     }
+  },
+  icon: {
+    type: String,
+    trim: true,
+    maxlength: 10,
+    default: '🔥'
   },
   summary: {
     type: String,
@@ -44,6 +50,12 @@ const newsItemSchema = new mongoose.Schema({
     type: String,
     trim: true,
     maxlength: 100
+  },
+  authorRole: {
+    type: String,
+    trim: true,
+    enum: ['admin', 'registeredUser', 'clubManager', 'coach'],
+    default: 'registeredUser'
   },
   club: {
     type: String,

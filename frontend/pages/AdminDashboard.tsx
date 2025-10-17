@@ -16,7 +16,7 @@ import { updateNewsById } from '@/api/news/updateNewsById';
 import { getLeagueConfig, updateLeagueConfig, resetLeagueConfig, LeagueConfigDTO } from '../services/leagueConfigService';
 import { initializeLeagueTableAdmin } from '../services/tableService';
 
-type AdminSection = 'Dashboard' | 'Manage Clubs' | 'Manage Fixtures' | 'Manage News' | 'Manage Match Reports' | 'User Management' | 'League Settings';
+type AdminSection = 'Dashboard' | 'Manage Clubs' | 'Manage Fixtures' | 'Manage News' | 'Latest News & Features' | 'Manage Match Reports' | 'Manage Trending News' | 'User Management' | 'League Settings';
 
 interface AdminDashboardProps {
     matches: Match[];
@@ -51,7 +51,24 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
     const [activeSection, setActiveSection] = useState<AdminSection>('User Management');
     const [matchScores, setMatchScores] = useState<Record<number, { home: string; away: string }>>({});
     const [fixtures, setFixtures] = useState<FixtureDTO[]>([]);
-    const [eventInput, setEventInput] = useState<{ minute: string; type: 'goal'|'yellow_card'|'red_card'|'foul'; team: 'home'|'away'; player: string; targetId?: string }>({ minute: '', type: 'goal', team: 'home', player: '' });
+    const [eventInput, setEventInput] = useState<{ 
+        minute: string; 
+        type: 'goal'|'yellow_card'|'red_card'|'foul'; 
+        team: 'home'|'away'; 
+        player: string; 
+        assist?: string;
+        goalType?: 'open_play'|'penalty'|'free_kick';
+        fieldSide?: 'mid'|'rw'|'lw';
+        targetId?: string 
+    }>({ 
+        minute: '', 
+        type: 'goal', 
+        team: 'home', 
+        player: '',
+        assist: '',
+        goalType: 'open_play',
+        fieldSide: 'mid'
+    });
     const [scheduledOnce, setScheduledOnce] = useState<Record<string, boolean>>({});
     const [approvedPlayersByClub, setApprovedPlayersByClub] = useState<Record<string, { _id: string; name: string }[]>>({});
 
@@ -83,6 +100,23 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
     });
     const [newsImageFile, setNewsImageFile] = useState<File | null>(null);
     const [newsImagePreview, setNewsImagePreview] = useState<string>('');
+
+    // Latest News & Features specific state
+    const [showLatestNewsForm, setShowLatestNewsForm] = useState(false);
+    const [isSubmittingLatestNews, setIsSubmittingLatestNews] = useState(false);
+    const [latestNewsArticles, setLatestNewsArticles] = useState<Array<{ _id: string; title: string; imageUrl: string, summary: string, content: string, createdAt: string, category: string, authorRole: string }>>([]);
+    const [editingLatestNews, setEditingLatestNews] = useState<any>(null);
+    
+    // Latest News form state
+    const [latestNewsForm, setLatestNewsForm] = useState({
+        title: '',
+        summary: '',
+        imageUrl: '',
+        category: 'Features',
+        content: ''
+    });
+    const [latestNewsImageFile, setLatestNewsImageFile] = useState<File | null>(null);
+    const [latestNewsImagePreview, setLatestNewsImagePreview] = useState<string>('');
 
     // Club management state
     const [showClubForm, setShowClubForm] = useState(false);
@@ -168,6 +202,16 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
     const [matchReportImageFile, setMatchReportImageFile] = useState<File | null>(null);
     const [matchReportImagePreview, setMatchReportImagePreview] = useState<string>('');
 
+    // Trending News management state
+    type TrendingNewsItem = { id: string; title: string; imageUrl: string; icon: string; createdAt: string };
+    const [trendingNewsForm, setTrendingNewsForm] = useState<{ title: string; imageUrl: string; icon: string }>({ title: '', imageUrl: '', icon: '🔥' });
+    const [trendingNews, setTrendingNews] = useState<TrendingNewsItem[]>([]);
+    const [trendingNewsImageFile, setTrendingNewsImageFile] = useState<File | null>(null);
+    const [trendingNewsImagePreview, setTrendingNewsImagePreview] = useState<string>('');
+    const [showTrendingNewsForm, setShowTrendingNewsForm] = useState(false);
+    const [isSubmittingTrendingNews, setIsSubmittingTrendingNews] = useState(false);
+    const [editingTrendingNews, setEditingTrendingNews] = useState<any>(null);
+
     // League configuration state
     const [leagueConfig, setLeagueConfig] = useState<LeagueConfigDTO | null>(null);
     const [isLoadingLeagueConfig, setIsLoadingLeagueConfig] = useState(false);
@@ -187,8 +231,24 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
         try {
             const data = await fetchNews();
             setNewsArticles(data);
+            
+            // Filter latest news articles (admin-created, not match reports or trending)
+            const latestNews = data
+                .filter((item: any) => item.authorRole === 'admin' && item.type !== 'match-report' && item.type !== 'trending')
+                .map((item: any) => ({
+                    _id: item._id,
+                    title: item.title,
+                    imageUrl: item.imageUrl,
+                    summary: item.summary,
+                    content: item.content,
+                    createdAt: item.createdAt,
+                    category: item.category,
+                    authorRole: item.authorRole
+                }));
+            setLatestNewsArticles(latestNews);
         } catch (err) {
             setNewsArticles([]);
+            setLatestNewsArticles([]);
         }
         }
         getNews();
@@ -434,6 +494,29 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
         loadMatchReports();
     }, []);
 
+    // Load existing trending news from MongoDB on mount
+    useEffect(() => {
+        async function loadTrendingNews() {
+            try {
+                const data = await fetchNews();
+                const trending = data
+                    .filter((item: any) => item.type === 'trending')
+                    .map((item: any) => ({
+                        id: item._id,
+                        title: item.title,
+                        imageUrl: item.imageUrl,
+                        icon: item.icon || '🔥',
+                        createdAt: item.createdAt
+                    }));
+                setTrendingNews(trending);
+            } catch (error) {
+                console.error('Failed to load trending news:', error);
+                setTrendingNews([]);
+            }
+        }
+        loadTrendingNews();
+    }, []);
+
     const addMatchReport = async () => {
         const title = matchReportForm.title.trim();
         if (!title) { toast.error('Please enter a report title'); return; }
@@ -495,6 +578,148 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
             console.error('Error removing match report:', error);
             toast.error('Failed to remove match report');
         }
+    };
+
+    // Trending News handler functions
+    const addTrendingNews = async () => {
+        const title = trendingNewsForm.title.trim();
+        const icon = trendingNewsForm.icon.trim();
+        if (!title) { toast.error('Please enter a trending news title'); return; }
+        if (!trendingNewsImageFile) { toast.error('Please select an image to upload'); return; }
+        
+        let imageUrl = '';
+        try {
+            const allowed = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
+            if (!allowed.includes(trendingNewsImageFile.type)) { toast.error('Invalid image type. Use JPG, PNG, or WEBP.'); return; }
+            if (trendingNewsImageFile.size > 5 * 1024 * 1024) { toast.error('Image too large. Max 5MB.'); return; }
+            imageUrl = await uploadMatchImage(trendingNewsImageFile, 'ml_default');
+        } catch (e: any) {
+            toast.error(e.message || 'Upload failed');
+            return;
+        }
+        
+        // Save to MongoDB
+        try {
+            const idToken = await user?.firebaseUser?.getIdToken();
+            if (!idToken) {
+                toast.error('Authentication required');
+                return;
+            }
+            
+            const trendingData = {
+                title,
+                imageUrl,
+                icon,
+                category: 'Trending',
+                type: 'trending',
+                content: title,
+                summary: title
+            };
+            
+            const created = await createNews(trendingData, idToken);
+            setTrendingNews(prev => [{ id: created._id, title: created.title, imageUrl: created.imageUrl, icon: created.icon, createdAt: created.createdAt }, ...prev]);
+            setTrendingNewsForm({ title: '', imageUrl: '', icon: '🔥' });
+            setTrendingNewsImageFile(null);
+            setTrendingNewsImagePreview('');
+            toast.success('Trending news published to homepage');
+        } catch (error: any) {
+            console.error('Error saving trending news:', error);
+            toast.error('Failed to save trending news: ' + (error.response?.data?.message || error.message));
+        }
+    };
+
+    const removeTrendingNews = async (id: string) => {
+        if (!confirm('Remove this trending news item?')) return;
+        try {
+            const idToken = await user?.firebaseUser?.getIdToken();
+            if (!idToken) {
+                toast.error('Authentication required');
+                return;
+            }
+            
+            await deleteNewsById(id, idToken);
+            setTrendingNews(prev => prev.filter(t => t.id !== id));
+            toast.success('Trending news removed successfully');
+        } catch (error: any) {
+            console.error('Error removing trending news:', error);
+            toast.error('Failed to remove trending news');
+        }
+    };
+
+    const handleEditTrendingNews = (item: any) => {
+        setEditingTrendingNews(item);
+        setTrendingNewsForm({
+            title: item.title,
+            imageUrl: item.imageUrl,
+            icon: item.icon
+        });
+        setTrendingNewsImageFile(null);
+        setTrendingNewsImagePreview('');
+        setShowTrendingNewsForm(true);
+    };
+
+    const handleUpdateTrendingNews = async (e: React.FormEvent) => {
+        e.preventDefault();
+        setIsSubmittingTrendingNews(true);
+        
+        try {
+            let imageUrl = editingTrendingNews.imageUrl; // Keep existing image by default
+            
+            // If a new image file is selected, upload it
+            if (trendingNewsImageFile) {
+                const allowed = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
+                if (!allowed.includes(trendingNewsImageFile.type)) {
+                    toast.error('Invalid image type. Use JPG, PNG, or WEBP.');
+                    setIsSubmittingTrendingNews(false);
+                    return;
+                }
+                if (trendingNewsImageFile.size > 5 * 1024 * 1024) {
+                    toast.error('Image too large. Max 5MB.');
+                    setIsSubmittingTrendingNews(false);
+                    return;
+                }
+                imageUrl = await uploadMatchImage(trendingNewsImageFile, 'ml_default');
+            }
+
+            const updatedTrendingNews = {
+                ...editingTrendingNews,
+                title: trendingNewsForm.title,
+                imageUrl: imageUrl,
+                icon: trendingNewsForm.icon,
+                updatedAt: new Date().toISOString()
+            };
+
+            const idToken = await user?.firebaseUser?.getIdToken();
+
+            if (!idToken) {
+                toast.error('Failed to get ID token');
+                setIsSubmittingTrendingNews(false);
+                return;
+            }
+
+            const updated = await updateNewsById(editingTrendingNews._id, updatedTrendingNews, idToken);
+
+            setTrendingNews(prev => prev.map(item => item.id === updated._id ? { ...item, title: updated.title, imageUrl: updated.imageUrl, icon: updated.icon } : item));
+            
+            setTrendingNewsForm({ title: '', imageUrl: '', icon: '🔥' });
+            setTrendingNewsImageFile(null);
+            setTrendingNewsImagePreview('');
+            setEditingTrendingNews(null);
+            setShowTrendingNewsForm(false);
+            toast.success('Trending news updated successfully!');
+        } catch (error: any) {
+            toast.error('Failed to update trending news');
+        } finally {
+            setIsSubmittingTrendingNews(false);
+        }
+    };
+
+    const resetTrendingNewsForm = () => {
+        setTrendingNewsForm({ title: '', imageUrl: '', icon: '🔥' });
+        setTrendingNewsImageFile(null);
+        setTrendingNewsImagePreview('');
+        setEditingTrendingNews(null);
+        setShowTrendingNewsForm(false);
     };
 
     const handleCreateClub = async (clubData: CreateClubData) => {
@@ -584,11 +809,22 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
             const imageUrl = await uploadMatchImage(newsImageFile, 'ml_default');
 
+            // Determine type based on category
+            let articleType = 'news';
+            if (newsForm.category === 'Match Reports') {
+                articleType = 'match-report';
+            } else if (newsForm.category === 'Transfers') {
+                articleType = 'transfer';
+            } else if (newsForm.category === 'Best Goals') {
+                articleType = 'best-goal';
+            }
+
             const newArticle = {
                 title: newsForm.title,
                 summary: newsForm.summary,
                 imageUrl: imageUrl,
                 category: newsForm.category,
+                type: articleType,
                 content: newsForm.content,
                 createdAt: new Date().toISOString()
             };
@@ -648,12 +884,23 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 imageUrl = await uploadMatchImage(newsImageFile, 'ml_default');
             }
 
+            // Determine type based on category
+            let articleType = 'news';
+            if (newsForm.category === 'Match Reports') {
+                articleType = 'match-report';
+            } else if (newsForm.category === 'Transfers') {
+                articleType = 'transfer';
+            } else if (newsForm.category === 'Best Goals') {
+                articleType = 'best-goal';
+            }
+
             const updatedArticle = {
                 ...editingNews,
                 title: newsForm.title,
                 summary: newsForm.summary,
                 imageUrl: imageUrl,
                 category: newsForm.category,
+                type: articleType,
                 content: newsForm.content,
                 updatedAt: new Date().toISOString()
             };
@@ -703,6 +950,180 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
         setNewsImagePreview('');
         setEditingNews(null);
         setShowNewsForm(false);
+    };
+
+    // Latest News & Features handler functions
+    const handleLatestNewsImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0] || null;
+        
+        if (!file) {
+            setLatestNewsImageFile(null);
+            setLatestNewsImagePreview('');
+            return;
+        }
+
+        if (!file.type.startsWith('image/')) {
+            alert('Please select a valid image file.');
+            return;
+        }
+
+        if (file.size > 5 * 1024 * 1024) {
+            alert('File size too large. Please upload a file smaller than 5MB.');
+            return;
+        }
+
+        setLatestNewsImageFile(file);
+        const previewUrl = URL.createObjectURL(file);
+        setLatestNewsImagePreview(previewUrl);
+    };
+
+    const handleCreateLatestNews = async (e: React.FormEvent) => {
+        e.preventDefault();
+        setIsSubmittingLatestNews(true);
+
+        try {
+            const idToken = await user?.firebaseUser?.getIdToken();
+            if (!idToken) {
+                toast.error('Failed to get ID token');
+                setIsSubmittingLatestNews(false);
+                return;
+            }
+
+            if (!latestNewsImageFile) {
+                toast.error('Please select an image to upload');
+                setIsSubmittingLatestNews(false);
+                return;
+            }
+
+            // Upload image first
+            const allowed = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
+            if (!allowed.includes(latestNewsImageFile.type)) {
+                toast.error('Invalid image type. Use JPG, PNG, or WEBP.');
+                setIsSubmittingLatestNews(false);
+                return;
+            }
+            if (latestNewsImageFile.size > 5 * 1024 * 1024) {
+                toast.error('Image too large. Max 5MB.');
+                setIsSubmittingLatestNews(false);
+                return;
+            }
+
+            const imageUrl = await uploadMatchImage(latestNewsImageFile, 'ml_default');
+
+            const newArticle = {
+                title: latestNewsForm.title,
+                summary: latestNewsForm.summary,
+                imageUrl: imageUrl,
+                category: latestNewsForm.category,
+                type: 'article', // Regular article type for latest news
+                content: latestNewsForm.content
+            };
+            
+            const created = await createNews(newArticle, idToken);
+            setLatestNewsArticles(prev => [created, ...prev]);
+            setLatestNewsForm({ title: '', summary: '', imageUrl: '', category: 'Features', content: '' });
+            setLatestNewsImageFile(null);
+            setLatestNewsImagePreview('');
+            setShowLatestNewsForm(false);
+            toast.success('Latest News article created successfully!');
+        } catch (error: any) {
+            console.error('Error in handleCreateLatestNews:', error);
+            toast.error('Failed to create latest news article: ' + (error.response?.data?.message || error.message));
+        } finally {
+            setIsSubmittingLatestNews(false);
+        }
+    };
+
+    const handleEditLatestNews = (article: any) => {
+        setEditingLatestNews(article);
+        setLatestNewsForm({
+            title: article.title,
+            summary: article.summary,
+            imageUrl: article.imageUrl,
+            category: article.category,
+            content: article.content
+        });
+        setLatestNewsImageFile(null);
+        setLatestNewsImagePreview('');
+        setShowLatestNewsForm(true);
+    };
+
+    const handleUpdateLatestNews = async (e: React.FormEvent) => {
+        e.preventDefault();
+        setIsSubmittingLatestNews(true);
+        
+        try {
+            let imageUrl = editingLatestNews.imageUrl; // Keep existing image by default
+            
+            // If a new image file is selected, upload it
+            if (latestNewsImageFile) {
+                const allowed = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
+                if (!allowed.includes(latestNewsImageFile.type)) {
+                    toast.error('Invalid image type. Use JPG, PNG, or WEBP.');
+                    setIsSubmittingLatestNews(false);
+                    return;
+                }
+                if (latestNewsImageFile.size > 5 * 1024 * 1024) {
+                    toast.error('Image too large. Max 5MB.');
+                    setIsSubmittingLatestNews(false);
+                    return;
+                }
+                imageUrl = await uploadMatchImage(latestNewsImageFile, 'ml_default');
+            }
+
+            const updatedArticle = {
+                ...editingLatestNews,
+                title: latestNewsForm.title,
+                summary: latestNewsForm.summary,
+                imageUrl: imageUrl,
+                category: latestNewsForm.category,
+                content: latestNewsForm.content,
+                updatedAt: new Date().toISOString()
+            };
+
+            const idToken = await user?.firebaseUser?.getIdToken();
+            if (!idToken) {
+                toast.error('Failed to get ID token');
+                setIsSubmittingLatestNews(false);
+                return;
+            }
+
+            const updated = await updateNewsById(editingLatestNews._id, updatedArticle, idToken);
+            setLatestNewsArticles(prev => prev.map(article => article._id === updated._id ? updated : article));
+            
+            setLatestNewsForm({ title: '', summary: '', imageUrl: '', category: 'Features', content: '' });
+            setLatestNewsImageFile(null);
+            setLatestNewsImagePreview('');
+            setEditingLatestNews(null);
+            setShowLatestNewsForm(false);
+            toast.success('Latest News article updated successfully!');
+        } catch (error: any) {
+            toast.error('Failed to update latest news article');
+        } finally {
+            setIsSubmittingLatestNews(false);
+        }
+    };
+
+    const handleDeleteLatestNews = async (articleId: string) => {
+        if (!confirm('Are you sure you want to delete this latest news article?')) {
+            return;
+        }
+        const idToken = await user?.firebaseUser?.getIdToken();
+        if (!idToken) {
+            toast.error('Failed to get ID token');
+            return;
+        }
+        await deleteNewsById(articleId, idToken);
+        setLatestNewsArticles(prev => prev.filter(article => article._id !== articleId));
+        toast.success('Latest News article deleted successfully');
+    };
+
+    const resetLatestNewsForm = () => {
+        setLatestNewsForm({ title: '', summary: '', imageUrl: '', category: 'Features', content: '' });
+        setLatestNewsImageFile(null);
+        setLatestNewsImagePreview('');
+        setEditingLatestNews(null);
+        setShowLatestNewsForm(false);
     };
 
     // League configuration management functions
@@ -1130,11 +1551,94 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                                         );
                                                     })()}
                                                 </div>
+                                                
+                                                {/* Additional fields for goals only */}
+                                                {eventInput.targetId===f._id && eventInput.type === 'goal' && (
+                                                    <>
+                                                        <div className="flex items-end gap-2">
+                                                            <label className="text-xs text-theme-text-secondary">Assist</label>
+                                                            {(() => {
+                                                                const team = (eventInput.targetId===f._id?eventInput.team:'home') as 'home'|'away';
+                                                                const clubId = team === 'home'
+                                                                    ? (typeof f.homeTeam==='string'? f.homeTeam : f.homeTeam?._id)
+                                                                    : (typeof f.awayTeam==='string'? f.awayTeam : f.awayTeam?._id);
+                                                                const options = (clubId && approvedPlayersByClub[clubId]) || [];
+                                                                return (
+                                                                    <select
+                                                                        value={eventInput.targetId===f._id?eventInput.assist:''}
+                                                                        onFocus={async ()=>{ await loadApprovedPlayers(clubId); }}
+                                                                        onChange={e=>setEventInput(prev=>({...prev, targetId:f._id, assist: e.target.value }))}
+                                                                        className="bg-theme-page-bg border border-theme-border rounded px-2 py-1 min-w-[200px]"
+                                                                    >
+                                                                        <option value="">No Assist</option>
+                                                                        {options.map(p => (
+                                                                            <option key={p._id} value={p.name}>{p.name}</option>
+                                                                        ))}
+                                                                    </select>
+                                                                );
+                                                            })()}
+                                                        </div>
+                                                        
+                                                        <div className="flex items-end gap-2">
+                                                            <label className="text-xs text-theme-text-secondary">Goal Type</label>
+                                                            <select
+                                                                value={eventInput.targetId===f._id?eventInput.goalType:'open_play'}
+                                                                onChange={e=>setEventInput(prev=>({...prev, targetId:f._id, goalType: e.target.value as any}))}
+                                                                className="bg-theme-page-bg border border-theme-border rounded px-2 py-1"
+                                                            >
+                                                                <option value="open_play">Open Play</option>
+                                                                <option value="penalty">Penalty</option>
+                                                                <option value="free_kick">Free Kick</option>
+                                                            </select>
+                                                        </div>
+                                                        
+                                                        <div className="flex items-end gap-2">
+                                                            <label className="text-xs text-theme-text-secondary">Field Side</label>
+                                                            <select
+                                                                value={eventInput.targetId===f._id?eventInput.fieldSide:'mid'}
+                                                                onChange={e=>setEventInput(prev=>({...prev, targetId:f._id, fieldSide: e.target.value as any}))}
+                                                                className="bg-theme-page-bg border border-theme-border rounded px-2 py-1"
+                                                            >
+                                                                <option value="mid">Mid</option>
+                                                                <option value="rw">Right Wing (RW)</option>
+                                                                <option value="lw">Left Wing (LW)</option>
+                                                            </select>
+                                                        </div>
+                                                    </>
+                                                )}
+                                                
                                                 <button onClick={async()=>{
                                                     if (eventInput.targetId!==f._id) return;
                                                     const minuteNum = parseInt(eventInput.minute, 10);
                                                     if (isNaN(minuteNum)) { toast.error('Minute required'); return; }
-                                                    try { await addEvent(f._id, { minute: minuteNum, type: eventInput.type, team: eventInput.team, player: eventInput.player }); toast.success('Event added'); setEventInput({ minute:'', type:'goal', team:'home', player:'', targetId:undefined }); } catch { toast.error('Event failed'); }
+                                                    try { 
+                                                        const eventData: any = { 
+                                                            minute: minuteNum, 
+                                                            type: eventInput.type, 
+                                                            team: eventInput.team, 
+                                                            player: eventInput.player 
+                                                        };
+                                                        
+                                                        // Add goal-specific fields only if it's a goal
+                                                        if (eventInput.type === 'goal') {
+                                                            if (eventInput.assist) eventData.assist = eventInput.assist;
+                                                            if (eventInput.goalType) eventData.goalType = eventInput.goalType;
+                                                            if (eventInput.fieldSide) eventData.fieldSide = eventInput.fieldSide;
+                                                        }
+                                                        
+                                                        await addEvent(f._id, eventData); 
+                                                        toast.success('Event added'); 
+                                                        setEventInput({ 
+                                                            minute:'', 
+                                                            type:'goal', 
+                                                            team:'home', 
+                                                            player:'', 
+                                                            assist: '',
+                                                            goalType: 'open_play',
+                                                            fieldSide: 'mid',
+                                                            targetId:undefined 
+                                                        }); 
+                                                    } catch { toast.error('Event failed'); }
                                                 }} className="bg-theme-primary text-theme-dark font-bold px-3 py-1 rounded">Add Event</button>
                                             </div>
                                         )}
@@ -1376,6 +1880,212 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                         )}
                     </div>
                 );
+            case 'Latest News & Features':
+                return (
+                    <div>
+                        <div className="flex justify-between items-center mb-6">
+                            <h2 className="text-2xl font-bold text-theme-dark">Latest News & Features</h2>
+                            <button
+                                onClick={() => setShowLatestNewsForm(true)}
+                                className="px-4 py-2 bg-theme-primary text-theme-dark rounded-md hover:bg-theme-primary/80 transition-colors"
+                            >
+                                Add New Article
+                            </button>
+                        </div>
+
+                        {showLatestNewsForm ? (
+                            <div className="bg-theme-secondary-bg p-6 rounded-lg mb-6">
+                                <h3 className="text-xl font-semibold mb-4 text-theme-dark border-b-2 border-theme-primary pb-2">
+                                    {editingLatestNews ? 'Edit Latest News Article' : 'Create New Latest News Article'}
+                                </h3>
+                                
+                                <form onSubmit={editingLatestNews ? handleUpdateLatestNews : handleCreateLatestNews} className="space-y-6">
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                        <div>
+                                            <label htmlFor="latestNewsTitle" className="block text-sm font-medium text-theme-text-secondary mb-2">Article Title *</label>
+                                            <input 
+                                                type="text" 
+                                                id="latestNewsTitle" 
+                                                value={latestNewsForm.title} 
+                                                onChange={e => setLatestNewsForm(prev => ({ ...prev, title: e.target.value }))} 
+                                                required 
+                                                className="w-full bg-theme-page-bg border border-theme-border rounded-md shadow-sm py-3 px-4 text-theme-dark focus:outline-none focus:ring-2 focus:ring-theme-primary focus:border-theme-primary text-lg" 
+                                                placeholder="Enter compelling article title"
+                                            />
+                                        </div>
+                                        <div>
+                                            <label htmlFor="latestNewsCategory" className="block text-sm font-medium text-theme-text-secondary mb-2">Category *</label>
+                                            <select 
+                                                id="latestNewsCategory" 
+                                                value={latestNewsForm.category}
+                                                onChange={e => setLatestNewsForm(prev => ({ ...prev, category: e.target.value }))}
+                                                className="w-full bg-theme-page-bg border border-theme-border rounded-md shadow-sm py-3 px-4 text-theme-dark focus:outline-none focus:ring-2 focus:ring-theme-primary focus:border-theme-primary text-lg"
+                                            >
+                                                <option value="Features">Features</option>
+                                                <option value="News">News</option>
+                                                <option value="Analysis">Analysis</option>
+                                                <option value="Transfers">Transfers</option>
+                                                <option value="Best Goals">Best Goals</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                    
+                                    <div>
+                                        <label htmlFor="latestNewsImageFile" className="block text-sm font-medium text-theme-text-secondary mb-2">Featured Image *</label>
+                                        <div className="border-2 border-dashed border-theme-border rounded-lg p-6 text-center hover:border-theme-primary transition-colors">
+                                            <input 
+                                                type="file" 
+                                                id="latestNewsImageFile" 
+                                                accept="image/jpeg,image/jpg,image/png,image/webp"
+                                                onChange={handleLatestNewsImageUpload}
+                                                required={!editingLatestNews}
+                                                className="hidden"
+                                            />
+                                            <label htmlFor="latestNewsImageFile" className="cursor-pointer">
+                                                {latestNewsImagePreview ? (
+                                                    <div className="space-y-2">
+                                                        <img src={latestNewsImagePreview} alt="Preview" className="mx-auto h-48 w-full object-cover rounded-lg"/>
+                                                        <p className="text-sm text-theme-text-secondary">Click to change image</p>
+                                                    </div>
+                                                ) : (
+                                                    <div className="space-y-2">
+                                                        <div className="text-4xl text-theme-text-secondary">📷</div>
+                                                        <p className="text-theme-text-secondary">Click to upload featured image</p>
+                                                        <p className="text-xs text-theme-text-secondary">JPG, PNG, WEBP up to 5MB</p>
+                                                    </div>
+                                                )}
+                                            </label>
+                                        </div>
+                                        {editingLatestNews && !latestNewsImagePreview && (
+                                            <div className="mt-4">
+                                                <p className="text-sm text-theme-text-secondary mb-2">Current image:</p>
+                                                <img src={editingLatestNews.imageUrl} alt="Current" className="h-48 w-full object-cover rounded-lg"/>
+                                            </div>
+                                        )}
+                                    </div>
+                                    
+                                    <div>
+                                        <label htmlFor="latestNewsSummary" className="block text-sm font-medium text-theme-text-secondary mb-2">Article Summary *</label>
+                                        <textarea 
+                                            id="latestNewsSummary" 
+                                            value={latestNewsForm.summary} 
+                                            onChange={e => setLatestNewsForm(prev => ({ ...prev, summary: e.target.value }))} 
+                                            required 
+                                            rows={4}
+                                            className="w-full bg-theme-page-bg border border-theme-border rounded-md shadow-sm py-3 px-4 text-theme-dark focus:outline-none focus:ring-2 focus:ring-theme-primary focus:border-theme-primary resize-none" 
+                                            placeholder="Write a compelling summary that will appear on the homepage..."
+                                        />
+                                    </div>
+                                    
+                                    <div>
+                                        <label htmlFor="latestNewsContent" className="block text-sm font-medium text-theme-text-secondary mb-2">Full Article Content</label>
+                                        <textarea 
+                                            id="latestNewsContent" 
+                                            value={latestNewsForm.content} 
+                                            onChange={e => setLatestNewsForm(prev => ({ ...prev, content: e.target.value }))} 
+                                            rows={8}
+                                            className="w-full bg-theme-page-bg border border-theme-border rounded-md shadow-sm py-3 px-4 text-theme-dark focus:outline-none focus:ring-2 focus:ring-theme-primary focus:border-theme-primary resize-none" 
+                                            placeholder="Write the full article content here..."
+                                        />
+                                    </div>
+                                    
+                                    <div className="flex gap-4 pt-4">
+                                        <button
+                                            type="submit"
+                                            disabled={isSubmittingLatestNews}
+                                            className="bg-theme-primary text-theme-dark font-bold py-3 px-8 rounded-md hover:bg-theme-primary-dark transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 text-lg"
+                                        >
+                                            {isSubmittingLatestNews ? (
+                                                <>
+                                                    <div className="animate-spin rounded-full h-5 w-5 border-2 border-theme-dark border-t-transparent"></div>
+                                                    {editingLatestNews ? 'Updating...' : 'Creating...'}
+                                                </>
+                                            ) : (
+                                                <>
+                                                    📰 {editingLatestNews ? 'Update Article' : 'Create Article'}
+                                                </>
+                                            )}
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={resetLatestNewsForm}
+                                            className="bg-theme-secondary-bg text-theme-dark font-bold py-3 px-8 rounded-md hover:bg-theme-secondary-bg/80 transition-colors text-lg"
+                                        >
+                                            Cancel
+                                        </button>
+                                    </div>
+                                </form>
+                            </div>
+                        ) : (
+                            <div>
+                                <div className="mb-6 p-4 bg-blue-50 border-l-4 border-blue-400 text-blue-700 rounded-lg">
+                                    <p className="font-semibold mb-1">📰 Latest News & Features</p>
+                                    <p className="text-sm">These articles will appear in the "Latest News & Features" section on the homepage. Only admin-created articles with type "article" are displayed here.</p>
+                                </div>
+
+                                {/* Latest News Articles Grid */}
+                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                                    {latestNewsArticles.map(article => (
+                                        <div key={article._id} className="bg-theme-secondary-bg rounded-lg overflow-hidden shadow-lg hover:shadow-xl transition-shadow">
+                                            <div className="relative h-48">
+                                                <img 
+                                                    src={article.imageUrl} 
+                                                    alt={article.title} 
+                                                    className="w-full h-full object-cover"
+                                                />
+                                                <div className="absolute top-2 left-2">
+                                                    <span className="bg-theme-primary text-theme-dark text-xs font-bold px-2 py-1 rounded">
+                                                        {article.category}
+                                                    </span>
+                                                </div>
+                                                <div className="absolute top-2 right-2">
+                                                    <span className="bg-green-500 text-white text-xs font-bold px-2 py-1 rounded">
+                                                        Latest
+                                                    </span>
+                                                </div>
+                                            </div>
+                                            <div className="p-4">
+                                                <h3 className="font-semibold text-theme-dark mb-2 line-clamp-2">{article.title}</h3>
+                                                <p className="text-sm text-theme-text-secondary mb-3 line-clamp-3">{article.summary}</p>
+                                                <div className="flex justify-between items-center text-xs text-theme-text-secondary">
+                                                    <span>{new Date(article.createdAt).toLocaleDateString()}</span>
+                                                    <div className="flex gap-2">
+                                                        <button
+                                                            onClick={() => handleEditLatestNews(article)}
+                                                            className="text-blue-600 hover:text-blue-800 font-medium"
+                                                        >
+                                                            Edit
+                                                        </button>
+                                                        <button
+                                                            onClick={() => handleDeleteLatestNews(article._id)}
+                                                            className="text-red-600 hover:text-red-800 font-medium"
+                                                        >
+                                                            Delete
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+
+                                {latestNewsArticles.length === 0 && (
+                                    <div className="text-center py-12 bg-theme-secondary-bg rounded-lg">
+                                        <div className="text-6xl mb-4">📰</div>
+                                        <h3 className="text-xl font-semibold text-theme-dark mb-2">No Latest News Articles Yet</h3>
+                                        <p className="text-theme-text-secondary mb-4">Create your first latest news article to get started.</p>
+                                        <button
+                                            onClick={() => setShowLatestNewsForm(true)}
+                                            className="bg-theme-primary text-theme-dark font-bold py-2 px-6 rounded-md hover:bg-theme-primary-dark transition-colors"
+                                        >
+                                            Create First Article
+                                        </button>
+                                    </div>
+                                )}
+                            </div>
+                        )}
+                    </div>
+                );
             case 'Manage Match Reports':
                 return (
                     <div>
@@ -1442,6 +2152,180 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                 </div>
                             )}
                         </div>
+                    </div>
+                );
+            case 'Manage Trending News':
+                return (
+                    <div>
+                        <div className="flex justify-between items-center mb-6">
+                            <h2 className="text-2xl font-bold text-theme-dark">Manage Trending News</h2>
+                            <button
+                                onClick={() => setShowTrendingNewsForm(true)}
+                                className="px-4 py-2 bg-theme-primary text-theme-dark rounded-md hover:bg-theme-primary/80 transition-colors"
+                            >
+                                Add Trending News
+                            </button>
+                        </div>
+
+                        {showTrendingNewsForm ? (
+                            <div className="bg-theme-secondary-bg p-6 rounded-lg mb-6">
+                                <h3 className="text-xl font-semibold mb-4 text-theme-dark border-b-2 border-theme-primary pb-2">
+                                    {editingTrendingNews ? 'Edit Trending News' : 'Add New Trending News'}
+                                </h3>
+                                
+                                <form onSubmit={editingTrendingNews ? handleUpdateTrendingNews : (e) => { e.preventDefault(); addTrendingNews(); }} className="space-y-4">
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                        <div>
+                                            <label htmlFor="trendingTitle" className="block text-sm font-medium text-theme-text-secondary mb-1">Title *</label>
+                                            <input 
+                                                type="text" 
+                                                id="trendingTitle" 
+                                                value={trendingNewsForm.title} 
+                                                onChange={e => setTrendingNewsForm(prev => ({ ...prev, title: e.target.value }))} 
+                                                required 
+                                                className="w-full bg-theme-page-bg border border-theme-border rounded-md shadow-sm py-2 px-3 text-theme-dark focus:outline-none focus:ring-theme-primary focus:border-theme-primary" 
+                                                placeholder="e.g., Best of Madueke 24/25"
+                                            />
+                                        </div>
+                                        <div>
+                                            <label htmlFor="trendingIcon" className="block text-sm font-medium text-theme-text-secondary mb-1">Icon *</label>
+                                            <select 
+                                                id="trendingIcon" 
+                                                value={trendingNewsForm.icon}
+                                                onChange={e => setTrendingNewsForm(prev => ({ ...prev, icon: e.target.value }))}
+                                                className="w-full bg-theme-page-bg border border-theme-border rounded-md shadow-sm py-2 px-3 text-theme-dark focus:outline-none focus:ring-theme-primary focus:border-theme-primary"
+                                            >
+                                                <option value="🔥">🔥 Fire</option>
+                                                <option value="⚡️">⚡️ Lightning</option>
+                                                <option value="✨">✨ Sparkles</option>
+                                                <option value="⚽️">⚽️ Football</option>
+                                                <option value="💪">💪 Flex</option>
+                                                <option value="🧤">🧤 Gloves</option>
+                                                <option value="🟣">🟣 Purple</option>
+                                                <option value="🏃‍♂️">🏃‍♂️ Running</option>
+                                                <option value="⭐">⭐ Star</option>
+                                                <option value="🎯">🎯 Target</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                    
+                                    <div>
+                                        <label htmlFor="trendingImageFile" className="block text-sm font-medium text-theme-text-secondary mb-1">Image *</label>
+                                        <input 
+                                            type="file" 
+                                            id="trendingImageFile" 
+                                            accept="image/jpeg,image/jpg,image/png,image/webp"
+                                            onChange={(e) => {
+                                                const file = e.target.files?.[0] || null;
+                                                setTrendingNewsImageFile(file);
+                                                if (file && file.type.startsWith('image/')) {
+                                                    setTrendingNewsImagePreview(URL.createObjectURL(file));
+                                                } else {
+                                                    setTrendingNewsImagePreview('');
+                                                }
+                                            }}
+                                            required={!editingTrendingNews}
+                                            className="w-full bg-theme-page-bg border border-theme-border rounded-md shadow-sm py-2 px-3 text-theme-dark focus:outline-none focus:ring-theme-primary focus:border-theme-primary" 
+                                        />
+                                        {trendingNewsImagePreview && (
+                                            <img src={trendingNewsImagePreview} alt="Preview" className="mt-2 h-32 w-full object-cover rounded"/>
+                                        )}
+                                        {editingTrendingNews && !trendingNewsImagePreview && (
+                                            <div className="mt-2">
+                                                <p className="text-sm text-theme-text-secondary mb-2">Current image:</p>
+                                                <img src={editingTrendingNews.imageUrl} alt="Current" className="h-32 w-full object-cover rounded"/>
+                                            </div>
+                                        )}
+                                    </div>
+                                    
+                                    <div className="flex gap-3">
+                                        <button
+                                            type="submit"
+                                            disabled={isSubmittingTrendingNews}
+                                            className="bg-theme-primary text-theme-dark font-bold py-2 px-6 rounded-md hover:bg-theme-primary-dark transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                                        >
+                                            {isSubmittingTrendingNews ? (
+                                                <>
+                                                    <div className="animate-spin rounded-full h-4 w-4 border-2 border-theme-dark border-t-transparent"></div>
+                                                    {editingTrendingNews ? 'Updating...' : 'Creating...'}
+                                                </>
+                                            ) : (
+                                                <>
+                                                    🔥 {editingTrendingNews ? 'Update Trending News' : 'Create Trending News'}
+                                                </>
+                                            )}
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={resetTrendingNewsForm}
+                                            className="bg-theme-secondary-bg text-theme-dark font-bold py-2 px-6 rounded-md hover:bg-theme-secondary-bg/80 transition-colors"
+                                        >
+                                            Cancel
+                                        </button>
+                                    </div>
+                                </form>
+                            </div>
+                        ) : (
+                            <div>
+                                <div className="mb-4 text-theme-text-secondary">
+                                    <p>Manage trending news items that appear in the "Trending Now" section on the homepage.</p>
+                                </div>
+
+                                {/* Trending News Grid */}
+                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                                    {trendingNews.map(item => (
+                                        <div key={item.id} className="bg-theme-secondary-bg rounded-lg overflow-hidden shadow-lg">
+                                            <div className="relative h-48">
+                                                <img 
+                                                    src={item.imageUrl} 
+                                                    alt={item.title} 
+                                                    className="w-full h-full object-cover"
+                                                />
+                                                <div className="absolute top-2 left-2">
+                                                    <span className="bg-theme-primary text-theme-dark text-xs font-bold px-2 py-1 rounded">
+                                                        {item.icon} Trending
+                                                    </span>
+                                                </div>
+                                            </div>
+                                            <div className="p-4">
+                                                <h3 className="font-semibold text-theme-dark mb-2 line-clamp-2">{item.title}</h3>
+                                                <div className="flex justify-between items-center text-xs text-theme-text-secondary">
+                                                    <span>{new Date(item.createdAt).toLocaleDateString()}</span>
+                                                    <div className="flex gap-2">
+                                                        <button
+                                                            onClick={() => handleEditTrendingNews(item)}
+                                                            className="text-blue-600 hover:text-blue-800"
+                                                        >
+                                                            Edit
+                                                        </button>
+                                                        <button
+                                                            onClick={() => removeTrendingNews(item.id)}
+                                                            className="text-red-600 hover:text-red-800"
+                                                        >
+                                                            Delete
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+
+                                {trendingNews.length === 0 && (
+                                    <div className="text-center py-12 bg-theme-secondary-bg rounded-lg">
+                                        <div className="text-6xl mb-4">🔥</div>
+                                        <h3 className="text-xl font-semibold text-theme-dark mb-2">No Trending News Yet</h3>
+                                        <p className="text-theme-text-secondary mb-4">Create your first trending news item to get started.</p>
+                                        <button
+                                            onClick={() => setShowTrendingNewsForm(true)}
+                                            className="bg-theme-primary text-theme-dark font-bold py-2 px-6 rounded-md hover:bg-theme-primary-dark transition-colors"
+                                        >
+                                            Create First Trending News
+                                        </button>
+                                    </div>
+                                )}
+                            </div>
+                        )}
                     </div>
                 );
             case 'User Management':
@@ -1784,7 +2668,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
         }
     };
 
-    const sections: AdminSection[] = ['Dashboard', 'Manage Clubs', 'Manage Fixtures', 'Manage News', 'Manage Match Reports', 'User Management', 'League Settings'];
+    const sections: AdminSection[] = ['Dashboard', 'Manage Clubs', 'Manage Fixtures', 'Manage News', 'Latest News & Features', 'Manage Match Reports', 'Manage Trending News', 'User Management', 'League Settings'];
 
     return (
         <div className="flex min-h-screen bg-theme-light">

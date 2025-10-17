@@ -138,11 +138,22 @@ exports.startMatch = async (req, res) => {
 // PUT /api/fixtures/:id/event
 exports.addEvent = async (req, res) => {
   try {
-    const { minute, type, team, player } = req.body;
+    const { minute, type, team, player, assist, goalType, fieldSide } = req.body;
     const match = await Fixture.findById(req.params.id);
     if (!match) return res.status(404).json({ success: false, message: 'Match not found' });
     if (match.status !== 'live') return res.status(400).json({ success: false, message: 'Match not live' });
-    match.events.push({ minute, type, team, player });
+    
+    // Create event object with basic fields
+    const event = { minute, type, team, player };
+    
+    // Add goal-specific fields if it's a goal
+    if (type === 'goal') {
+      if (assist) event.assist = assist;
+      if (goalType) event.goalType = goalType;
+      if (fieldSide) event.fieldSide = fieldSide;
+    }
+    
+    match.events.push(event);
     if (type === 'goal') {
       if (team === 'home') match.score.home += 1; else match.score.away += 1;
     }

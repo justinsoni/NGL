@@ -97,6 +97,10 @@ const ClubManagerDashboard: React.FC<ClubManagerDashboardProps> = ({
         category: 'Features',
         content: ''
     });
+    
+    // News image upload state
+    const [newsImageFile, setNewsImageFile] = useState<File | null>(null);
+    const [newsImagePreview, setNewsImagePreview] = useState<string>('');
 
     // Transfer news state (manager-managed)
     type TransferItem = { id: string; title: string; imageUrl: string; clubName: string; createdAt: string };
@@ -501,6 +505,37 @@ const ClubManagerDashboard: React.FC<ClubManagerDashboardProps> = ({
         }));
     };
 
+    const handleNewsImageUpload = (file: File) => {
+        // Validate file type
+        const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
+
+        if (!allowedTypes.includes(file.type)) {
+            alert('Invalid file type. Please upload an image (JPG, PNG, WEBP).');
+            return;
+        }
+
+        // Validate file size (5MB max)
+        const maxSize = 5 * 1024 * 1024; // 5MB
+        if (file.size > maxSize) {
+            alert('File size too large. Please upload a file smaller than 5MB.');
+            return;
+        }
+
+        // Store the file
+        setNewsImageFile(file);
+
+        // Create preview
+        const previewUrl = URL.createObjectURL(file);
+        setNewsImagePreview(previewUrl);
+
+        // Update the imageUrl in the form data (simulate upload)
+        const fakeUrl = `https://uploads.ngl.com/news/${Date.now()}-${file.name}`;
+        setNewsForm(prev => ({
+            ...prev,
+            imageUrl: fakeUrl
+        }));
+    };
+
     const handleProfileSave = () => {
         // Here you would typically send the data to your backend
         console.log('Profile Data:', profileData);
@@ -539,11 +574,40 @@ const ClubManagerDashboard: React.FC<ClubManagerDashboardProps> = ({
                 return;
             }
 
+            let imageUrl = newsForm.imageUrl;
+            
+            // Handle file upload if a file was selected
+            if (newsImageFile) {
+                try {
+                    imageUrl = await uploadToCloudinary(newsImageFile, 'ml_default');
+                } catch (uploadError: any) {
+                    console.error('❌ [Club Manager] Upload error:', uploadError);
+                    toast.error('Failed to upload image: ' + uploadError.message);
+                    setIsSubmittingNews(false);
+                    return;
+                }
+            } else if (!imageUrl) {
+                toast.error('Please upload an image or provide an image URL');
+                setIsSubmittingNews(false);
+                return;
+            }
+
+            // Determine type based on category
+            let articleType = 'news';
+            if (newsForm.category === 'Match Reports') {
+                articleType = 'match-report';
+            } else if (newsForm.category === 'Transfers') {
+                articleType = 'transfer';
+            } else if (newsForm.category === 'Best Goals') {
+                articleType = 'best-goal';
+            }
+
             const newArticle = {
                 title: newsForm.title,
                 summary: newsForm.summary,
-                imageUrl: newsForm.imageUrl,
+                imageUrl: imageUrl,
                 category: newsForm.category,
+                type: articleType,
                 content: newsForm.content,
                 createdAt: new Date().toISOString()
             };
@@ -554,6 +618,8 @@ const ClubManagerDashboard: React.FC<ClubManagerDashboardProps> = ({
 
             setNewsArticles(prev => [created, ...prev]);
             setNewsForm({ title: '', summary: '', imageUrl: '', category: 'Features', content: '' });
+            setNewsImageFile(null);
+            setNewsImagePreview('');
             setShowNewsForm(false);
             toast.success('News article created successfully!');
         } catch (error: any) {
@@ -573,6 +639,8 @@ const ClubManagerDashboard: React.FC<ClubManagerDashboardProps> = ({
             category: article.category,
             content: article.content
         });
+        setNewsImageFile(null);
+        setNewsImagePreview('');
         setShowNewsForm(true);
     };
 
@@ -581,12 +649,37 @@ const ClubManagerDashboard: React.FC<ClubManagerDashboardProps> = ({
         setIsSubmittingNews(true);
         
         try {
+            let imageUrl = newsForm.imageUrl;
+            
+            // Handle file upload if a new file was selected
+            if (newsImageFile) {
+                try {
+                    imageUrl = await uploadToCloudinary(newsImageFile, 'ml_default');
+                } catch (uploadError: any) {
+                    console.error('❌ [Club Manager] Upload error:', uploadError);
+                    toast.error('Failed to upload image: ' + uploadError.message);
+                    setIsSubmittingNews(false);
+                    return;
+                }
+            }
+
+            // Determine type based on category
+            let articleType = 'news';
+            if (newsForm.category === 'Match Reports') {
+                articleType = 'match-report';
+            } else if (newsForm.category === 'Transfers') {
+                articleType = 'transfer';
+            } else if (newsForm.category === 'Best Goals') {
+                articleType = 'best-goal';
+            }
+
             const updatedArticle = {
                 ...editingNews,
                 title: newsForm.title,
                 summary: newsForm.summary,
-                imageUrl: newsForm.imageUrl,
+                imageUrl: imageUrl,
                 category: newsForm.category,
+                type: articleType,
                 content: newsForm.content,
                 updatedAt: new Date().toISOString()
             };
@@ -604,6 +697,8 @@ const ClubManagerDashboard: React.FC<ClubManagerDashboardProps> = ({
             setNewsArticles(prev => prev.map(article => article._id === updated._id ? updated : article));
             
             setNewsForm({ title: '', summary: '', imageUrl: '', category: 'Features', content: '' });
+            setNewsImageFile(null);
+            setNewsImagePreview('');
             setEditingNews(null);
             setShowNewsForm(false);
             toast.success('News article updated successfully!');
@@ -630,6 +725,8 @@ const ClubManagerDashboard: React.FC<ClubManagerDashboardProps> = ({
 
     const resetNewsForm = () => {
         setNewsForm({ title: '', summary: '', imageUrl: '', category: 'Features', content: '' });
+        setNewsImageFile(null);
+        setNewsImagePreview('');
         setEditingNews(null);
         setShowNewsForm(false);
     };
@@ -1778,16 +1875,56 @@ const ClubManagerDashboard: React.FC<ClubManagerDashboardProps> = ({
                         </div>
                         
                         <div>
-                            <label htmlFor="newsImageUrl" className="block text-sm font-medium text-theme-text-secondary mb-1">Image URL *</label>
-                            <input 
-                                type="url" 
-                                id="newsImageUrl" 
-                                value={newsForm.imageUrl} 
-                                onChange={e => setNewsForm(prev => ({ ...prev, imageUrl: e.target.value }))} 
-                                required 
-                                className="w-full bg-theme-page-bg border border-theme-border rounded-md shadow-sm py-2 px-3 text-theme-dark focus:outline-none focus:ring-theme-primary focus:border-theme-primary" 
-                                placeholder="https://example.com/image.jpg"
-                            />
+                            <label htmlFor="newsImageUpload" className="block text-sm font-medium text-theme-text-secondary mb-1">Article Image *</label>
+                            <div className="space-y-3">
+                                <input
+                                    type="file"
+                                    id="newsImageUpload"
+                                    accept=".jpg,.jpeg,.png,.webp"
+                                    onChange={(e) => {
+                                        const file = e.target.files?.[0];
+                                        if (file) {
+                                            handleNewsImageUpload(file);
+                                        }
+                                    }}
+                                    className="hidden"
+                                />
+                                <label
+                                    htmlFor="newsImageUpload"
+                                    className="w-full bg-theme-page-bg border-2 border-dashed border-theme-border rounded-lg py-4 px-4 text-theme-dark focus:outline-none focus:ring-2 focus:ring-theme-primary focus:border-theme-primary cursor-pointer flex items-center justify-center hover:bg-theme-secondary-bg transition-colors"
+                                >
+                                    {newsImagePreview ? (
+                                        <div className="flex items-center gap-3">
+                                            <img src={newsImagePreview} alt="Preview" className="w-12 h-12 rounded-lg object-cover" />
+                                            <div className="text-left">
+                                                <span className="text-sm text-green-600 font-medium">Image uploaded</span>
+                                                <p className="text-xs text-theme-text-secondary">Click to change</p>
+                                            </div>
+                                        </div>
+                                    ) : (
+                                        <div className="text-center">
+                                            <span className="text-2xl mb-2 block">📷</span>
+                                            <span className="text-sm text-theme-text-secondary">Click to upload image</span>
+                                            <p className="text-xs text-theme-text-secondary mt-1">JPG, PNG, WEBP (max 5MB)</p>
+                                        </div>
+                                    )}
+                                </label>
+                                
+                                {/* Fallback URL input */}
+                                {!newsImageFile && (
+                                    <div>
+                                        <label htmlFor="newsImageUrl" className="block text-xs font-medium text-theme-text-secondary mb-1">Or paste image URL:</label>
+                                        <input 
+                                            type="url" 
+                                            id="newsImageUrl" 
+                                            value={newsForm.imageUrl} 
+                                            onChange={e => setNewsForm(prev => ({ ...prev, imageUrl: e.target.value }))} 
+                                            className="w-full bg-theme-page-bg border border-theme-border rounded-md shadow-sm py-2 px-3 text-theme-dark focus:outline-none focus:ring-theme-primary focus:border-theme-primary text-sm" 
+                                            placeholder="https://example.com/image.jpg"
+                                        />
+                                    </div>
+                                )}
+                            </div>
                         </div>
                         
                         <div>

@@ -10,6 +10,7 @@ const createNewsItem = async (req, res) => {
     const newsData = {
       ...req.body,
       author: req.user.name || req.user.email,
+      authorRole: req.user.role,
       club: req.user.club || null
     };
 

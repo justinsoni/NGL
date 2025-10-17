@@ -55,7 +55,29 @@ export default function LiveMatch({ initial }: { initial: FixtureDTO }) {
             .sort((a,b)=>a.minute-b.minute)
             .map((e, idx) => {
               const label = e.type.replace('_',' ');
-              const content = `${label}${e.player ? ` — ${e.player}` : ''}`;
+              let content = `${label}${e.player ? ` — ${e.player}` : ''}`;
+              
+              // Add goal-specific information
+              if (e.type === 'goal') {
+                if (e.assist) content += ` (assist: ${e.assist})`;
+                if (e.goalType) {
+                  const goalTypeLabels = {
+                    'open_play': 'Open Play',
+                    'penalty': 'Penalty',
+                    'free_kick': 'Free Kick'
+                  };
+                  content += ` [${goalTypeLabels[e.goalType] || e.goalType}]`;
+                }
+                if (e.fieldSide) {
+                  const fieldSideLabels = {
+                    'mid': 'Mid',
+                    'rw': 'RW',
+                    'lw': 'LW'
+                  };
+                  content += ` (${fieldSideLabels[e.fieldSide] || e.fieldSide})`;
+                }
+              }
+              
               return (
                 <div key={`${e.minute}-${idx}`} className="grid grid-cols-3 items-center gap-2">
                   {/* Home column */}
