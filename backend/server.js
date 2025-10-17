@@ -24,6 +24,7 @@ const fixtureRoutes = require('./routes/fixtures');
 const tableRoutes = require('./routes/table');
 const newsItemRoutes = require('./routes/newsItemRoutes');
 const leagueConfigRoutes = require('./routes/leagueConfig');
+const matchDataRoutes = require('./routes/matchData');
 
 // Initialize Express app
 const app = express();
@@ -69,6 +70,7 @@ app.use('/api/fixtures', fixtureRoutes);
 app.use('/api/table', tableRoutes);
 app.use('/api/news', newsItemRoutes);
 app.use('/api/league-config', leagueConfigRoutes);
+app.use('/api/match-data', matchDataRoutes);
 
 // 404 handler for undefined routes
 app.use('*', (req, res) => {
@@ -103,6 +105,13 @@ app.use('*', (req, res) => {
       'PUT /api/fixtures/:id/finish',
       'PUT /api/fixtures/final/:id/finish-and-declare',
       'GET /api/table',
+      'GET /api/match-data',
+      'GET /api/match-data/:id',
+      'GET /api/match-data/fixture/:fixtureId',
+      'GET /api/match-data/stats/team/:teamId',
+      'POST /api/match-data',
+      'PUT /api/match-data/:id',
+      'DELETE /api/match-data/:id',
       'GET /api/news',
       'POST /api/news',
       'PUT /api/news/:id',

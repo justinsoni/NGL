@@ -1,4 +1,5 @@
 const Fixture = require('../models/Fixture');
+const MatchData = require('../models/MatchData');
 const Club = require('../models/Club');
 const LeagueConfig = require('../models/LeagueConfig');
 const { ensureTableForSeason, updateTableForMatch, pickTopTwo } = require('../utils/leagueTable');
@@ -173,6 +174,64 @@ exports.finishMatch = async (req, res) => {
     match.status = 'finished';
     match.finishedAt = new Date();
     await match.save();
+    
+    // Create comprehensive match data after finishing the match
+    try {
+      const matchData = await MatchData.createFromFixture(match);
+      
+      // Calculate team statistics from events
+      const homeTeamEvents = match.events.filter(event => event.team === 'home');
+      const awayTeamEvents = match.events.filter(event => event.team === 'away');
+      
+      matchData.homeTeamStats = {
+        teamId: match.homeTeam,
+        teamName: match.homeTeam.name,
+        finalScore: match.score.home,
+        possession: 50, // Default, can be updated manually
+        shots: homeTeamEvents.filter(e => e.type === 'shot').length,
+        shotsOnTarget: homeTeamEvents.filter(e => e.type === 'shot').length,
+        corners: homeTeamEvents.filter(e => e.type === 'corner').length,
+        fouls: homeTeamEvents.filter(e => e.type === 'foul').length,
+        yellowCards: homeTeamEvents.filter(e => e.type === 'yellow_card').length,
+        redCards: homeTeamEvents.filter(e => e.type === 'red_card').length,
+        playerStats: calculatePlayerStats(homeTeamEvents)
+      };
+      
+      matchData.awayTeamStats = {
+        teamId: match.awayTeam,
+        teamName: match.awayTeam.name,
+        finalScore: match.score.away,
+        possession: 50, // Default, can be updated manually
+        shots: awayTeamEvents.filter(e => e.type === 'shot').length,
+        shotsOnTarget: awayTeamEvents.filter(e => e.type === 'shot').length,
+        corners: awayTeamEvents.filter(e => e.type === 'corner').length,
+        fouls: awayTeamEvents.filter(e => e.type === 'foul').length,
+        yellowCards: awayTeamEvents.filter(e => e.type === 'yellow_card').length,
+        redCards: awayTeamEvents.filter(e => e.type === 'red_card').length,
+        playerStats: calculatePlayerStats(awayTeamEvents)
+      };
+      
+      // Add match summary based on events
+      const goalEvents = match.events.filter(e => e.type === 'goal');
+      const cardEvents = match.events.filter(e => e.type === 'yellow_card' || e.type === 'red_card');
+      
+      matchData.matchSummary = `Match completed with ${goalEvents.length} goals and ${cardEvents.length} cards shown.`;
+      matchData.keyMoments = goalEvents.map(event => 
+        `${event.minute}' - ${event.player} scored for ${event.team === 'home' ? match.homeTeam.name : match.awayTeam.name}`
+      );
+      
+      await matchData.save();
+      console.log('✅ Match data created successfully for fixture:', match._id);
+      
+      // Emit match data created event
+      const io = req.app.get('io');
+      io.emit('match-data:created', matchData);
+      
+    } catch (matchDataError) {
+      console.error('⚠️ Failed to create match data:', matchDataError);
+      // Continue with match finishing even if match data creation fails
+    }
+    
     const updatedTable = await updateTableForMatch({
       season: '2025',
       name: 'Default League',
@@ -481,4 +540,47 @@ exports.resetLeague = async (req, res) => {
     res.status(500).json({ success: false, message: 'Failed to reset league' });
   }
 };
+
+// Helper function to calculate player statistics from events
+function calculatePlayerStats(teamEvents) {
+  const playerMap = new Map();
+  
+  teamEvents.forEach(event => {
+    if (event.player) {
+      if (!playerMap.has(event.player)) {
+        playerMap.set(event.player, {
+          playerName: event.player,
+          goals: 0,
+          assists: 0,
+          yellowCards: 0,
+          redCards: 0,
+          fouls: 0,
+          minutesPlayed: 90 // Default
+        });
+      }
+      
+      const playerStats = playerMap.get(event.player);
+      
+      switch (event.type) {
+        case 'goal':
+          playerStats.goals++;
+          break;
+        case 'assist':
+          playerStats.assists++;
+          break;
+        case 'yellow_card':
+          playerStats.yellowCards++;
+          break;
+        case 'red_card':
+          playerStats.redCards++;
+          break;
+        case 'foul':
+          playerStats.fouls++;
+          break;
+      }
+    }
+  });
+  
+  return Array.from(playerMap.values());
+}
 
