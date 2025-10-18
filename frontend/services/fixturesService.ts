@@ -23,6 +23,14 @@ export interface FixtureDTO {
   autoSimulate?: boolean;
   venueName?: string;
   isScheduled?: boolean;
+  // Match time tracking
+  matchStartedAt?: string;
+  currentMinute?: number;
+  halfTime?: number;
+  addedTime?: number;
+  isHalfTime?: boolean;
+  isFullTime?: boolean;
+  currentTime?: { minute: number; display: string };
 }
 
 export async function generateFixtures(): Promise<FixtureDTO[]> {
@@ -74,6 +82,11 @@ export async function resetLeague(): Promise<void> {
 
 export async function updateTeams(id: string, params: { homeTeamId: string; awayTeamId: string }): Promise<FixtureDTO> {
   const res = await api.put<ApiResponse<FixtureDTO>>(`/fixtures/${id}/teams`, params);
+  return res.data.data!;
+}
+
+export async function getMatchTime(id: string): Promise<{ minute: number; display: string }> {
+  const res = await api.get<ApiResponse<{ minute: number; display: string }>>(`/fixtures/${id}/time`);
   return res.data.data!;
 }
 

@@ -44,6 +44,7 @@ const MatchDetailPage: React.FC<MatchDetailPageProps> = ({ matchesData }) => {
               {match.group && <p className="text-sm font-bold opacity-80 mt-1">GROUP {match.group}</p>}
                {match.status === 'live' && <p className="text-theme-accent animate-pulse font-bold mt-1">LIVE</p>}
                {match.status === 'finished' && <p className="text-theme-text-secondary font-bold mt-1">Finished</p>}
+               {match.venue && (match.status === 'live' || match.status === 'finished') && <p className="text-sm font-medium text-theme-text-secondary mt-1">📍 {match.venue}</p>}
             </div>
             <div className="flex flex-col items-center w-1/3">
               <img src={match.awayLogo} alt={match.awayTeam} className="h-16 w-16 md:h-24 md:w-24 mb-2"/>

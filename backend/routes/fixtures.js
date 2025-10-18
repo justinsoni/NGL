@@ -5,6 +5,7 @@ const ctrl = require('../controllers/fixtureController');
 
 router.post('/generate', authenticateToken, requireRole(['admin']), ctrl.generateFixtures);
 router.get('/', ctrl.listFixtures);
+router.get('/:id/time', ctrl.getMatchTime);
 router.put('/:id/start', authenticateToken, requireRole(['admin']), ctrl.startMatch);
 router.put('/:id/event', authenticateToken, requireRole(['admin']), ctrl.addEvent);
 router.post('/:id/simulate', authenticateToken, requireRole(['admin']), ctrl.simulateMatch);

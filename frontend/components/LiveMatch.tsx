@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { getSocket } from '../services/socket';
-import { FixtureDTO } from '../services/fixturesService';
+import { FixtureDTO, getMatchTime } from '../services/fixturesService';
 
 export default function LiveMatch({ initial }: { initial: FixtureDTO }) {
   const [match, setMatch] = useState<FixtureDTO>(initial);
@@ -19,6 +19,28 @@ export default function LiveMatch({ initial }: { initial: FixtureDTO }) {
       s.off('match:started', handler);
     };
   }, [match._id]);
+
+  // Update match time every 30 seconds for live matches
+  useEffect(() => {
+    if (match.status !== 'live') return;
+
+    const updateTime = async () => {
+      try {
+        const timeInfo = await getMatchTime(match._id);
+        setMatch(prev => ({ ...prev, currentTime: timeInfo }));
+      } catch (error) {
+        console.error('Failed to update match time:', error);
+      }
+    };
+
+    // Update immediately
+    updateTime();
+
+    // Set up interval for periodic updates
+    const interval = setInterval(updateTime, 30000); // Update every 30 seconds
+
+    return () => clearInterval(interval);
+  }, [match._id, match.status]);
 
   const home = typeof match.homeTeam === 'string' ? undefined : match.homeTeam;
   const away = typeof match.awayTeam === 'string' ? undefined : match.awayTeam;
@@ -43,10 +65,21 @@ export default function LiveMatch({ initial }: { initial: FixtureDTO }) {
         {match.isFinal && <span className="ml-2 px-2 py-1 rounded text-xs bg-yellow-400">FINAL</span>}
         {match.stage === 'semi' && <span className="ml-2 px-2 py-1 rounded text-xs bg-purple-600 text-white">SEMI-FINAL</span>}
       </div>
+      {match.venueName && (
+        <div className="mb-2 text-center">
+          <span className="text-sm font-medium text-theme-text-secondary">📍 {match.venueName}</span>
+        </div>
+      )}
       <div className="mt-4 max-h-64 overflow-auto">
         <div className="grid grid-cols-3 gap-2 text-sm font-semibold text-theme-text-secondary mb-2">
           <div className="text-left">{home?.name || 'Home'}</div>
-          <div className="text-center">Time</div>
+          <div className="text-center">
+            {match.currentTime ? (
+              <span className="text-theme-accent font-bold">{match.currentTime.display}</span>
+            ) : (
+              'Time'
+            )}
+          </div>
           <div className="text-right">{away?.name || 'Away'}</div>
         </div>
         <div className="space-y-2">

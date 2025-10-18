@@ -128,12 +128,37 @@ exports.startMatch = async (req, res) => {
 
     match.status = 'live';
     if (!match.kickoffAt) match.kickoffAt = new Date();
+    // Initialize match time tracking
+    match.matchStartedAt = new Date();
+    match.currentMinute = 0;
+    match.addedTime = 0;
+    match.isHalfTime = false;
+    match.isFullTime = false;
     await match.save();
 
     const io = req.app.get('io');
     io.emit('match:started', match);
     res.json({ success: true, data: match });
   } catch (e) { res.status(500).json({ success: false, message: 'Failed to start match' }); }
+};
+
+// GET /api/fixtures/:id/time - Get current match time
+exports.getMatchTime = async (req, res) => {
+  try {
+    const match = await Fixture.findById(req.params.id);
+    if (!match) return res.status(404).json({ success: false, message: 'Match not found' });
+    
+    if (match.status !== 'live') {
+      return res.json({ success: true, data: { minute: 0, display: '0\'' } });
+    }
+    
+    const timeInfo = match.updateMatchTime();
+    await match.save();
+    
+    res.json({ success: true, data: timeInfo });
+  } catch (e) { 
+    res.status(500).json({ success: false, message: 'Failed to get match time' }); 
+  }
 };
 
 // PUT /api/fixtures/:id/event
@@ -398,11 +423,18 @@ exports.finishFinalAndDeclareChampion = async (req, res) => {
 exports.listFixtures = async (req, res) => {
   const fixtures = await Fixture.find().populate('homeTeam awayTeam').sort({ createdAt: 1 });
   
-  // Add isScheduled field to each fixture
+  // Add isScheduled field and match time to each fixture
   const fixturesWithScheduled = fixtures.map(fixture => {
     const fixtureObj = fixture.toObject();
     const isReady = !!(fixture.homeTeam && fixture.awayTeam && fixture.kickoffAt && fixture.venueName);
     fixtureObj.isScheduled = isReady;
+    
+    // Add current match time for live matches
+    if (fixture.status === 'live') {
+      const timeInfo = fixture.updateMatchTime();
+      fixtureObj.currentTime = timeInfo;
+    }
+    
     return fixtureObj;
   });
   

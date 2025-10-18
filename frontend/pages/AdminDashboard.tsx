@@ -6,7 +6,7 @@ import { clubService, CreateClubData } from '../services/clubService';
 import ClubRegistrationForm from '../components/ClubRegistrationForm';
 import ClubList from '../components/ClubList';
 import toast from 'react-hot-toast';
-import { listFixtures, generateFixtures, startMatch, addEvent, finishMatch, simulateMatch, scheduleMatch, resetLeague, updateTeams, FixtureDTO } from '../services/fixturesService';
+import { listFixtures, generateFixtures, startMatch, addEvent, finishMatch, simulateMatch, scheduleMatch, resetLeague, updateTeams, FixtureDTO, getMatchTime } from '../services/fixturesService';
 import playerService from '../services/playerService';
 import { getSocket } from '../services/socket';
 import { createNews } from '@/api/news/createNews';
@@ -71,6 +71,8 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
     });
     const [scheduledOnce, setScheduledOnce] = useState<Record<string, boolean>>({});
     const [approvedPlayersByClub, setApprovedPlayersByClub] = useState<Record<string, { _id: string; name: string }[]>>({});
+    const [stadiumsByClub, setStadiumsByClub] = useState<Record<string, { stadium: string; city: string; fullStadiumName: string }>>({});
+    const [matchTimes, setMatchTimes] = useState<Record<string, { minute: number; display: string }>>({});
 
     const loadApprovedPlayers = async (clubId?: string) => {
         if (!clubId) return;
@@ -82,6 +84,78 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
         } catch (e) {
             // ignore silently in admin UI; fallback to manual entry
         }
+    };
+
+    const loadStadiumData = async (clubId?: string) => {
+        if (!clubId) return;
+        if (stadiumsByClub[clubId]) return; // cached
+        try {
+            const club = clubs.find(c => String(c.id) === String(clubId));
+            if (club && club.stadium) {
+                const stadiumData = {
+                    stadium: club.stadium,
+                    city: club.city || '',
+                    fullStadiumName: `${club.stadium}${club.city ? `, ${club.city}` : ''}`
+                };
+                setStadiumsByClub(prev => ({ ...prev, [clubId]: stadiumData }));
+            }
+        } catch (e) {
+            // ignore silently in admin UI
+        }
+    };
+
+    const getStadiumOptionsForMatch = (homeId: string, awayId: string): Array<{ value: string; label: string; clubName: string }> => {
+        const options: Array<{ value: string; label: string; clubName: string }> = [];
+        
+        // Add home team stadium
+        if (homeId && stadiumsByClub[homeId]) {
+            const homeClub = clubs.find(c => String(c.id) === String(homeId));
+            const homeStadium = stadiumsByClub[homeId];
+            options.push({
+                value: homeStadium.fullStadiumName,
+                label: `${homeStadium.fullStadiumName} (${homeClub?.name || 'Home'})`,
+                clubName: homeClub?.name || 'Home'
+            });
+        }
+        
+        // Add away team stadium
+        if (awayId && stadiumsByClub[awayId]) {
+            const awayClub = clubs.find(c => String(c.id) === String(awayId));
+            const awayStadium = stadiumsByClub[awayId];
+            options.push({
+                value: awayStadium.fullStadiumName,
+                label: `${awayStadium.fullStadiumName} (${awayClub?.name || 'Away'})`,
+                clubName: awayClub?.name || 'Away'
+            });
+        }
+        
+        return options;
+    };
+
+    const updateMatchTimes = async () => {
+        const liveFixtures = fixtures.filter(f => f.status === 'live');
+        if (liveFixtures.length === 0) return;
+
+        const timeUpdates = await Promise.all(
+            liveFixtures.map(async (fixture) => {
+                try {
+                    const timeInfo = await getMatchTime(fixture._id);
+                    return { fixtureId: fixture._id, timeInfo };
+                } catch (error) {
+                    console.error('Failed to get match time for fixture:', fixture._id);
+                    return null;
+                }
+            })
+        );
+
+        const newMatchTimes: Record<string, { minute: number; display: string }> = {};
+        timeUpdates.forEach(update => {
+            if (update) {
+                newMatchTimes[update.fixtureId] = update.timeInfo;
+            }
+        });
+
+        setMatchTimes(prev => ({ ...prev, ...newMatchTimes }));
     };
 
     // News management state
@@ -439,6 +513,19 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     id: club._id
                 }));
                 setClubs(clubsWithId);
+                
+                // Pre-load stadium data for all clubs
+                clubsWithId.forEach((club: Club) => {
+                    if (club.stadium) {
+                        const stadiumData = {
+                            stadium: club.stadium,
+                            city: club.city || '',
+                            fullStadiumName: `${club.stadium}${club.city ? `, ${club.city}` : ''}`
+                        };
+                        setStadiumsByClub(prev => ({ ...prev, [club.id]: stadiumData }));
+                    }
+                });
+                
                 // Set default club for manager creation if not set and clubs exist
                 if (clubsWithId.length > 0 && !clubsWithId.find((c: Club) => String(c.id) === newManagerClubId)) {
                     setNewManagerClubId(clubsWithId[0].id);
@@ -461,6 +548,10 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
         s.on('final:created', refresh);
         s.on('semi:created', refresh);
         s.on('final:finished', refresh);
+        
+        // Update match times every 30 seconds for live matches
+        const timeInterval = setInterval(updateMatchTimes, 30000);
+        
         return () => {
             s.off('match:event', refresh);
             s.off('match:finished', refresh);
@@ -469,8 +560,14 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
             s.off('final:created', refresh);
             s.off('semi:created', refresh);
             s.off('final:finished', refresh);
+            clearInterval(timeInterval);
         };
     }, []);
+
+    // Update match times when fixtures change
+    useEffect(() => {
+        updateMatchTimes();
+    }, [fixtures]);
 
     // Load existing match reports from MongoDB on mount
     useEffect(() => {
@@ -733,6 +830,17 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 id: (created as any)._id
             };
             setClubs(prev => [...prev, newClub]);
+            
+            // Load stadium data for the new club
+            if (newClub.stadium) {
+                const stadiumData = {
+                    stadium: newClub.stadium,
+                    city: newClub.city || '',
+                    fullStadiumName: `${newClub.stadium}${newClub.city ? `, ${newClub.city}` : ''}`
+                };
+                setStadiumsByClub(prev => ({ ...prev, [newClub.id]: stadiumData }));
+            }
+            
             onAddClub(newClub); // If you want to keep parent in sync
             setShowClubForm(false);
             toast.success('Club created successfully!');
@@ -761,6 +869,14 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
         try {
             await clubService.deleteClub(clubId);
             setClubs(prev => prev.filter(c => c.id !== clubId));
+            
+            // Clean up stadium data for the deleted club
+            setStadiumsByClub(prev => {
+                const updated = { ...prev };
+                delete updated[clubId];
+                return updated;
+            });
+            
             onDeleteClub(clubId); // If you want to keep parent in sync
             toast.success('Club deleted successfully');
         } catch (error: any) {
@@ -1281,6 +1397,22 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                                     const showScheduled = isReady && isCommitted;
                                                     const label = f.status==='live' ? 'LIVE' : (f.status==='finished' ? 'FINISHED' : (showScheduled ? 'SCHEDULED' : ''));
                                                     const cls = f.status==='live' ? 'bg-red-500 text-white' : (f.status==='finished' ? 'bg-gray-800 text-white' : (showScheduled ? 'bg-gray-200' : ''));
+                                                    
+                                                    // For live matches, show time below the LIVE badge
+                                                    if (f.status === 'live') {
+                                                        const currentTime = matchTimes[f._id];
+                                                        return (
+                                                            <div className="flex flex-col items-center gap-1">
+                                                                <span className={`px-2 py-1 rounded text-xs ${cls}`}>{label}</span>
+                                                                {currentTime && (
+                                                                    <span className="text-xs font-semibold text-red-600">
+                                                                        {currentTime.display}
+                                                                    </span>
+                                                                )}
+                                                            </div>
+                                                        );
+                                                    }
+                                                    
                                                     // If ready but not committed, show a subtle hint
                                                     if (!label && isReady) {
                                                         return <span className="px-2 py-1 rounded text-xs bg-yellow-100 text-yellow-800">READY</span>;
@@ -1327,17 +1459,43 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                                     }} className={`bg-theme-page-bg border border-theme-border rounded px-2 py-1 ${alreadyCommitted?'opacity-60 cursor-not-allowed':''}`}/>
                                                     ); })()}
                                                     <label className="text-xs text-theme-text-secondary ml-3">Venue</label>
-                                                    {(() => { const alreadyCommitted = !!scheduledOnce[f._id]; return (
-                                                    <input type="text" placeholder="Stadium name" disabled={alreadyCommitted} onBlur={async e=>{
-                                                        const venueName = e.target.value.trim();
-                                                        const res = validateVenueName(venueName);
-                                                        if (!res.ok) { toast.error(res.message || 'Invalid venue'); return; }
-                                                        try { 
-                                                            await scheduleMatch(f._id, { venueName }); 
-                                                            const list = await listFixtures(); setFixtures(list);
-                                                        } catch { toast.error('Venue save failed'); }
-                                                    }} className={`bg-theme-page-bg border border-theme-border rounded px-2 py-1 min-w-[200px] ${alreadyCommitted?'opacity-60 cursor-not-allowed':''}`}/>
-                                                    ); })()}
+                                                    {(() => { 
+                                                        const alreadyCommitted = !!scheduledOnce[f._id];
+                                                        const homeId = (typeof f.homeTeam==='string'?f.homeTeam:f.homeTeam?._id);
+                                                        const awayId = (typeof f.awayTeam==='string'?f.awayTeam:f.awayTeam?._id);
+                                                        const stadiumOptions = getStadiumOptionsForMatch(homeId, awayId);
+                                                        
+                                                        // Load stadium data for both clubs when dropdown is shown
+                                                        if (homeId && awayId && stadiumOptions.length === 0) {
+                                                            loadStadiumData(homeId);
+                                                            loadStadiumData(awayId);
+                                                        }
+                                                        
+                                                        return (
+                                                            <select 
+                                                                disabled={alreadyCommitted || stadiumOptions.length === 0} 
+                                                                value={f.venueName || ''}
+                                                                onChange={async e => {
+                                                                    const venueName = e.target.value;
+                                                                    if (!venueName) return;
+                                                                    try { 
+                                                                        await scheduleMatch(f._id, { venueName }); 
+                                                                        const list = await listFixtures(); setFixtures(list);
+                                                                    } catch { toast.error('Venue save failed'); }
+                                                                }}
+                                                                className={`bg-theme-page-bg border border-theme-border rounded px-2 py-1 min-w-[200px] ${alreadyCommitted || stadiumOptions.length === 0?'opacity-60 cursor-not-allowed':''}`}
+                                                            >
+                                                                <option value="">
+                                                                    {stadiumOptions.length === 0 ? 'Loading stadiums...' : 'Select Stadium'}
+                                                                </option>
+                                                                {stadiumOptions.map((option, index) => (
+                                                                    <option key={index} value={option.value}>
+                                                                        {option.label}
+                                                                    </option>
+                                                                ))}
+                                                            </select>
+                                                        );
+                                                    })()}
                                                     {(() => {
                                                         const homeId = (typeof f.homeTeam==='string'?f.homeTeam:f.homeTeam?._id);
                                                         const awayId = (typeof f.awayTeam==='string'?f.awayTeam:f.awayTeam?._id);

@@ -78,6 +78,15 @@ const MatchesPage: React.FC<MatchesPageProps> = ({ matchesData }) => {
     s.on('semi:created', refresh);
     s.on('final:created', refresh);
     s.on('final:finished', handleFinalFinished);
+    
+    // Update live match times every 30 seconds
+    const timeInterval = setInterval(() => {
+      const hasLiveMatches = liveFixtures.some(f => f.status === 'live');
+      if (hasLiveMatches) {
+        load(); // Refresh fixtures to get updated match times
+      }
+    }, 30000);
+    
     return () => {
       s.off('match:started', refresh);
       s.off('match:event', refresh);
@@ -85,6 +94,7 @@ const MatchesPage: React.FC<MatchesPageProps> = ({ matchesData }) => {
       s.off('semi:created', refresh);
       s.off('final:created', refresh);
       s.off('final:finished', handleFinalFinished);
+      clearInterval(timeInterval);
     };
   }, []);
 
@@ -201,9 +211,13 @@ const MatchesPage: React.FC<MatchesPageProps> = ({ matchesData }) => {
             </div>
           )}
           {f.status === 'live' && (
-            <div className="flex items-center justify-center gap-2">
-              <span className="text-theme-accent animate-pulse font-bold text-xs">LIVE</span>
-              <span>{f.score.home} - {f.score.away}</span>
+            <div className="flex flex-col items-center gap-0.5">
+              <div className="flex items-center justify-center gap-2">
+                <span className="text-theme-accent animate-pulse font-bold text-xs">LIVE</span>
+                <span>{f.score.home} - {f.score.away}</span>
+              </div>
+              {f.currentTime && <span className="text-[11px] font-semibold text-theme-accent">{f.currentTime.display}</span>}
+              {f.venueName && <span className="text-[11px] font-normal text-theme-text-secondary">{f.venueName}</span>}
             </div>
           )}
           {f.status === 'finished' && (
@@ -266,6 +280,96 @@ const MatchesPage: React.FC<MatchesPageProps> = ({ matchesData }) => {
           </div>
         </div>
       )}
+      
+      {/* Recent Match Results */}
+      {(() => {
+        const finishedMatches = liveFixtures
+          .filter(f => f.status === 'finished')
+          .sort((a, b) => {
+            // Sort by finish time (most recent first)
+            const timeA = a.finishedAt ? new Date(a.finishedAt).getTime() : 0;
+            const timeB = b.finishedAt ? new Date(b.finishedAt).getTime() : 0;
+            return timeB - timeA;
+          })
+          .slice(0, 4); // Show only the 4 most recent finished matches
+
+        if (finishedMatches.length === 0) return null;
+
+        return (
+          <div className="mx-4 md:mx-6 mb-8">
+            <div className="bg-white rounded-lg shadow-lg p-6">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-xl font-bold text-theme-dark flex items-center gap-2">
+                  <span className="text-2xl">🏆</span>
+                  Recent Results
+                </h3>
+                <span className="text-sm text-theme-text-secondary">Latest match outcomes</span>
+              </div>
+              
+              <div className="flex flex-col items-center space-y-3 max-w-4xl mx-auto">
+                {finishedMatches.map(match => {
+                  const home = typeof match.homeTeam === 'string' ? undefined : match.homeTeam;
+                  const away = typeof match.awayTeam === 'string' ? undefined : match.awayTeam;
+                  const isFinalStage = (match.stage === 'final') || (!!match.isFinal);
+                  const isSemi = match.stage === 'semi';
+                  const stageLabel = isFinalStage ? 'FINAL' : (isSemi ? 'SEMI' : 'LEAGUE');
+                  const stageClass = isFinalStage ? 'bg-yellow-500 text-white' : (isSemi ? 'bg-purple-600 text-white' : 'bg-gray-300 text-gray-700');
+                  
+                  return (
+                    <div key={match._id} className="bg-theme-secondary-bg rounded-lg p-4 hover:shadow-md transition-shadow w-full max-w-2xl">
+                      <div className="flex items-center justify-center">
+                        <div className="flex items-center gap-4 flex-1 justify-center">
+                          <div className="flex items-center gap-2">
+                            {home?.logo && (
+                              <img 
+                                src={home.logo} 
+                                alt={home.name} 
+                                className="h-8 w-8 flex-shrink-0" 
+                                onError={(e) => { e.currentTarget.style.display = 'none'; }} 
+                              />
+                            )}
+                            <span className="font-semibold text-base">{home?.name || 'Home'}</span>
+                          </div>
+                          
+                          <span className="font-bold text-xl mx-4">
+                            {match.score.home} - {match.score.away}
+                          </span>
+                          
+                          <div className="flex items-center gap-2">
+                            <span className="font-semibold text-base">{away?.name || 'Away'}</span>
+                            {away?.logo && (
+                              <img 
+                                src={away.logo} 
+                                alt={away.name} 
+                                className="h-8 w-8 flex-shrink-0" 
+                                onError={(e) => { e.currentTarget.style.display = 'none'; }} 
+                              />
+                            )}
+                          </div>
+                        </div>
+                        
+                        <div className="flex flex-col items-center gap-1 ml-4">
+                          <span className={`px-2 py-1 rounded text-xs font-semibold ${stageClass}`}>
+                            {stageLabel}
+                          </span>
+                          <span className="text-xs text-theme-text-secondary font-semibold">
+                            FULL TIME
+                          </span>
+                          {match.venueName && (
+                            <p className="text-xs text-theme-text-secondary truncate text-center">
+                              📍 {match.venueName}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        );
+      })()}
       
       <div className="container mx-auto p-4 md:p-6">
         <div className="space-y-4 mb-6">
