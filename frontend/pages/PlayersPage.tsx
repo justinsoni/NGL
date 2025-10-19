@@ -38,7 +38,7 @@ const PlayersPage: React.FC<PlayersPageProps> = ({ onPlayerSelect }) => {
             clubLogo: p.clubId?.logo || '',
             previousClub: p.previousClub || 'Free Agent',
             leaguesPlayed: p.leaguesPlayed || [],
-            imageUrl: p.imageUrl || `https://picsum.photos/seed/${p.name}/400/400`,
+            imageUrl: p.imageUrl || `${import.meta.env.VITE_PLACEHOLDER_IMAGE_URL || 'https://picsum.photos'}/seed/${p.name}/400/400`,
             identityCardUrl: p.identityCardUrl || '',
             bio: p.bio || '',
             isVerified: true,

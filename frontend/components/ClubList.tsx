@@ -63,7 +63,7 @@ const ClubList: React.FC<ClubListProps> = ({
                   className="h-12 w-12 object-contain"
                   onError={(e) => {
                     const target = e.target as HTMLImageElement;
-                    target.src = 'https://via.placeholder.com/48x48?text=Club';
+                    target.src = import.meta.env.VITE_PLACEHOLDER_IMAGE_URL || 'https://via.placeholder.com/48x48?text=Club';
                   }}
                 />
                 <div className="flex-1">

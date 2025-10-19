@@ -120,7 +120,7 @@ const ClubManagerDashboard: React.FC<ClubManagerDashboardProps> = ({
     const [isEditingProfile, setIsEditingProfile] = useState(false);
     const [profileData, setProfileData] = useState({
         name: user?.name || 'Club Manager',
-        profilePicture: 'https://via.placeholder.com/150'
+        profilePicture: import.meta.env.VITE_PLACEHOLDER_IMAGE_URL || 'https://via.placeholder.com/150'
     });
     const [uploadedProfilePic, setUploadedProfilePic] = useState<File | null>(null);
     const [profilePicPreview, setProfilePicPreview] = useState<string>('');
@@ -439,7 +439,7 @@ const ClubManagerDashboard: React.FC<ClubManagerDashboardProps> = ({
         }));
 
         // Update the document URL in the form data (simulate upload)
-        const fakeUrl = `https://uploads.ngl.com/documents/${Date.now()}-${file.name}`;
+        const fakeUrl = `${import.meta.env.VITE_UPLOADS_BASE_URL || 'https://uploads.ngl.com'}/documents/${Date.now()}-${file.name}`;
         updateDocument(index, 'url', fakeUrl);
     };
 
@@ -467,7 +467,7 @@ const ClubManagerDashboard: React.FC<ClubManagerDashboardProps> = ({
         setCoachPhotoPreview(previewUrl);
 
         // Update the imageUrl in the form data (simulate upload)
-        const fakeUrl = `https://uploads.ngl.com/photos/${Date.now()}-${file.name}`;
+        const fakeUrl = `${import.meta.env.VITE_UPLOADS_BASE_URL || 'https://uploads.ngl.com'}/photos/${Date.now()}-${file.name}`;
         setProfessionalCoachData(prev => ({
             ...prev,
             imageUrl: fakeUrl
@@ -498,7 +498,7 @@ const ClubManagerDashboard: React.FC<ClubManagerDashboardProps> = ({
         setProfilePicPreview(previewUrl);
 
         // Update the profile picture in the form data (simulate upload)
-        const fakeUrl = `https://uploads.ngl.com/profiles/${Date.now()}-${file.name}`;
+        const fakeUrl = `${import.meta.env.VITE_UPLOADS_BASE_URL || 'https://uploads.ngl.com'}/profiles/${Date.now()}-${file.name}`;
         setProfileData(prev => ({
             ...prev,
             profilePicture: fakeUrl
@@ -529,7 +529,7 @@ const ClubManagerDashboard: React.FC<ClubManagerDashboardProps> = ({
         setNewsImagePreview(previewUrl);
 
         // Update the imageUrl in the form data (simulate upload)
-        const fakeUrl = `https://uploads.ngl.com/news/${Date.now()}-${file.name}`;
+        const fakeUrl = `${import.meta.env.VITE_UPLOADS_BASE_URL || 'https://uploads.ngl.com'}/news/${Date.now()}-${file.name}`;
         setNewsForm(prev => ({
             ...prev,
             imageUrl: fakeUrl
@@ -550,7 +550,7 @@ const ClubManagerDashboard: React.FC<ClubManagerDashboardProps> = ({
         // Reset profile data to original values
         setProfileData({
             name: user?.name || 'Club Manager',
-            profilePicture: 'https://via.placeholder.com/150'
+            profilePicture: import.meta.env.VITE_PLACEHOLDER_IMAGE_URL || 'https://via.placeholder.com/150'
         });
     };
 
@@ -945,7 +945,7 @@ const ClubManagerDashboard: React.FC<ClubManagerDashboardProps> = ({
             const updatedPlayer: Player = {
                 ...editingPlayer,
                 ...formData,
-                imageUrl: formData.imageUrl || `https://picsum.photos/seed/${formData.name}/400/400`,
+                imageUrl: formData.imageUrl || `${import.meta.env.VITE_PLACEHOLDER_IMAGE_URL || 'https://picsum.photos'}/seed/${formData.name}/400/400`,
             };
             onEditPlayer(updatedPlayer);
         } else {
@@ -954,7 +954,7 @@ const ClubManagerDashboard: React.FC<ClubManagerDashboardProps> = ({
                 flag: '🏳️',
                 club: club.name,
                 clubLogo: club.logo,
-                imageUrl: formData.imageUrl || `https://picsum.photos/seed/${formData.name}/400/400`,
+                imageUrl: formData.imageUrl || `${import.meta.env.VITE_PLACEHOLDER_IMAGE_URL || 'https://picsum.photos'}/seed/${formData.name}/400/400`,
                 bio: formData.bio || 'A promising new signing.',
                 stats: { matches: 0, goals: 0, assists: 0, yellowCards: 0, redCards: 0 }
             };
@@ -979,7 +979,7 @@ const ClubManagerDashboard: React.FC<ClubManagerDashboardProps> = ({
             id: clubVideos.length + 1 + Math.random(),
             title: formData.get('title') as string,
             url: formData.get('url') as string,
-            thumbnail: formData.get('thumbnail') as string || `https://picsum.photos/seed/${formData.get('title')}/400`,
+            thumbnail: formData.get('thumbnail') as string || `${import.meta.env.VITE_PLACEHOLDER_IMAGE_URL || 'https://picsum.photos'}/seed/${formData.get('title')}/400`,
         };
         setClubVideos(prev => [...prev, newVideo]);
         e.currentTarget.reset();
@@ -1531,7 +1531,7 @@ const ClubManagerDashboard: React.FC<ClubManagerDashboardProps> = ({
     );
 
     const uploadToCloudinary = async (file: File, uploadPreset: string): Promise<string> => {
-        const url = `https://api.cloudinary.com/v1_1/dmuilu78u/auto/upload`;
+        const url = `${import.meta.env.VITE_CLOUDINARY_URL || 'https://api.cloudinary.com/v1_1/dmuilu78u/auto/upload'}`;
         const formData = new FormData();
         formData.append('file', file);
         formData.append('upload_preset', uploadPreset);

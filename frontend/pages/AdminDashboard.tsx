@@ -352,7 +352,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
     }, []);
 
     const uploadMatchImage = async (file: File, uploadPreset: string): Promise<string> => {
-        const url = `https://api.cloudinary.com/v1_1/dmuilu78u/auto/upload`;
+        const url = `${import.meta.env.VITE_CLOUDINARY_URL || 'https://api.cloudinary.com/v1_1/dmuilu78u/auto/upload'}`;
         const formData = new FormData();
         formData.append('file', file);
         formData.append('upload_preset', uploadPreset);
@@ -440,7 +440,8 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
             }
 
             // Call backend API to create manager
-            const response = await axios.post('http://localhost:5000/api/auth/create-manager', {
+            const baseURL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api';
+            const response = await axios.post(`${baseURL}/auth/create-manager`, {
                 managerName: newManagerName,
                 managerEmail: newManagerEmail,
                 clubName: selectedClub?.name,
