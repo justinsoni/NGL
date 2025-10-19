@@ -81,10 +81,9 @@ const corsOptions = {
       'https://localhost:3001'
     ];
 
-    // Add frontend URLs from environment variable
+    // Add frontend URL from environment variable
     if (process.env.FRONTEND_URL) {
-      const envUrls = process.env.FRONTEND_URL.split(',').map(url => url.trim());
-      allowedOrigins.push(...envUrls);
+      allowedOrigins.push(process.env.FRONTEND_URL);
     }
     
     if (allowedOrigins.indexOf(origin) !== -1) {

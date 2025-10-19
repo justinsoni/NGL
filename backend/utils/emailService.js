@@ -116,9 +116,9 @@ class EmailService {
               <li>View match schedules and results</li>
             </ul>
             
-            <p><strong>🌐 Login URL:</strong> <a href="http://localhost:3000/login">http://localhost:3000/login</a></p>
+            <p><strong>🌐 Login URL:</strong> <a href="${process.env.FRONTEND_URL}/login">${process.env.FRONTEND_URL}/login</a></p>
             
-            <a href="http://localhost:3000/login" class="button">Login to Dashboard</a>
+            <a href="${process.env.FRONTEND_URL}/login" class="button">Login to Dashboard</a>
             
             <p>If you have any questions, please contact the system administrator.</p>
             
@@ -152,7 +152,7 @@ Club: ${clubName}
 • Access club statistics and reports
 • View match schedules and results
 
-🌐 Login URL: http://localhost:3000/login
+🌐 Login URL: ${process.env.FRONTEND_URL}/login
 
 If you have any questions, please contact the system administrator.
 
@@ -283,9 +283,9 @@ NGL Administration Team
               <li>View team analytics and reports</li>
             </ul>
             
-            <p><strong>🌐 Login URL:</strong> <a href="http://localhost:3000/login">http://localhost:3000/login</a></p>
+            <p><strong>🌐 Login URL:</strong> <a href="${process.env.FRONTEND_URL}/login">${process.env.FRONTEND_URL}/login</a></p>
             
-            <a href="http://localhost:3000/login" class="button">Login to Dashboard</a>
+            <a href="${process.env.FRONTEND_URL}/login" class="button">Login to Dashboard</a>
             
             <p>If you have any questions, please contact your club manager or the system administrator.</p>
             
@@ -411,7 +411,7 @@ NGL Administration Team
             </ul>
 
             <div style="text-align: center;">
-              <a href="${process.env.FRONTEND_URL || 'http://localhost:3000'}/login" class="button">
+              <a href="${process.env.FRONTEND_URL}/login" class="button">
                 🚀 Login to Your Dashboard
               </a>
             </div>
@@ -455,7 +455,7 @@ What You Can Do as a Coach:
 - Compare player performance metrics
 - Develop tactical strategies for matches
 
-Login URL: ${process.env.FRONTEND_URL || 'http://localhost:3000'}/login
+Login URL: ${process.env.FRONTEND_URL}/login
 
 Need Help?
 If you have any questions or need assistance, please contact your club manager or reach out to our support team.

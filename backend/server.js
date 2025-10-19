@@ -209,8 +209,8 @@ server.listen(PORT, () => {
 🚀 Football League Hub API Server Started
 📍 Environment: ${process.env.NODE_ENV || 'development'}
 🌐 Port: ${PORT}
-🔗 Health Check: http://localhost:${PORT}/health
-📚 API Base URL: http://localhost:${PORT}/api
+🔗 Health Check: ${process.env.BASE_URL || `http://localhost:${PORT}`}/health
+📚 API Base URL: ${process.env.BASE_URL || `http://localhost:${PORT}`}/api
 🔐 Firebase Project: ${process.env.FIREBASE_PROJECT_ID || 'Not configured'}
 🗄️  Database: ${process.env.MONGODB_URI ? 'Connected' : 'Not configured'}
   `);
