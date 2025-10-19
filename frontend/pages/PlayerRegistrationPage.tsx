@@ -199,7 +199,7 @@ const PlayerRegistrationPage: React.FC<PlayerRegistrationPageProps> = ({ onSubmi
 
         // In a real application, this would upload to a file storage service
         // For now, we'll simulate with a fake URL that includes the actual filename
-        const fakeUrl = `https://uploads.ngl.com/${Date.now()}-${file.name}`;
+        const fakeUrl = `${import.meta.env.VITE_UPLOADS_BASE_URL || 'https://uploads.ngl.com'}/${Date.now()}-${file.name}`;
         const formField = field === 'profilePhoto' ? 'imageUrl' : 'identityCardUrl';
         setFormData(prev => ({
             ...prev,
@@ -209,7 +209,7 @@ const PlayerRegistrationPage: React.FC<PlayerRegistrationPageProps> = ({ onSubmi
 
 
     const uploadToCloudinary = async (file: File, uploadPreset: string): Promise<string> => {
-        const url = `https://api.cloudinary.com/v1_1/dmuilu78u/auto/upload`; 
+        const url = `${import.meta.env.VITE_CLOUDINARY_URL || 'https://api.cloudinary.com/v1_1/dmuilu78u/auto/upload'}`; 
 
         const formData = new FormData();
         formData.append("file", file);
@@ -364,7 +364,8 @@ const PlayerRegistrationPage: React.FC<PlayerRegistrationPageProps> = ({ onSubmi
                 rejectionReason: undefined
             };
 
-            const response = await fetch('http://localhost:5000/api/players/register', {
+            const baseURL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api';
+            const response = await fetch(`${baseURL}/players/register`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(registration),

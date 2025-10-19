@@ -32,7 +32,7 @@ const ClubRegistrationForm: React.FC<ClubRegistrationFormProps> = ({
   } = useForm<FormData>();
 
   const uploadToCloudinary = async (file: File, uploadPreset: string): Promise<string> => {
-    const url = `https://api.cloudinary.com/v1_1/dmuilu78u/auto/upload`;
+    const url = `${import.meta.env.VITE_CLOUDINARY_URL || 'https://api.cloudinary.com/v1_1/dmuilu78u/auto/upload'}`;
     const formData = new FormData();
     formData.append('file', file);
     formData.append('upload_preset', uploadPreset);

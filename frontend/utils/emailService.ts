@@ -55,7 +55,7 @@ Club: ${clubName}
 • Access club statistics and reports
 • View match schedules and results
 
-🌐 **Login URL:** http://localhost:3000/login
+🌐 **Login URL:** ${import.meta.env.VITE_FRONTEND_URL || 'http://localhost:3000'}/login
 
 If you have any questions, please contact the system administrator.
 
@@ -98,7 +98,7 @@ Club: ${clubName}
 • Communicate with club management
 • View team analytics and reports
 
-🌐 **Login URL:** http://localhost:3000/login
+🌐 **Login URL:** ${import.meta.env.VITE_FRONTEND_URL || 'http://localhost:3000'}/login
 
 If you have any questions, please contact your club manager or the system administrator.
 
@@ -144,7 +144,7 @@ Password: ${loginCredentials.password}
 • Update your personal information
 • View match results and league standings
 
-🌐 **Login URL:** http://localhost:3000/login
+🌐 **Login URL:** ${import.meta.env.VITE_FRONTEND_URL || 'http://localhost:3000'}/login
       `.trim();
     }
 

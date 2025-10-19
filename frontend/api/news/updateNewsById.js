@@ -7,7 +7,8 @@ import axios from 'axios';
  * @returns {Promise<Object>} - Created article data.
  */
 export async function updateNewsById(id, article, idToken) {
-    const response = await axios.put(`http://localhost:5000/api/news/${id}`, article, {
+    const baseURL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api';
+    const response = await axios.put(`${baseURL}/news/${id}`, article, {
         headers: {
             'Content-Type': 'application/json',
             'Authorization': `Bearer ${idToken}`

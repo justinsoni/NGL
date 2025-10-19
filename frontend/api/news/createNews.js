@@ -11,7 +11,8 @@ export async function createNews(article, idToken) {
     console.log('🔍 Using token:', idToken ? 'Present' : 'Missing');
     
     try {
-        const response = await axios.post('http://localhost:5000/api/news', article, {
+        const baseURL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api';
+        const response = await axios.post(`${baseURL}/news`, article, {
             headers: {
                 'Content-Type': 'application/json',
                 'Authorization': `Bearer ${idToken}`
