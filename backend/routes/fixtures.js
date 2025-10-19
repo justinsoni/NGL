@@ -14,6 +14,9 @@ router.put('/:id/schedule', authenticateToken, requireRole(['admin']), ctrl.sche
 router.put('/:id/teams', authenticateToken, requireRole(['admin']), ctrl.updateTeams);
 router.post('/reset', authenticateToken, requireRole(['admin']), ctrl.resetLeague);
 router.put('/final/:id/finish-and-declare', authenticateToken, requireRole(['admin']), ctrl.finishFinalAndDeclareChampion);
+// PES-style timing controls
+router.put('/:id/time-acceleration', authenticateToken, requireRole(['admin']), ctrl.setTimeAcceleration);
+router.put('/:id/manual-time', authenticateToken, requireRole(['admin']), ctrl.setManualTime);
 
 module.exports = router;
 

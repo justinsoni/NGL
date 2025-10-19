@@ -128,12 +128,17 @@ exports.startMatch = async (req, res) => {
 
     match.status = 'live';
     if (!match.kickoffAt) match.kickoffAt = new Date();
-    // Initialize match time tracking
+    // Initialize PES-style match time tracking
     match.matchStartedAt = new Date();
     match.currentMinute = 0;
     match.addedTime = 0;
     match.isHalfTime = false;
     match.isFullTime = false;
+    match.matchPhase = 'first_half';
+    match.stoppageTimeAccumulated = 0;
+    match.lastEventTime = new Date();
+    // Set default time acceleration (1 game minute = 1 real second for fast gameplay)
+    match.timeAcceleration = 1;
     await match.save();
 
     const io = req.app.get('io');
@@ -183,6 +188,10 @@ exports.addEvent = async (req, res) => {
     if (type === 'goal') {
       if (team === 'home') match.score.home += 1; else match.score.away += 1;
     }
+    
+    // Add stoppage time based on event type (PES-style)
+    match.addStoppageTime(type, minute);
+    
     await match.save();
     const populated = await Fixture.findById(match._id).populate('homeTeam awayTeam');
     const io = req.app.get('io');
@@ -570,6 +579,81 @@ exports.resetLeague = async (req, res) => {
   } catch (e) {
     console.error('resetLeague error', e);
     res.status(500).json({ success: false, message: 'Failed to reset league' });
+  }
+};
+
+// PUT /api/fixtures/:id/time-acceleration - Set time acceleration for PES-style gameplay
+exports.setTimeAcceleration = async (req, res) => {
+  try {
+    const { acceleration } = req.body;
+    const match = await Fixture.findById(req.params.id);
+    if (!match) return res.status(404).json({ success: false, message: 'Match not found' });
+    if (match.status !== 'live') return res.status(400).json({ success: false, message: 'Only live matches can have time acceleration changed' });
+    
+    match.setTimeAcceleration(acceleration);
+    await match.save();
+    
+    res.json({ 
+      success: true, 
+      message: `Time acceleration set to ${acceleration} seconds per game minute`,
+      data: { acceleration, phase: match.matchPhase }
+    });
+  } catch (e) {
+    console.error('setTimeAcceleration error', e);
+    res.status(500).json({ success: false, message: e.message || 'Failed to set time acceleration' });
+  }
+};
+
+// PUT /api/fixtures/:id/manual-time - Manually set match time (for testing/admin)
+exports.setManualTime = async (req, res) => {
+  try {
+    const { minute, phase } = req.body;
+    const match = await Fixture.findById(req.params.id);
+    if (!match) return res.status(404).json({ success: false, message: 'Match not found' });
+    if (match.status !== 'live') return res.status(400).json({ success: false, message: 'Only live matches can have time set manually' });
+    
+    // Validate inputs
+    if (minute < 0 || minute > 120) {
+      return res.status(400).json({ success: false, message: 'Minute must be between 0 and 120' });
+    }
+    
+    const validPhases = ['first_half', 'half_time', 'second_half', 'extra_time', 'full_time'];
+    if (phase && !validPhases.includes(phase)) {
+      return res.status(400).json({ success: false, message: 'Invalid phase' });
+    }
+    
+    // Set manual time
+    match.currentMinute = minute;
+    if (phase) match.matchPhase = phase;
+    
+    // Update related flags
+    match.isHalfTime = (phase === 'half_time');
+    match.isFullTime = (phase === 'full_time');
+    
+    // Set timestamps for phase transitions
+    const now = new Date();
+    if (phase === 'half_time' && !match.firstHalfEndedAt) {
+      match.firstHalfEndedAt = now;
+    } else if (phase === 'second_half' && !match.secondHalfStartedAt) {
+      match.secondHalfStartedAt = now;
+    } else if (phase === 'extra_time' && !match.secondHalfEndedAt) {
+      match.secondHalfEndedAt = now;
+    } else if (phase === 'full_time' && !match.extraTimeEndedAt) {
+      match.extraTimeEndedAt = now;
+    }
+    
+    await match.save();
+    
+    const timeInfo = match.calculateCurrentTime();
+    
+    res.json({ 
+      success: true, 
+      message: `Match time set to ${minute}' (${phase || match.matchPhase})`,
+      data: timeInfo
+    });
+  } catch (e) {
+    console.error('setManualTime error', e);
+    res.status(500).json({ success: false, message: 'Failed to set manual time' });
   }
 };
 

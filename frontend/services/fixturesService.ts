@@ -23,14 +23,20 @@ export interface FixtureDTO {
   autoSimulate?: boolean;
   venueName?: string;
   isScheduled?: boolean;
-  // Match time tracking
+  // Match time tracking - PES-style
   matchStartedAt?: string;
   currentMinute?: number;
   halfTime?: number;
   addedTime?: number;
   isHalfTime?: boolean;
   isFullTime?: boolean;
-  currentTime?: { minute: number; display: string };
+  currentTime?: { minute: number; display: string; phase?: string; stoppageTime?: number };
+  // PES-style timing enhancements
+  timeAcceleration?: number;
+  matchPhase?: 'first_half' | 'half_time' | 'second_half' | 'extra_time' | 'full_time';
+  halfTimeBreakDuration?: number;
+  stoppageTimeAccumulated?: number;
+  lastEventTime?: string;
 }
 
 export async function generateFixtures(): Promise<FixtureDTO[]> {
@@ -85,8 +91,19 @@ export async function updateTeams(id: string, params: { homeTeamId: string; away
   return res.data.data!;
 }
 
-export async function getMatchTime(id: string): Promise<{ minute: number; display: string }> {
-  const res = await api.get<ApiResponse<{ minute: number; display: string }>>(`/fixtures/${id}/time`);
+export async function getMatchTime(id: string): Promise<{ minute: number; display: string; phase?: string; stoppageTime?: number }> {
+  const res = await api.get<ApiResponse<{ minute: number; display: string; phase?: string; stoppageTime?: number }>>(`/fixtures/${id}/time`);
+  return res.data.data!;
+}
+
+// PES-style timing controls
+export async function setTimeAcceleration(id: string, acceleration: number): Promise<{ acceleration: number; phase: string }> {
+  const res = await api.put<ApiResponse<{ acceleration: number; phase: string }>>(`/fixtures/${id}/time-acceleration`, { acceleration });
+  return res.data.data!;
+}
+
+export async function setManualTime(id: string, minute: number, phase?: string): Promise<{ minute: number; display: string; phase: string }> {
+  const res = await api.put<ApiResponse<{ minute: number; display: string; phase: string }>>(`/fixtures/${id}/manual-time`, { minute, phase });
   return res.data.data!;
 }
 

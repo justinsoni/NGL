@@ -6,7 +6,7 @@ import { clubService, CreateClubData } from '../services/clubService';
 import ClubRegistrationForm from '../components/ClubRegistrationForm';
 import ClubList from '../components/ClubList';
 import toast from 'react-hot-toast';
-import { listFixtures, generateFixtures, startMatch, addEvent, finishMatch, simulateMatch, scheduleMatch, resetLeague, updateTeams, FixtureDTO, getMatchTime } from '../services/fixturesService';
+import { listFixtures, generateFixtures, startMatch, addEvent, finishMatch, simulateMatch, scheduleMatch, resetLeague, updateTeams, FixtureDTO, getMatchTime, setTimeAcceleration, setManualTime } from '../services/fixturesService';
 import playerService from '../services/playerService';
 import { getSocket } from '../services/socket';
 import { createNews } from '@/api/news/createNews';
@@ -72,7 +72,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
     const [scheduledOnce, setScheduledOnce] = useState<Record<string, boolean>>({});
     const [approvedPlayersByClub, setApprovedPlayersByClub] = useState<Record<string, { _id: string; name: string }[]>>({});
     const [stadiumsByClub, setStadiumsByClub] = useState<Record<string, { stadium: string; city: string; fullStadiumName: string }>>({});
-    const [matchTimes, setMatchTimes] = useState<Record<string, { minute: number; display: string }>>({});
+    const [matchTimes, setMatchTimes] = useState<Record<string, { minute: number; display: string; phase?: string; stoppageTime?: number }>>({});
 
     const loadApprovedPlayers = async (clubId?: string) => {
         if (!clubId) return;
@@ -1398,16 +1398,23 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                                     const label = f.status==='live' ? 'LIVE' : (f.status==='finished' ? 'FINISHED' : (showScheduled ? 'SCHEDULED' : ''));
                                                     const cls = f.status==='live' ? 'bg-red-500 text-white' : (f.status==='finished' ? 'bg-gray-800 text-white' : (showScheduled ? 'bg-gray-200' : ''));
                                                     
-                                                    // For live matches, show time below the LIVE badge
+                                                    // For live matches, show enhanced PES-style time display
                                                     if (f.status === 'live') {
                                                         const currentTime = matchTimes[f._id];
                                                         return (
                                                             <div className="flex flex-col items-center gap-1">
                                                                 <span className={`px-2 py-1 rounded text-xs ${cls}`}>{label}</span>
                                                                 {currentTime && (
-                                                                    <span className="text-xs font-semibold text-red-600">
-                                                                        {currentTime.display}
-                                                                    </span>
+                                                                    <div className="text-center">
+                                                                        <span className="text-xs font-semibold text-red-600">
+                                                                            {currentTime.display}
+                                                                        </span>
+                                                                        {currentTime.phase && (
+                                                                            <div className="text-xs text-gray-600 mt-1">
+                                                                                {currentTime.phase === 'extra_time' ? 'EXTRA TIME' : currentTime.phase.replace('_', ' ').toUpperCase()}
+                                                                            </div>
+                                                                        )}
+                                                                    </div>
                                                                 )}
                                                             </div>
                                                         );
@@ -1654,11 +1661,98 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                     </div>
                                         )}
                                         {f.status==='live' && (
-                                            <div className="mt-3 flex items-end gap-2 flex-wrap">
-                                                <div className="flex items-end gap-2">
-                                                    <label className="text-xs text-theme-text-secondary">Minute</label>
-                                                    <input type="number" min={0} max={120} value={eventInput.targetId===f._id?eventInput.minute:''} onChange={e=>setEventInput(prev=>({...prev, targetId:f._id, minute:e.target.value}))} placeholder="e.g. 34" className="w-24 bg-theme-page-bg border border-theme-border rounded px-2 py-1"/>
+                                            <div className="mt-3 space-y-4">
+                                                {/* PES-style Timing Controls */}
+                                                <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                                                    <h4 className="text-sm font-semibold text-blue-800 mb-2">⚡ PES-Style Match Timing</h4>
+                                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                                        <div className="flex items-center gap-2">
+                                                            <label className="text-xs text-blue-700">Time Speed:</label>
+                                                            <select 
+                                                                value={f.timeAcceleration || 1} 
+                                                                onChange={async (e) => {
+                                                                    const acceleration = parseInt(e.target.value);
+                                                                    try {
+                                                                        await setTimeAcceleration(f._id, acceleration);
+                                                                        toast.success(`Time speed set to ${acceleration}x`);
+                                                                        const list = await listFixtures(); 
+                                                                        setFixtures(list);
+                                                                    } catch (error) {
+                                                                        toast.error('Failed to set time speed');
+                                                                    }
+                                                                }}
+                                                                className="text-xs bg-white border border-blue-300 rounded px-2 py-1"
+                                                            >
+                                                                <option value={1}>1x (1 sec = 1 min)</option>
+                                                                <option value={2}>2x (2 sec = 1 min)</option>
+                                                                <option value={5}>5x (5 sec = 1 min)</option>
+                                                                <option value={10}>10x (10 sec = 1 min)</option>
+                                                                <option value={30}>30x (30 sec = 1 min)</option>
+                                                                <option value={60}>60x (1 min = 1 min)</option>
+                                                            </select>
+                                                        </div>
+                                                        <div className="flex items-center gap-2">
+                                                            <label className="text-xs text-blue-700">Phase:</label>
+                                                            <span className="text-xs font-semibold text-blue-800 bg-blue-100 px-2 py-1 rounded">
+                                                                {f.matchPhase === 'extra_time' ? 'EXTRA TIME' : f.matchPhase?.replace('_', ' ').toUpperCase() || 'FIRST HALF'}
+                                                            </span>
+                                                        </div>
+                                                    </div>
+                                                    <div className="mt-2 flex gap-2">
+                                                        <button
+                                                            onClick={async () => {
+                                                                try {
+                                                                    await setManualTime(f._id, 45, 'half_time');
+                                                                    toast.success('Set to half-time');
+                                                                    const list = await listFixtures(); 
+                                                                    setFixtures(list);
+                                                                } catch (error) {
+                                                                    toast.error('Failed to set half-time');
+                                                                }
+                                                            }}
+                                                            className="text-xs bg-yellow-500 text-white px-2 py-1 rounded hover:bg-yellow-600"
+                                                        >
+                                                            Set Half-Time
+                                                        </button>
+                                                        <button
+                                                            onClick={async () => {
+                                                                try {
+                                                                    await setManualTime(f._id, 90, 'extra_time');
+                                                                    toast.success('Set to extra time break');
+                                                                    const list = await listFixtures(); 
+                                                                    setFixtures(list);
+                                                                } catch (error) {
+                                                                    toast.error('Failed to set extra time');
+                                                                }
+                                                            }}
+                                                            className="text-xs bg-orange-500 text-white px-2 py-1 rounded hover:bg-orange-600"
+                                                        >
+                                                            Set Extra Time
+                                                        </button>
+                                                        <button
+                                                            onClick={async () => {
+                                                                try {
+                                                                    await setManualTime(f._id, 90, 'full_time');
+                                                                    toast.success('Set to full-time');
+                                                                    const list = await listFixtures(); 
+                                                                    setFixtures(list);
+                                                                } catch (error) {
+                                                                    toast.error('Failed to set full-time');
+                                                                }
+                                                            }}
+                                                            className="text-xs bg-red-500 text-white px-2 py-1 rounded hover:bg-red-600"
+                                                        >
+                                                            Set Full-Time
+                                                        </button>
+                                                    </div>
                                                 </div>
+                                                
+                                                {/* Event Input Section */}
+                                                <div className="flex items-end gap-2 flex-wrap">
+                                                    <div className="flex items-end gap-2">
+                                                        <label className="text-xs text-theme-text-secondary">Minute</label>
+                                                        <input type="number" min={0} max={120} value={eventInput.targetId===f._id?eventInput.minute:''} onChange={e=>setEventInput(prev=>({...prev, targetId:f._id, minute:e.target.value}))} placeholder="e.g. 34" className="w-24 bg-theme-page-bg border border-theme-border rounded px-2 py-1"/>
+                                                    </div>
                                                 <div className="flex items-end gap-2">
                                                     <label className="text-xs text-theme-text-secondary">Type</label>
                                                     <select value={eventInput.targetId===f._id?eventInput.type:'goal'} onChange={e=>setEventInput(prev=>({...prev, targetId:f._id, type:e.target.value as any}))} className="bg-theme-page-bg border border-theme-border rounded px-2 py-1">
@@ -1798,6 +1892,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                                         }); 
                                                     } catch { toast.error('Event failed'); }
                                                 }} className="bg-theme-primary text-theme-dark font-bold px-3 py-1 rounded">Add Event</button>
+                                                </div>
                                             </div>
                                         )}
                                     </div>
