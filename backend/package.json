@@ -5,7 +5,9 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
+    "start:auto": "node start-server.js",
     "dev": "nodemon server.js",
+    "dev:auto": "nodemon start-server.js",
     "build": "echo 'No build step required for Node.js backend'",
     "test": "jest"
   },
