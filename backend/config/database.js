@@ -2,6 +2,11 @@ const mongoose = require('mongoose');
 
 const connectDB = async () => {
   try {
+    if (!process.env.MONGODB_URI) {
+      console.warn('⚠️  MONGODB_URI not configured. Using default local MongoDB connection.');
+      process.env.MONGODB_URI = 'mongodb://localhost:27017/football-league-hub';
+    }
+
     const conn = await mongoose.connect(process.env.MONGODB_URI, {
       useNewUrlParser: true,
       useUnifiedTopology: true,
@@ -10,7 +15,8 @@ const connectDB = async () => {
     console.log(`MongoDB Connected: ${conn.connection.host}`);
   } catch (error) {
     console.error('Database connection error:', error.message);
-    process.exit(1);
+    console.warn('⚠️  MongoDB connection failed. Server will continue without database features.');
+    // Don't exit process to allow server to run without database
   }
 };
 

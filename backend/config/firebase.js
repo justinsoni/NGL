@@ -5,6 +5,17 @@ const initializeFirebase = () => {
   try {
     // Check if Firebase is already initialized
     if (admin.apps.length === 0) {
+      // Check if required Firebase environment variables are present
+      if (!process.env.FIREBASE_PROJECT_ID || !process.env.FIREBASE_PRIVATE_KEY) {
+        console.warn('⚠️  Firebase environment variables not configured. Firebase features will be disabled.');
+        console.warn('   To enable Firebase, set the following environment variables:');
+        console.warn('   - FIREBASE_PROJECT_ID');
+        console.warn('   - FIREBASE_PRIVATE_KEY');
+        console.warn('   - FIREBASE_CLIENT_EMAIL');
+        console.warn('   - And other Firebase config variables');
+        return;
+      }
+
       const serviceAccount = {
         type: "service_account",
         project_id: process.env.FIREBASE_PROJECT_ID,
@@ -27,7 +38,8 @@ const initializeFirebase = () => {
     }
   } catch (error) {
     console.error('Firebase initialization error:', error.message);
-    throw new Error('Failed to initialize Firebase Admin SDK');
+    console.warn('⚠️  Firebase initialization failed. Some features may not work properly.');
+    // Don't throw error to prevent server crash
   }
 };
 

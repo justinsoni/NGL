@@ -13,6 +13,8 @@ import MatchTicker from '../components/MatchTicker';
 import SectionHeader from '../components/SectionHeader';
 import { GROUPS } from '../constants';
 import { fetchNews } from '@/api/news/fetchNews';
+import { listFixtures, FixtureDTO } from '../services/fixturesService';
+import { getSocket } from '../services/socket';
 
 // Using local images from assets - using correct asset paths
 const image103 = new URL('../src/assets/images/103.jpg', import.meta.url).href;
@@ -141,7 +143,10 @@ const HomePage: React.FC<HomePageProps> = ({ matchesData, tableData, competition
   const activeLeaderStat = leaderStats.find(stat => stat.statUnit === activeStat);
 
   const [newsArticles, setNewsArticles] = useState<Array<{ _id: string; title: string; imageUrl: string, summary: string, content: string, createdAt: string }>>([]);
-  const [trendingNews, setTrendingNews] = useState<Array<{ _id: string; title: string; imageUrl: string, icon: string, createdAt: string }>>([]);
+  const [trendingNews, setTrendingNews] = useState<Array<{ _id: string; title: string; imageUrl: string, icon: string, content: string, createdAt: string }>>([]);
+  
+  // State for real fixtures from API
+  const [fixtures, setFixtures] = useState<FixtureDTO[]>([]);
     
     useEffect(() => {
       async function getNews() {
@@ -157,6 +162,7 @@ const HomePage: React.FC<HomePageProps> = ({ matchesData, tableData, competition
               title: item.title,
               imageUrl: item.imageUrl,
               icon: item.icon || '🔥',
+              content: item.content || '',
               createdAt: item.createdAt
             }));
           setTrendingNews(trending);
@@ -166,6 +172,41 @@ const HomePage: React.FC<HomePageProps> = ({ matchesData, tableData, competition
         }
       }
       getNews();
+    }, []);
+
+    // Fetch fixtures from API
+    useEffect(() => {
+      const loadFixtures = async () => {
+        try {
+          const fixturesData = await listFixtures();
+          setFixtures(fixturesData);
+        } catch (error) {
+          console.error('Failed to load fixtures:', error);
+          setFixtures([]);
+        }
+      };
+
+      loadFixtures();
+
+      // Listen for fixture updates via WebSocket
+      const socket = getSocket();
+      const refreshFixtures = () => loadFixtures();
+      
+      socket.on('match:started', refreshFixtures);
+      socket.on('match:event', refreshFixtures);
+      socket.on('match:finished', refreshFixtures);
+      socket.on('semi:created', refreshFixtures);
+      socket.on('final:created', refreshFixtures);
+      socket.on('final:finished', refreshFixtures);
+
+      return () => {
+        socket.off('match:started', refreshFixtures);
+        socket.off('match:event', refreshFixtures);
+        socket.off('match:finished', refreshFixtures);
+        socket.off('semi:created', refreshFixtures);
+        socket.off('final:created', refreshFixtures);
+        socket.off('final:finished', refreshFixtures);
+      };
     }, []);
 
 
@@ -218,7 +259,7 @@ const HomePage: React.FC<HomePageProps> = ({ matchesData, tableData, competition
   }, []);
 
   // Load match reports from MongoDB
-  const [matchReports, setMatchReports] = useState<Array<{ id: string; title: string; imageUrl: string; createdAt: string }>>([]);
+  const [matchReports, setMatchReports] = useState<Array<{ id: string; title: string; imageUrl: string; content: string; createdAt: string }>>([]);
   useEffect(() => {
     async function loadMatchReports() {
       try {
@@ -229,6 +270,7 @@ const HomePage: React.FC<HomePageProps> = ({ matchesData, tableData, competition
             id: item._id,
             title: item.title,
             imageUrl: item.imageUrl,
+            content: item.content || '',
             createdAt: item.createdAt
           }));
         setMatchReports(reports);
@@ -247,7 +289,7 @@ const HomePage: React.FC<HomePageProps> = ({ matchesData, tableData, competition
           <>
             <div className="flex overflow-x-auto space-x-6 pb-4 -mx-4 px-4 scrollbar-hide">
                 {trendingNews.map(item => (
-                    <Link to="/media" key={item._id} className="group flex-shrink-0 w-52">
+                    <Link to={`/news/${item._id}`} key={item._id} className="group flex-shrink-0 w-52">
                         <div className="relative rounded-lg overflow-hidden h-72 shadow-lg">
                             <img src={item.imageUrl} alt={item.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
                             <div className="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent"></div>
@@ -525,7 +567,82 @@ const HomePage: React.FC<HomePageProps> = ({ matchesData, tableData, competition
   return (
     <div>
       <HeroSection />
-      <MatchTicker matches={matchesData} />
+      <MatchTicker matches={fixtures} />
+
+      {/* Upcoming Fixtures Section */}
+      {fixtures.length > 0 && (
+        <section className="py-12 bg-theme-page-bg">
+          <div className="container mx-auto px-4">
+            <h2 className="text-3xl font-extrabold text-theme-dark mb-8 text-center">Upcoming Fixtures</h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {fixtures
+                .filter(fixture => fixture.status === 'scheduled')
+                .slice(0, 6)
+                .map(fixture => {
+                  const homeTeam = typeof fixture.homeTeam === 'string' ? { name: 'Home Team' } : fixture.homeTeam;
+                  const awayTeam = typeof fixture.awayTeam === 'string' ? { name: 'Away Team' } : fixture.awayTeam;
+                  
+                  return (
+                    <div key={fixture._id} className="bg-white rounded-lg shadow-lg p-6 hover:shadow-xl transition-shadow">
+                      <div className="flex items-center justify-between mb-4">
+                        <span className="text-sm font-semibold text-theme-text-secondary">
+                          {fixture.stage === 'final' ? 'FINAL' : 
+                           fixture.stage === 'semi' ? 'SEMIFINAL' : 'LEAGUE'}
+                        </span>
+                        <span className="text-sm text-theme-text-secondary">
+                          {fixture.kickoffAt ? new Date(fixture.kickoffAt).toLocaleDateString() : 'TBD'}
+                        </span>
+                      </div>
+                      
+                      <div className="flex items-center justify-between mb-4">
+                        <div className="flex items-center gap-3">
+                          {homeTeam?.logo && (
+                            <img src={homeTeam.logo} alt={homeTeam.name} className="w-8 h-8" onError={(e) => { e.currentTarget.style.display = 'none'; }} />
+                          )}
+                          <span className="font-semibold text-theme-dark">{homeTeam?.name || 'Home'}</span>
+                        </div>
+                        <span className="text-2xl font-bold text-theme-primary">vs</span>
+                        <div className="flex items-center gap-3">
+                          <span className="font-semibold text-theme-dark">{awayTeam?.name || 'Away'}</span>
+                          {awayTeam?.logo && (
+                            <img src={awayTeam.logo} alt={awayTeam.name} className="w-8 h-8" onError={(e) => { e.currentTarget.style.display = 'none'; }} />
+                          )}
+                        </div>
+                      </div>
+                      
+                      <div className="text-center">
+                        <span className="text-sm text-theme-text-secondary">
+                          {fixture.venueName || 'Venue TBD'}
+                        </span>
+                        {fixture.kickoffAt && (
+                          <div className="mt-2">
+                            <span className="bg-theme-primary text-white px-3 py-1 rounded-full text-sm font-semibold">
+                              {new Date(fixture.kickoffAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+            </div>
+            
+            {fixtures.filter(fixture => fixture.status === 'scheduled').length === 0 && (
+              <div className="text-center py-12">
+                <div className="text-6xl mb-4">⚽</div>
+                <h3 className="text-xl font-semibold text-theme-dark mb-2">No Upcoming Fixtures</h3>
+                <p className="text-theme-text-secondary">Fixtures will appear here once the admin generates them.</p>
+              </div>
+            )}
+            
+            <div className="flex justify-center mt-8">
+              <Link to="/matches" className="bg-theme-primary text-theme-dark font-bold px-6 py-3 rounded-lg hover:bg-theme-primary-dark transition-colors">
+                View All Fixtures
+              </Link>
+            </div>
+          </div>
+        </section>
+      )}
 
       <main className="container mx-auto px-4 py-12">
         <section className="mb-10">
@@ -579,7 +696,7 @@ const HomePage: React.FC<HomePageProps> = ({ matchesData, tableData, competition
             <h2 className="text-3xl font-extrabold text-theme-dark mb-6">Match Reports</h2>
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-6">
               {matchReports.slice(0, 10).map((mr) => (
-                <Link to="/matches" key={mr.id} className="group">
+                <Link to={`/news/${mr.id}`} key={mr.id} className="group">
                   <div className="relative h-56 rounded-lg overflow-hidden bg-black/30">
                     {mr.imageUrl && <img src={mr.imageUrl} alt={mr.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300 opacity-95" onError={(e) => { e.currentTarget.style.display = 'none'; }} />}
                     <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent"></div>

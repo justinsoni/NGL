@@ -71,6 +71,17 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
         fieldSide: 'mid',
         onTarget: false
     });
+
+    // Event form validation errors state
+    const [eventValidationErrors, setEventValidationErrors] = useState<{
+        minute?: string;
+        type?: string;
+        team?: string;
+        player?: string;
+        assist?: string;
+        goalType?: string;
+        fieldSide?: string;
+    }>({});
     const [scheduledOnce, setScheduledOnce] = useState<Record<string, boolean>>({});
     const [approvedPlayersByClub, setApprovedPlayersByClub] = useState<Record<string, { _id: string; name: string }[]>>({});
     const [stadiumsByClub, setStadiumsByClub] = useState<Record<string, { stadium: string; city: string; fullStadiumName: string }>>({});
@@ -232,6 +243,74 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
         return { ok: true };
     };
 
+    // Event form validation function
+    const validateEventForm = (eventData: typeof eventInput): { isValid: boolean; errors: typeof eventValidationErrors } => {
+        const errors: typeof eventValidationErrors = {};
+
+        // Minute validation
+        const minuteNum = parseInt(eventData.minute, 10);
+        if (!eventData.minute.trim()) {
+            errors.minute = 'Please enter a valid minute.';
+        } else if (isNaN(minuteNum) || minuteNum <= 0 || minuteNum > 120) {
+            errors.minute = 'Please enter a valid minute (1-120).';
+        }
+
+        // Type validation
+        if (!eventData.type || eventData.type.trim() === '') {
+            errors.type = 'Please select an event type.';
+        }
+
+        // Team validation
+        if (!eventData.team || (eventData.team !== 'home' && eventData.team !== 'away')) {
+            errors.team = 'Please select a team (Home or Away).';
+        }
+
+        // Player validation
+        if (!eventData.player || eventData.player.trim() === '' || eventData.player === 'Select Player') {
+            errors.player = 'Please select a player.';
+        }
+
+        // Assist validation (required only for Goal events)
+        if (eventData.type === 'goal') {
+            if (!eventData.assist || eventData.assist.trim() === '') {
+                errors.assist = 'Please select an assist option.';
+            }
+        }
+
+        // Goal Type validation (required when Type = "Goal")
+        if (eventData.type === 'goal') {
+            if (!eventData.goalType || eventData.goalType.trim() === '') {
+                errors.goalType = 'Please select a goal type.';
+            }
+        }
+
+        // Field Side validation (required only for Goal events)
+        if (eventData.type === 'goal') {
+            if (!eventData.fieldSide || eventData.fieldSide.trim() === '') {
+                errors.fieldSide = 'Please select a field side.';
+            }
+        }
+
+        return {
+            isValid: Object.keys(errors).length === 0,
+            errors
+        };
+    };
+
+    // Helper function to clear validation errors for a specific field
+    const clearValidationError = (field: keyof typeof eventValidationErrors) => {
+        setEventValidationErrors(prev => {
+            const newErrors = { ...prev };
+            delete newErrors[field];
+            return newErrors;
+        });
+    };
+
+    // Helper function to clear all validation errors
+    const clearAllValidationErrors = () => {
+        setEventValidationErrors({});
+    };
+
     // Scheduling conflict helpers
     const MATCH_DURATION_MS = 2 * 60 * 60 * 1000; // 2 hours window per match
     const SLOT_STEP_MS = 15 * 60 * 1000; // 15 minutes step for auto-reschedule
@@ -273,15 +352,15 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
     };
 
     // Match Reports management state
-    type MatchReportItem = { id: string; title: string; imageUrl: string; createdAt: string };
-    const [matchReportForm, setMatchReportForm] = useState<{ title: string; imageUrl: string }>({ title: '', imageUrl: '' });
+    type MatchReportItem = { id: string; title: string; imageUrl: string; content: string; createdAt: string };
+    const [matchReportForm, setMatchReportForm] = useState<{ title: string; imageUrl: string; content: string }>({ title: '', imageUrl: '', content: '' });
     const [matchReports, setMatchReports] = useState<MatchReportItem[]>([]);
     const [matchReportImageFile, setMatchReportImageFile] = useState<File | null>(null);
     const [matchReportImagePreview, setMatchReportImagePreview] = useState<string>('');
 
     // Trending News management state
-    type TrendingNewsItem = { id: string; title: string; imageUrl: string; icon: string; createdAt: string };
-    const [trendingNewsForm, setTrendingNewsForm] = useState<{ title: string; imageUrl: string; icon: string }>({ title: '', imageUrl: '', icon: '🔥' });
+    type TrendingNewsItem = { id: string; title: string; imageUrl: string; icon: string; content: string; createdAt: string };
+    const [trendingNewsForm, setTrendingNewsForm] = useState<{ title: string; imageUrl: string; icon: string; content: string }>({ title: '', imageUrl: '', icon: '🔥', content: '' });
     const [trendingNews, setTrendingNews] = useState<TrendingNewsItem[]>([]);
     const [trendingNewsImageFile, setTrendingNewsImageFile] = useState<File | null>(null);
     const [trendingNewsImagePreview, setTrendingNewsImagePreview] = useState<string>('');
@@ -584,6 +663,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                         id: item._id,
                         title: item.title,
                         imageUrl: item.imageUrl,
+                        content: item.content || '',
                         createdAt: item.createdAt
                     }));
                 setMatchReports(reports);
@@ -607,6 +687,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                         title: item.title,
                         imageUrl: item.imageUrl,
                         icon: item.icon || '🔥',
+                        content: item.content || '',
                         createdAt: item.createdAt
                     }));
                 setTrendingNews(trending);
@@ -646,14 +727,14 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 imageUrl,
                 category: 'Match Reports',
                 type: 'match-report',
-                content: title,
+                content: matchReportForm.content || title,
                 summary: title,
                 createdAt: new Date().toISOString()
             };
             
             const created = await createNews(matchReportData, idToken);
-            setMatchReports(prev => [{ id: created._id, title: created.title, imageUrl: created.imageUrl, createdAt: created.createdAt }, ...prev]);
-            setMatchReportForm({ title: '', imageUrl: '' });
+            setMatchReports(prev => [{ id: created._id, title: created.title, imageUrl: created.imageUrl, content: created.content || '', createdAt: created.createdAt }, ...prev]);
+            setMatchReportForm({ title: '', imageUrl: '', content: '' });
             setMatchReportImageFile(null);
             setMatchReportImagePreview('');
             toast.success('Match report published to homepage');
@@ -713,13 +794,13 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 icon,
                 category: 'Trending',
                 type: 'trending',
-                content: title,
+                content: trendingNewsForm.content || title,
                 summary: title
             };
             
             const created = await createNews(trendingData, idToken);
-            setTrendingNews(prev => [{ id: created._id, title: created.title, imageUrl: created.imageUrl, icon: created.icon, createdAt: created.createdAt }, ...prev]);
-            setTrendingNewsForm({ title: '', imageUrl: '', icon: '🔥' });
+            setTrendingNews(prev => [{ id: created._id, title: created.title, imageUrl: created.imageUrl, icon: created.icon, content: created.content || '', createdAt: created.createdAt }, ...prev]);
+            setTrendingNewsForm({ title: '', imageUrl: '', icon: '🔥', content: '' });
             setTrendingNewsImageFile(null);
             setTrendingNewsImagePreview('');
             toast.success('Trending news published to homepage');
@@ -1753,38 +1834,89 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                                 
                                                 {/* Event Input Section */}
                                                 <div className="flex items-end gap-2 flex-wrap">
-                                                    <div className="flex items-end gap-2">
-                                                        <label className="text-xs text-theme-text-secondary">Minute</label>
-                                                        <input type="number" min={0} max={120} value={eventInput.targetId===f._id?eventInput.minute:''} onChange={e=>setEventInput(prev=>({...prev, targetId:f._id, minute:e.target.value}))} placeholder="e.g. 34" className="w-24 bg-theme-page-bg border border-theme-border rounded px-2 py-1"/>
+                                                <div className="flex items-end gap-2">
+                                                    <label className="text-xs text-theme-text-secondary">Minute</label>
+                                                    <div className="flex flex-col">
+                                                        <input 
+                                                            type="number" 
+                                                            min={0} 
+                                                            max={120} 
+                                                            value={eventInput.targetId===f._id?eventInput.minute:''} 
+                                                            onChange={e=>{
+                                                                setEventInput(prev=>({...prev, targetId:f._id, minute:e.target.value}));
+                                                                clearValidationError('minute');
+                                                            }} 
+                                                            placeholder="e.g. 34" 
+                                                            className={`w-24 bg-theme-page-bg border rounded px-2 py-1 ${
+                                                                eventValidationErrors.minute ? 'border-red-500 focus:border-red-500' : 'border-theme-border focus:border-theme-primary'
+                                                            }`}
+                                                        />
+                                                        {eventValidationErrors.minute && (
+                                                            <span className="text-xs text-red-600 mt-1">{eventValidationErrors.minute}</span>
+                                                        )}
                                                     </div>
+                                                </div>
                                                 <div className="flex items-end gap-2">
                                                     <label className="text-xs text-theme-text-secondary">Type</label>
-                                                    <select value={eventInput.targetId===f._id?eventInput.type:'goal'} onChange={e=>setEventInput(prev=>({...prev, targetId:f._id, type:e.target.value as any}))} className="bg-theme-page-bg border border-theme-border rounded px-2 py-1">
-                                                        <option value="goal">Goal</option>
-                                                        <option value="yellow_card">Yellow Card</option>
-                                                        <option value="red_card">Red Card</option>
-                                                        <option value="foul">Foul</option>
-                                                        <option value="corner">Corner</option>
-                                                        <option value="shot">Shot</option>
-                                                    </select>
+                                                    <div className="flex flex-col">
+                                                        <select 
+                                                            value={eventInput.targetId===f._id?eventInput.type:'goal'} 
+                                                            onChange={e=>{
+                                                                const newType = e.target.value as any;
+                                                                setEventInput(prev=>{
+                                                                    const updated = {...prev, targetId:f._id, type: newType};
+                                                                    // Clear assist and fieldSide for all non-goal events
+                                                                    if (newType !== 'goal') {
+                                                                        updated.assist = '';
+                                                                        updated.fieldSide = 'mid';
+                                                                    }
+                                                                    return updated;
+                                                                });
+                                                                clearValidationError('type');
+                                                                clearValidationError('assist');
+                                                                clearValidationError('fieldSide');
+                                                            }} 
+                                                            className={`bg-theme-page-bg border rounded px-2 py-1 ${
+                                                                eventValidationErrors.type ? 'border-red-500 focus:border-red-500' : 'border-theme-border focus:border-theme-primary'
+                                                            }`}
+                                                        >
+                                                            <option value="goal">Goal</option>
+                                                            <option value="yellow_card">Yellow Card</option>
+                                                            <option value="red_card">Red Card</option>
+                                                            <option value="foul">Foul</option>
+                                                            <option value="corner">Corner</option>
+                                                            <option value="shot">Shot</option>
+                                                        </select>
+                                                        {eventValidationErrors.type && (
+                                                            <span className="text-xs text-red-600 mt-1">{eventValidationErrors.type}</span>
+                                                        )}
+                                                    </div>
                                                 </div>
                                                 <div className="flex items-end gap-2">
                                                     <label className="text-xs text-theme-text-secondary">Team</label>
-                                                    <select
-                                                        value={eventInput.targetId===f._id?eventInput.team:'home'}
-                                                        onChange={async e=>{
-                                                            const team = e.target.value as 'home'|'away';
-                                                            const clubId = team === 'home'
-                                                                ? (typeof f.homeTeam==='string'? f.homeTeam : f.homeTeam?._id)
-                                                                : (typeof f.awayTeam==='string'? f.awayTeam : f.awayTeam?._id);
-                                                            setEventInput(prev=>({ ...prev, targetId: f._id, team, player: '' }));
-                                                            await loadApprovedPlayers(clubId);
-                                                        }}
-                                                        className="bg-theme-page-bg border border-theme-border rounded px-2 py-1"
-                                                    >
-                                                        <option value="home">Home</option>
-                                                        <option value="away">Away</option>
-                                                    </select>
+                                                    <div className="flex flex-col">
+                                                        <select
+                                                            value={eventInput.targetId===f._id?eventInput.team:'home'}
+                                                            onChange={async e=>{
+                                                                const team = e.target.value as 'home'|'away';
+                                                                const clubId = team === 'home'
+                                                                    ? (typeof f.homeTeam==='string'? f.homeTeam : f.homeTeam?._id)
+                                                                    : (typeof f.awayTeam==='string'? f.awayTeam : f.awayTeam?._id);
+                                                                setEventInput(prev=>({ ...prev, targetId: f._id, team, player: '' }));
+                                                                clearValidationError('team');
+                                                                await loadApprovedPlayers(clubId);
+                                                            }}
+                                                            className={`bg-theme-page-bg border rounded px-2 py-1 ${
+                                                                eventValidationErrors.team ? 'border-red-500 focus:border-red-500' : 'border-theme-border focus:border-theme-primary'
+                                                            }`}
+                                                        >
+                                                            <option value="home">Home</option>
+                                                            <option value="away">Away</option>
+                                                        </select>
+                                                        {eventValidationErrors.team && (
+                                                            <span className="text-xs text-red-600 mt-1">{eventValidationErrors.team}</span>
+                                                        )}
+                                                    </div>
                                                 </div>
                                                 <div className="flex items-end gap-2">
                                                     <label className="text-xs text-theme-text-secondary">Player</label>
@@ -1795,74 +1927,118 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                                             : (typeof f.awayTeam==='string'? f.awayTeam : f.awayTeam?._id);
                                                         const options = (clubId && approvedPlayersByClub[clubId]) || [];
                                                         return (
-                                                            <select
-                                                                value={eventInput.targetId===f._id?eventInput.player:''}
-                                                                onFocus={async ()=>{ await loadApprovedPlayers(clubId); }}
-                                                                onChange={e=>setEventInput(prev=>({...prev, targetId:f._id, player: e.target.value }))}
-                                                                className="bg-theme-page-bg border border-theme-border rounded px-2 py-1 min-w-[200px]"
-                                                            >
-                                                                <option value="">Select Player</option>
-                                                                {options.map(p => (
-                                                                    <option key={p._id} value={p.name}>{p.name}</option>
-                                                                ))}
-                                                            </select>
+                                                            <div className="flex flex-col">
+                                                                <select
+                                                                    value={eventInput.targetId===f._id?eventInput.player:''}
+                                                                    onFocus={async ()=>{ await loadApprovedPlayers(clubId); }}
+                                                                    onChange={e=>{
+                                                                        setEventInput(prev=>({...prev, targetId:f._id, player: e.target.value }));
+                                                                        clearValidationError('player');
+                                                                    }}
+                                                                    className={`bg-theme-page-bg border rounded px-2 py-1 min-w-[200px] ${
+                                                                        eventValidationErrors.player ? 'border-red-500 focus:border-red-500' : 'border-theme-border focus:border-theme-primary'
+                                                                    }`}
+                                                                >
+                                                                    <option value="">Select Player</option>
+                                                                    {options.map(p => (
+                                                                        <option key={p._id} value={p.name}>{p.name}</option>
+                                                                    ))}
+                                                                </select>
+                                                                {eventValidationErrors.player && (
+                                                                    <span className="text-xs text-red-600 mt-1">{eventValidationErrors.player}</span>
+                                                                )}
+                                                            </div>
                                                         );
                                                     })()}
                                                 </div>
                                                 
-                                                {/* Additional fields for goals only */}
+                                                {/* Assist field for Goal events only */}
                                                 {eventInput.targetId===f._id && eventInput.type === 'goal' && (
-                                                    <>
-                                                        <div className="flex items-end gap-2">
-                                                            <label className="text-xs text-theme-text-secondary">Assist</label>
-                                                            {(() => {
-                                                                const team = (eventInput.targetId===f._id?eventInput.team:'home') as 'home'|'away';
-                                                                const clubId = team === 'home'
-                                                                    ? (typeof f.homeTeam==='string'? f.homeTeam : f.homeTeam?._id)
-                                                                    : (typeof f.awayTeam==='string'? f.awayTeam : f.awayTeam?._id);
-                                                                const options = (clubId && approvedPlayersByClub[clubId]) || [];
-                                                                return (
+                                                    <div className="flex items-end gap-2">
+                                                        <label className="text-xs text-theme-text-secondary">Assist</label>
+                                                        {(() => {
+                                                            const team = (eventInput.targetId===f._id?eventInput.team:'home') as 'home'|'away';
+                                                            const clubId = team === 'home'
+                                                                ? (typeof f.homeTeam==='string'? f.homeTeam : f.homeTeam?._id)
+                                                                : (typeof f.awayTeam==='string'? f.awayTeam : f.awayTeam?._id);
+                                                            const options = (clubId && approvedPlayersByClub[clubId]) || [];
+                                                            return (
+                                                                <div className="flex flex-col">
                                                                     <select
                                                                         value={eventInput.targetId===f._id?eventInput.assist:''}
                                                                         onFocus={async ()=>{ await loadApprovedPlayers(clubId); }}
-                                                                        onChange={e=>setEventInput(prev=>({...prev, targetId:f._id, assist: e.target.value }))}
-                                                                        className="bg-theme-page-bg border border-theme-border rounded px-2 py-1 min-w-[200px]"
+                                                                        onChange={e=>{
+                                                                            setEventInput(prev=>({...prev, targetId:f._id, assist: e.target.value }));
+                                                                            clearValidationError('assist');
+                                                                        }}
+                                                                        className={`bg-theme-page-bg border rounded px-2 py-1 min-w-[200px] ${
+                                                                            eventValidationErrors.assist ? 'border-red-500 focus:border-red-500' : 'border-theme-border focus:border-theme-primary'
+                                                                        }`}
                                                                     >
-                                                                        <option value="">No Assist</option>
+                                                                        <option value="No Assist">No Assist</option>
                                                                         {options.map(p => (
                                                                             <option key={p._id} value={p.name}>{p.name}</option>
                                                                         ))}
                                                                     </select>
-                                                                );
-                                                            })()}
-                                                        </div>
-                                                        
-                                                        <div className="flex items-end gap-2">
-                                                            <label className="text-xs text-theme-text-secondary">Goal Type</label>
+                                                                    {eventValidationErrors.assist && (
+                                                                        <span className="text-xs text-red-600 mt-1">{eventValidationErrors.assist}</span>
+                                                                    )}
+                                                                </div>
+                                                            );
+                                                        })()}
+                                                    </div>
+                                                )}
+
+                                                {/* Goal Type field for goals only */}
+                                                {eventInput.targetId===f._id && eventInput.type === 'goal' && (
+                                                    <div className="flex items-end gap-2">
+                                                        <label className="text-xs text-theme-text-secondary">Goal Type</label>
+                                                        <div className="flex flex-col">
                                                             <select
                                                                 value={eventInput.targetId===f._id?eventInput.goalType:'open_play'}
-                                                                onChange={e=>setEventInput(prev=>({...prev, targetId:f._id, goalType: e.target.value as any}))}
-                                                                className="bg-theme-page-bg border border-theme-border rounded px-2 py-1"
+                                                                onChange={e=>{
+                                                                    setEventInput(prev=>({...prev, targetId:f._id, goalType: e.target.value as any}));
+                                                                    clearValidationError('goalType');
+                                                                }}
+                                                                className={`bg-theme-page-bg border rounded px-2 py-1 ${
+                                                                    eventValidationErrors.goalType ? 'border-red-500 focus:border-red-500' : 'border-theme-border focus:border-theme-primary'
+                                                                }`}
                                                             >
                                                                 <option value="open_play">Open Play</option>
                                                                 <option value="penalty">Penalty</option>
                                                                 <option value="free_kick">Free Kick</option>
                                                             </select>
+                                                            {eventValidationErrors.goalType && (
+                                                                <span className="text-xs text-red-600 mt-1">{eventValidationErrors.goalType}</span>
+                                                            )}
                                                         </div>
-                                                        
-                                                        <div className="flex items-end gap-2">
-                                                            <label className="text-xs text-theme-text-secondary">Field Side</label>
+                                                    </div>
+                                                )}
+
+                                                {/* Field Side field for Goal events only */}
+                                                {eventInput.targetId===f._id && eventInput.type === 'goal' && (
+                                                    <div className="flex items-end gap-2">
+                                                        <label className="text-xs text-theme-text-secondary">Field Side</label>
+                                                        <div className="flex flex-col">
                                                             <select
                                                                 value={eventInput.targetId===f._id?eventInput.fieldSide:'mid'}
-                                                                onChange={e=>setEventInput(prev=>({...prev, targetId:f._id, fieldSide: e.target.value as any}))}
-                                                                className="bg-theme-page-bg border border-theme-border rounded px-2 py-1"
+                                                                onChange={e=>{
+                                                                    setEventInput(prev=>({...prev, targetId:f._id, fieldSide: e.target.value as any}));
+                                                                    clearValidationError('fieldSide');
+                                                                }}
+                                                                className={`bg-theme-page-bg border rounded px-2 py-1 ${
+                                                                    eventValidationErrors.fieldSide ? 'border-red-500 focus:border-red-500' : 'border-theme-border focus:border-theme-primary'
+                                                                }`}
                                                             >
                                                                 <option value="mid">Mid</option>
                                                                 <option value="rw">Right Wing (RW)</option>
                                                                 <option value="lw">Left Wing (LW)</option>
                                                             </select>
+                                                            {eventValidationErrors.fieldSide && (
+                                                                <span className="text-xs text-red-600 mt-1">{eventValidationErrors.fieldSide}</span>
+                                                            )}
                                                         </div>
-                                                    </>
+                                                    </div>
                                                 )}
 
                                                 {/* Fields for shots */}
@@ -1904,21 +2080,36 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                                 
                                                 <button onClick={async()=>{
                                                     if (eventInput.targetId!==f._id) return;
-                                                    const minuteNum = parseInt(eventInput.minute, 10);
-                                                    if (isNaN(minuteNum)) { toast.error('Minute required'); return; }
+                                                    
+                                                    // Validate the form before proceeding
+                                                    const validation = validateEventForm(eventInput);
+                                                    if (!validation.isValid) {
+                                                        setEventValidationErrors(validation.errors);
+                                                        toast.error('Please fix the validation errors before adding the event.');
+                                                        return;
+                                                    }
+                                                    
+                                                    // Clear any existing validation errors
+                                                    clearAllValidationErrors();
+                                                    
                                                     try { 
+                                                        const minuteNum = parseInt(eventInput.minute, 10);
                                                         const eventData: any = { 
                                                             minute: minuteNum, 
                                                             type: eventInput.type, 
                                                             team: eventInput.team, 
-                                                            player: eventInput.player 
+                                                            player: eventInput.player
                                                         };
+                                                        
+                                                        // Add assist and fieldSide only for Goal events
+                                                        if (eventInput.type === 'goal') {
+                                                            eventData.assist = eventInput.assist || 'No Assist';
+                                                            eventData.fieldSide = eventInput.fieldSide;
+                                                        }
                                                         
                                                         // Add goal-specific fields only if it's a goal
                                                         if (eventInput.type === 'goal') {
-                                                            if (eventInput.assist) eventData.assist = eventInput.assist;
                                                             if (eventInput.goalType) eventData.goalType = eventInput.goalType;
-                                                            if (eventInput.fieldSide) eventData.fieldSide = eventInput.fieldSide;
                                                         }
                                                         // Add shot-specific fields
                                                         if (eventInput.type === 'shot') {
@@ -1926,19 +2117,19 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                                         }
                                                         
                                                         await addEvent(f._id, eventData); 
-                                                        toast.success('Event added'); 
+                                                        toast.success('Event added successfully!'); 
                                                         setEventInput({ 
                                                             minute:'', 
                                                             type:'goal', 
                                                             team:'home', 
                                                             player:'', 
-                                                            assist: '',
+                                                            assist: 'No Assist',
                                                             goalType: 'open_play',
                                                             fieldSide: 'mid',
                                                             onTarget: false,
                                                             targetId:undefined 
                                                         }); 
-                                                    } catch { toast.error('Event failed'); }
+                                                    } catch { toast.error('Failed to add event'); }
                                                 }} className="bg-theme-primary text-theme-dark font-bold px-3 py-1 rounded">Add Event</button>
                                                 </div>
                                             </div>
@@ -2396,34 +2587,49 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
                         <div className="max-w-4xl mx-auto bg-theme-secondary-bg p-6 rounded-xl shadow-lg mb-6">
                             <h3 className="text-xl font-semibold mb-4 text-theme-dark border-b-2 border-theme-primary pb-2">Add Match Report</h3>
-                            <div className="grid grid-cols-1 md:grid-cols-5 gap-3 items-end">
-                                <div className="md:col-span-3">
-                                    <label className="block text-sm font-medium text-theme-text-secondary mb-1">Title *</label>
-                                    <input
-                                        type="text"
-                                        value={matchReportForm.title}
-                                        onChange={e=>setMatchReportForm(prev=>({ ...prev, title: e.target.value }))}
-                                        placeholder="e.g., Late header seals comeback win"
-                                        className="w-full bg-theme-page-bg border border-theme-border rounded-md shadow-sm py-2 px-3 text-theme-dark focus:outline-none focus:ring-theme-primary focus:border-theme-primary"
-                                    />
+                            
+                            <div className="space-y-4">
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div>
+                                        <label className="block text-sm font-medium text-theme-text-secondary mb-1">Title *</label>
+                                        <input
+                                            type="text"
+                                            value={matchReportForm.title}
+                                            onChange={e=>setMatchReportForm(prev=>({ ...prev, title: e.target.value }))}
+                                            placeholder="e.g., Late header seals comeback win"
+                                            className="w-full bg-theme-page-bg border border-theme-border rounded-md shadow-sm py-2 px-3 text-theme-dark focus:outline-none focus:ring-theme-primary focus:border-theme-primary"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm font-medium text-theme-text-secondary mb-1">Image *</label>
+                                        <input
+                                            type="file"
+                                            accept="image/jpeg,image/jpg,image/png,image/webp"
+                                            onChange={(e)=>{
+                                                const f = e.target.files?.[0] || null;
+                                                setMatchReportImageFile(f);
+                                                if (f && f.type.startsWith('image/')) setMatchReportImagePreview(URL.createObjectURL(f)); else setMatchReportImagePreview('');
+                                            }}
+                                            className="w-full"
+                                        />
+                                        {matchReportImagePreview && (
+                                            <img src={matchReportImagePreview} alt="Preview" className="mt-2 h-20 w-full object-cover rounded"/>
+                                        )}
+                                    </div>
                                 </div>
-                                <div className="md:col-span-2">
-                                    <label className="block text-sm font-medium text-theme-text-secondary mb-1">Image *</label>
-                                    <input
-                                        type="file"
-                                        accept="image/jpeg,image/jpg,image/png,image/webp"
-                                        onChange={(e)=>{
-                                            const f = e.target.files?.[0] || null;
-                                            setMatchReportImageFile(f);
-                                            if (f && f.type.startsWith('image/')) setMatchReportImagePreview(URL.createObjectURL(f)); else setMatchReportImagePreview('');
-                                        }}
-                                        className="w-full"
+                                
+                                <div>
+                                    <label className="block text-sm font-medium text-theme-text-secondary mb-1">Full Article Content</label>
+                                    <textarea
+                                        value={matchReportForm.content}
+                                        onChange={e=>setMatchReportForm(prev=>({ ...prev, content: e.target.value }))}
+                                        rows={8}
+                                        className="w-full bg-theme-page-bg border border-theme-border rounded-md shadow-sm py-3 px-4 text-theme-dark focus:outline-none focus:ring-theme-primary focus:border-theme-primary resize-none"
+                                        placeholder="Write the full article content here..."
                                     />
-                                    {matchReportImagePreview && (
-                                        <img src={matchReportImagePreview} alt="Preview" className="mt-2 h-20 w-full object-cover rounded"/>
-                                    )}
                                 </div>
                             </div>
+                            
                             <div className="mt-4 flex items-center justify-end">
                                 <button onClick={addMatchReport} className="bg-theme-primary text-theme-dark font-bold py-2 px-5 rounded-md">Publish</button>
                             </div>
@@ -2537,6 +2743,18 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                                 <img src={editingTrendingNews.imageUrl} alt="Current" className="h-32 w-full object-cover rounded"/>
                                             </div>
                                         )}
+                                    </div>
+                                    
+                                    <div>
+                                        <label htmlFor="trendingContent" className="block text-sm font-medium text-theme-text-secondary mb-1">Full Article Content</label>
+                                        <textarea
+                                            id="trendingContent"
+                                            value={trendingNewsForm.content}
+                                            onChange={e => setTrendingNewsForm(prev => ({ ...prev, content: e.target.value }))}
+                                            rows={6}
+                                            className="w-full bg-theme-page-bg border border-theme-border rounded-md shadow-sm py-3 px-4 text-theme-dark focus:outline-none focus:ring-theme-primary focus:border-theme-primary resize-none"
+                                            placeholder="Write the full article content here..."
+                                        />
                                     </div>
                                     
                                     <div className="flex gap-3">
