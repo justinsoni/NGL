@@ -440,11 +440,16 @@ const LoginPage: React.FC = () => {
             
             if (user) {
                 // Navigate based on user role
+                console.log('Google auth user:', user);
+                console.log('User role:', user.role);
+                
                 if (user.role) {
                     const navigationPath = getNavigationPath(user.role);
+                    console.log('Navigation path:', navigationPath);
                     navigate(navigationPath);
                 } else {
                     // Fallback navigation for users without role
+                    console.log('No role found, navigating to home');
                     navigate('/');
                 }
             }

@@ -238,6 +238,9 @@ class AuthService {
   // Register with Google (for new users)
   async registerWithGoogle(): Promise<AuthUser> {
     try {
+      // Clear any cached authentication state
+      await signOut(auth);
+      
       // First, we need to get the email before authentication
       // We'll use a temporary approach to check if user exists
       const provider = new GoogleAuthProvider();
@@ -250,6 +253,7 @@ class AuthService {
 
       // Check if user already exists in our database
       const userExists = await this.checkUserExists(firebaseUser.email!);
+      console.log('Checking if user exists during Google registration:', firebaseUser.email, 'exists:', userExists);
       
       if (userExists) {
         // User exists, sign out from Firebase and throw error
@@ -266,7 +270,9 @@ class AuthService {
         authMethod: 'google'
       };
 
+      console.log('Creating new Google user with role:', registerData.role);
       const apiUser = await apiService.registerUser(registerData);
+      console.log('New Google user created:', apiUser);
       const authUser: AuthUser = { ...apiUser, firebaseUser };
       this.currentUser = authUser;
       
@@ -287,13 +293,21 @@ class AuthService {
   // Login with Google (for existing users)
   async loginWithGoogle(): Promise<AuthUser> {
     try {
+      // Clear any cached authentication state
+      await signOut(auth);
+      
       const provider = new GoogleAuthProvider();
+      // Force Google to show account picker
+      provider.setCustomParameters({
+        prompt: 'select_account'
+      });
       const userCredential = await signInWithPopup(auth, provider);
       const firebaseUser = userCredential.user;
 
       // Check if user profile exists in backend
       try {
         const apiUser = await apiService.getUserProfile();
+        console.log('Existing user found during Google login:', apiUser);
         const authUser: AuthUser = { ...apiUser, firebaseUser };
         this.currentUser = authUser;
         return authUser;
