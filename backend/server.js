@@ -182,39 +182,7 @@ app.use((err, req, res, next) => {
 });
 
 // Start server
-// Port configuration with automatic fallback
-const DEFAULT_PORT = 5000;
-const MAX_PORT_ATTEMPTS = 10;
-
-// Function to find an available port
-const findAvailablePort = async (startPort) => {
-  const net = require('net');
-  
-  return new Promise((resolve, reject) => {
-    const server = net.createServer();
-    
-    server.listen(startPort, () => {
-      const port = server.address().port;
-      server.close(() => resolve(port));
-    });
-    
-    server.on('error', (err) => {
-      if (err.code === 'EADDRINUSE') {
-        // Try next port
-        if (startPort < DEFAULT_PORT + MAX_PORT_ATTEMPTS) {
-          findAvailablePort(startPort + 1).then(resolve).catch(reject);
-        } else {
-          reject(new Error(`No available ports found between ${DEFAULT_PORT} and ${DEFAULT_PORT + MAX_PORT_ATTEMPTS}`));
-        }
-      } else {
-        reject(err);
-      }
-    });
-  });
-};
-
-// Get the port to use
-const PORT = process.env.PORT || DEFAULT_PORT;
+const PORT = process.env.PORT || 5000;
 
 const http = require('http');
 const { Server } = require('socket.io');
@@ -236,45 +204,17 @@ try {
   console.error('Failed to start scheduler', e);
 }
 
-// Start server with automatic port detection
-const startServer = async () => {
-  try {
-    const availablePort = await findAvailablePort(PORT);
-    
-    server.listen(availablePort, () => {
-      console.log(`
+server.listen(PORT, () => {
+  console.log(`
 🚀 Football League Hub API Server Started
 📍 Environment: ${process.env.NODE_ENV || 'development'}
-🌐 Port: ${availablePort}${availablePort !== PORT ? ` (fallback from ${PORT})` : ''}
-🔗 Health Check: http://localhost:${availablePort}/health
-📚 API Base URL: http://localhost:${availablePort}/api
+🌐 Port: ${PORT}
+🔗 Health Check: ${process.env.BASE_URL || `http://localhost:${PORT}`}/health
+📚 API Base URL: ${process.env.BASE_URL || `http://localhost:${PORT}`}/api
 🔐 Firebase Project: ${process.env.FIREBASE_PROJECT_ID || 'Not configured'}
 🗄️  Database: ${process.env.MONGODB_URI ? 'Connected' : 'Not configured'}
-      `);
-      
-      if (availablePort !== PORT) {
-        console.log(`⚠️  Port ${PORT} was in use, using port ${availablePort} instead`);
-      }
-    });
-    
-    server.on('error', (err) => {
-      if (err.code === 'EADDRINUSE') {
-        console.error(`❌ Port ${availablePort} is already in use. Please check for other running instances.`);
-        process.exit(1);
-      } else {
-        console.error('❌ Server error:', err);
-        process.exit(1);
-      }
-    });
-    
-  } catch (error) {
-    console.error('❌ Failed to start server:', error.message);
-    process.exit(1);
-  }
-};
-
-// Start the server
-startServer();
+  `);
+});
 
 // Graceful shutdown
 process.on('SIGTERM', () => {
