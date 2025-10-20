@@ -2,13 +2,16 @@ const mongoose = require('mongoose');
 
 const eventSchema = new mongoose.Schema({
   minute: { type: Number, required: true, min: 0, max: 120 },
-  type: { type: String, enum: ['goal', 'yellow_card', 'red_card', 'foul'], required: true },
+  type: { type: String, enum: ['goal', 'yellow_card', 'red_card', 'foul', 'corner', 'shot'], required: true },
   team: { type: String, enum: ['home', 'away'], required: true },
   player: { type: String, trim: true },
   // Goal-specific fields
   assist: { type: String, trim: true },
   goalType: { type: String, enum: ['open_play', 'penalty', 'free_kick'], default: 'open_play' },
-  fieldSide: { type: String, enum: ['mid', 'rw', 'lw'], default: 'mid' }
+  fieldSide: { type: String, enum: ['mid', 'rw', 'lw'], default: 'mid' },
+  // Generic/shot fields
+  description: { type: String, trim: true }, // e.g., 'on_target'
+  onTarget: { type: Boolean, default: false }
 }, { _id: false, timestamps: false });
 
 const scoreSchema = new mongoose.Schema({

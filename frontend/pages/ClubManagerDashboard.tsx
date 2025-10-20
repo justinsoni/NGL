@@ -5,6 +5,7 @@ import { POSITIONS, CLUBS, LEAGUES } from '../constants';
 import { EmailService } from '../utils/emailService';
 import { useAuth } from '../contexts/AuthContext';
 import { coachService, CreateCoachData } from '../services/coachService';
+import { countryService, type CountryOption } from '../services/countryService';
 import { playerService } from '../services/playerService';
 import { createNews } from '@/api/news/createNews';
 import { fetchNews } from '@/api/news/fetchNews';
@@ -116,6 +117,10 @@ const ClubManagerDashboard: React.FC<ClubManagerDashboardProps> = ({
     const [bestGoalImageFile, setBestGoalImageFile] = useState<File | null>(null);
     const [bestGoalImagePreview, setBestGoalImagePreview] = useState<string>('');
 
+    // Countries for dropdown
+    const [countries, setCountries] = useState<CountryOption[]>([]);
+    const [isLoadingCountries, setIsLoadingCountries] = useState<boolean>(false);
+
     // Profile management state
     const [isEditingProfile, setIsEditingProfile] = useState(false);
     const [profileData, setProfileData] = useState({
@@ -150,6 +155,23 @@ const ClubManagerDashboard: React.FC<ClubManagerDashboardProps> = ({
     useEffect(() => {
         fetchPendingPlayers();
     }, [club.id]);
+
+    // Load countries once for nationality dropdown
+    useEffect(() => {
+        let isMounted = true;
+        (async () => {
+            try {
+                setIsLoadingCountries(true);
+                const data = await countryService.getCountries();
+                if (isMounted) setCountries(data);
+            } catch (err) {
+                // countryService already logs and falls back
+            } finally {
+                if (isMounted) setIsLoadingCountries(false);
+            }
+        })();
+        return () => { isMounted = false; };
+    }, []);
 
     const fetchApprovedPlayers = async () => {
         try {
@@ -280,11 +302,22 @@ const ClubManagerDashboard: React.FC<ClubManagerDashboardProps> = ({
 
 
     // Professional Coach Form Handlers
+    const formatName = (name: string) => {
+        return name
+            .trim() // Remove leading/trailing spaces
+            .replace(/\s+/g, ' ') // Replace multiple spaces with single space
+            .split(' ')
+            .filter(word => word.length > 0) // Remove empty strings
+            .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+            .join(' ');
+    };
+
     const handleProfessionalCoachInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
         const { name, value } = e.target;
         // Field-level sanitization
         if (name === 'name') {
-            const sanitized = value.replace(/[^A-Za-z\s'\-]/g, '');
+            // Allow normal typing with spaces, only sanitize invalid characters
+            const sanitized = value.replace(/[^A-Za-z\s]/g, '');
             setProfessionalCoachData(prev => ({ ...prev, name: sanitized }));
             return;
         }
@@ -1047,8 +1080,11 @@ const ClubManagerDashboard: React.FC<ClubManagerDashboardProps> = ({
                                         name="name"
                                         value={professionalCoachData.name}
                                         onChange={handleProfessionalCoachInputChange}
-                                        pattern="[A-Za-z][A-Za-z\s'\-]*"
-                                        title="Letters, spaces, apostrophes and hyphens only"
+                                        onBlur={(e) => {
+                                            const formatted = formatName(e.target.value);
+                                            setProfessionalCoachData(prev => ({ ...prev, name: formatted }));
+                                        }}
+                                        title="Enter first name, last name, and middle name (if applicable). Each name will be properly capitalized when you finish typing."
                                         required
                                         className="w-full bg-theme-secondary-bg border-2 border-theme-border rounded-lg py-3 px-4 text-theme-dark focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
                                         placeholder="John Doe"
@@ -1094,16 +1130,19 @@ const ClubManagerDashboard: React.FC<ClubManagerDashboardProps> = ({
                                 </div>
                                 <div>
                                     <label className="block text-sm font-medium text-theme-text-secondary mb-2">Nationality</label>
-                                    <input
-                                        type="text"
+                                    <select
                                         name="nationality"
                                         value={professionalCoachData.nationality}
                                         onChange={handleProfessionalCoachInputChange}
-                                        pattern="[A-Za-z\s]+"
-                                        title="Letters and spaces only"
                                         className="w-full bg-theme-secondary-bg border-2 border-theme-border rounded-lg py-3 px-4 text-theme-dark focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
-                                        placeholder="American"
-                                    />
+                                    >
+                                        <option value="">{isLoadingCountries ? 'Loading countries...' : 'Select nationality'}</option>
+                                        {countries.map((c) => (
+                                            <option key={c.code} value={c.name}>
+                                                {c.flag} {c.name}
+                                            </option>
+                                        ))}
+                                    </select>
                                 </div>
                                 <div>
                                     <label className="block text-sm font-medium text-theme-text-secondary mb-2">Profile Photo</label>

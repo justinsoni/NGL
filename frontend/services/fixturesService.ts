@@ -8,6 +8,8 @@ export interface FixtureDTO {
   awayTeam: { _id: string; name: string; logo?: string } | string;
   status: MatchStatus;
   score: { home: number; away: number };
+  createdAt?: string;
+  finishedAt?: string;
   events: Array<{ 
     minute: number; 
     type: 'goal'|'yellow_card'|'red_card'|'foul'; 
@@ -56,12 +58,14 @@ export async function startMatch(id: string): Promise<FixtureDTO> {
 
 export async function addEvent(id: string, event: { 
   minute: number; 
-  type: 'goal'|'yellow_card'|'red_card'|'foul'; 
+  type: 'goal'|'yellow_card'|'red_card'|'foul'|'corner'|'shot'; 
   team: 'home'|'away'; 
   player?: string;
   assist?: string;
   goalType?: 'open_play'|'penalty'|'free_kick';
   fieldSide?: 'mid'|'rw'|'lw';
+  description?: string; // e.g., 'on_target' for shots
+  onTarget?: boolean;
 }): Promise<FixtureDTO> {
   const res = await api.put<ApiResponse<{ data: FixtureDTO }>>(`/fixtures/${id}/event`, event);
   return (res.data as any).data;

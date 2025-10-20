@@ -53,12 +53,13 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
     const [fixtures, setFixtures] = useState<FixtureDTO[]>([]);
     const [eventInput, setEventInput] = useState<{ 
         minute: string; 
-        type: 'goal'|'yellow_card'|'red_card'|'foul'; 
+        type: 'goal'|'yellow_card'|'red_card'|'foul'|'corner'|'shot'; 
         team: 'home'|'away'; 
         player: string; 
         assist?: string;
         goalType?: 'open_play'|'penalty'|'free_kick';
         fieldSide?: 'mid'|'rw'|'lw';
+        onTarget?: boolean;
         targetId?: string 
     }>({ 
         minute: '', 
@@ -67,12 +68,14 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
         player: '',
         assist: '',
         goalType: 'open_play',
-        fieldSide: 'mid'
+        fieldSide: 'mid',
+        onTarget: false
     });
     const [scheduledOnce, setScheduledOnce] = useState<Record<string, boolean>>({});
     const [approvedPlayersByClub, setApprovedPlayersByClub] = useState<Record<string, { _id: string; name: string }[]>>({});
     const [stadiumsByClub, setStadiumsByClub] = useState<Record<string, { stadium: string; city: string; fullStadiumName: string }>>({});
     const [matchTimes, setMatchTimes] = useState<Record<string, { minute: number; display: string; phase?: string; stoppageTime?: number }>>({});
+    const [possessionInputs, setPossessionInputs] = useState<Record<string, { home: string; away: string }>>({});
 
     const loadApprovedPlayers = async (clubId?: string) => {
         if (!clubId) return;
@@ -1661,7 +1664,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                                 </div>
                                     </div>
                                         )}
-                                        {f.status==='live' && (
+                                                {f.status==='live' && (
                                             <div className="mt-3 space-y-4">
                                                 {/* PES-style Timing Controls */}
                                                 <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
@@ -1761,6 +1764,8 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                                         <option value="yellow_card">Yellow Card</option>
                                                         <option value="red_card">Red Card</option>
                                                         <option value="foul">Foul</option>
+                                                        <option value="corner">Corner</option>
+                                                        <option value="shot">Shot</option>
                                                     </select>
                                                 </div>
                                                 <div className="flex items-end gap-2">
@@ -1859,6 +1864,43 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                                         </div>
                                                     </>
                                                 )}
+
+                                                {/* Fields for shots */}
+                                                {eventInput.targetId===f._id && eventInput.type === 'shot' && (
+                                                    <div className="flex items-center gap-2">
+                                                        <label className="text-xs text-theme-text-secondary">On Target</label>
+                                                        <input type="checkbox" checked={!!eventInput.onTarget} onChange={e=>setEventInput(prev=>({ ...prev, targetId:f._id, onTarget: e.target.checked }))} />
+                                                    </div>
+                                                )}
+                                                {f.status==='finished' && (
+                                                    <div className="mt-3 bg-theme-secondary-bg p-3 rounded">
+                                                        <div className="flex items-center gap-3">
+                                                            <label className="text-xs text-theme-text-secondary">Possession Home (%)</label>
+                                                            <input type="number" min={0} max={100} value={possessionInputs[f._id]?.home || ''} onChange={e=>setPossessionInputs(prev=>({ ...prev, [f._id]: { ...(prev[f._id]||{ home:'', away:'' }), home: e.target.value } }))} className="w-20 bg-theme-page-bg border border-theme-border rounded px-2 py-1" />
+                                                            <label className="text-xs text-theme-text-secondary">Away (%)</label>
+                                                            <input type="number" min={0} max={100} value={possessionInputs[f._id]?.away || ''} onChange={e=>setPossessionInputs(prev=>({ ...prev, [f._id]: { ...(prev[f._id]||{ home:'', away:'' }), away: e.target.value } }))} className="w-20 bg-theme-page-bg border border-theme-border rounded px-2 py-1" />
+                                                            <button
+                                                                onClick={async()=>{
+                                                                    try {
+                                                                        const home = Math.min(100, Math.max(0, parseInt(possessionInputs[f._id]?.home || '50', 10)));
+                                                                        const away = Math.min(100, Math.max(0, parseInt(possessionInputs[f._id]?.away || String(100-home), 10)));
+                                                                        const fix = (home>100?100:home);
+                                                                        const adjAway = Math.max(0, Math.min(100, away));
+                                                                        // Update MatchData possession after finish via API
+                                                                        // get by fixture id then update
+                                                                        try {
+                                                                            const { default: matchDataService } = await import('../services/matchDataService');
+                                                                            const md = await matchDataService.getMatchDataByFixture(f._id);
+                                                                            await matchDataService.updateMatchData(md.data._id, { homeTeamStats: { ...md.data.homeTeamStats, possession: fix }, awayTeamStats: { ...md.data.awayTeamStats, possession: adjAway } });
+                                                                            toast.success('Possession saved to report');
+                                                                        } catch (e) { toast.error('Failed to save possession'); }
+                                                                    } catch {}
+                                                                }}
+                                                                className="h-8 px-3 rounded bg-green-600 text-white text-xs"
+                                                            >Save Possession</button>
+                                                        </div>
+                                                    </div>
+                                                )}
                                                 
                                                 <button onClick={async()=>{
                                                     if (eventInput.targetId!==f._id) return;
@@ -1878,6 +1920,10 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                                             if (eventInput.goalType) eventData.goalType = eventInput.goalType;
                                                             if (eventInput.fieldSide) eventData.fieldSide = eventInput.fieldSide;
                                                         }
+                                                        // Add shot-specific fields
+                                                        if (eventInput.type === 'shot') {
+                                                            if (eventInput.onTarget) { eventData.onTarget = true; eventData.description = 'on_target'; }
+                                                        }
                                                         
                                                         await addEvent(f._id, eventData); 
                                                         toast.success('Event added'); 
@@ -1889,6 +1935,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                                             assist: '',
                                                             goalType: 'open_play',
                                                             fieldSide: 'mid',
+                                                            onTarget: false,
                                                             targetId:undefined 
                                                         }); 
                                                     } catch { toast.error('Event failed'); }

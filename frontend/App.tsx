@@ -10,6 +10,7 @@ import Footer from './components/Footer';
 import HomePage from './pages/HomePage';
 import MatchesPage from './pages/MatchesPage';
 import MatchDetailPage from './pages/MatchDetailPage';
+import MatchReportPage from './pages/MatchReportPage';
 import PlayersPage from './pages/PlayersPage';
 import TablePage from './pages/TablePage';
 import ClubsPage from './pages/ClubsPage';
@@ -745,6 +746,7 @@ const App = () => {
             <Route path="/" element={<HomePage matchesData={matchesData} tableData={tableData} competitionStage={competitionStage} leaderStats={leaderStats} onPlayerSelect={handlePlayerSelect} />} />
             <Route path="/matches" element={<MatchesPage matchesData={matchesData} />} />
             <Route path="/matches/:matchId" element={<MatchDetailPage matchesData={matchesData} />} />
+            <Route path="/match-report/:fixtureId" element={<MatchReportPage />} />
             <Route path="/players" element={<PlayersPage onPlayerSelect={handlePlayerSelect} />} />
             <Route path="/table" element={<TablePage tableData={tableData} />} />
             <Route path="/clubs" element={<ClubsPage />} />

@@ -212,26 +212,99 @@ exports.getTeamMatchStats = async (req, res) => {
   }
 };
 
+// Helper function to calculate possession based on match statistics
+function calculatePossession(homeEvents, awayEvents, homeGoals, awayGoals) {
+  // Base possession starts at 50%
+  let homePossession = 50;
+  
+  // Calculate statistics for both teams
+  const homeShots = homeEvents.filter(e => e.type === 'shot').length;
+  const awayShots = awayEvents.filter(e => e.type === 'shot').length;
+  const homeShotsOnTarget = homeEvents.filter(e => e.type === 'shot' && (e.onTarget === true || e.description === 'on_target')).length;
+  const awayShotsOnTarget = awayEvents.filter(e => e.type === 'shot' && (e.onTarget === true || e.description === 'on_target')).length;
+  const homeCorners = homeEvents.filter(e => e.type === 'corner').length;
+  const awayCorners = awayEvents.filter(e => e.type === 'corner').length;
+  const homeFouls = homeEvents.filter(e => e.type === 'foul').length;
+  const awayFouls = awayEvents.filter(e => e.type === 'foul').length;
+  
+  // Calculate total activity for normalization
+  const totalShots = homeShots + awayShots;
+  const totalShotsOnTarget = homeShotsOnTarget + awayShotsOnTarget;
+  const totalCorners = homeCorners + awayCorners;
+  const totalFouls = homeFouls + awayFouls;
+  
+  // Adjust possession based on different factors
+  let possessionAdjustment = 0;
+  
+  // Goals scored (strongest factor) - 15% weight
+  if (homeGoals > awayGoals) {
+    possessionAdjustment += 15;
+  } else if (awayGoals > homeGoals) {
+    possessionAdjustment -= 15;
+  }
+  
+  // Shots on target (strong factor) - 10% weight
+  if (totalShotsOnTarget > 0) {
+    const shotsOnTargetRatio = homeShotsOnTarget / totalShotsOnTarget;
+    possessionAdjustment += (shotsOnTargetRatio - 0.5) * 20; // Scale to ±10%
+  }
+  
+  // Total shots (medium factor) - 8% weight
+  if (totalShots > 0) {
+    const shotsRatio = homeShots / totalShots;
+    possessionAdjustment += (shotsRatio - 0.5) * 16; // Scale to ±8%
+  }
+  
+  // Corners (medium factor) - 6% weight
+  if (totalCorners > 0) {
+    const cornersRatio = homeCorners / totalCorners;
+    possessionAdjustment += (cornersRatio - 0.5) * 12; // Scale to ±6%
+  }
+  
+  // Fouls (negative factor) - 4% weight
+  // More fouls = less possession (defensive play)
+  if (totalFouls > 0) {
+    const foulsRatio = homeFouls / totalFouls;
+    possessionAdjustment -= (foulsRatio - 0.5) * 8; // Scale to ±4%
+  }
+  
+  // Apply adjustment to base possession
+  homePossession += possessionAdjustment;
+  
+  // Ensure possession stays within realistic bounds (20% - 80%)
+  homePossession = Math.max(20, Math.min(80, homePossession));
+  
+  // Round to nearest integer
+  return Math.round(homePossession);
+}
+
 // Helper function to calculate team statistics from events
 function calculateTeamStats(events, team, teamName, teamId) {
   const teamEvents = events.filter(event => event.team === team);
+  const opponentEvents = events.filter(event => event.team !== team);
+  
+  // Calculate goals for both teams
+  const teamGoals = teamEvents.filter(e => e.type === 'goal').length;
+  const opponentGoals = opponentEvents.filter(e => e.type === 'goal').length;
+  
+  // Calculate possession based on match statistics
+  const possession = team === 'home' 
+    ? calculatePossession(teamEvents, opponentEvents, teamGoals, opponentGoals)
+    : 100 - calculatePossession(opponentEvents, teamEvents, opponentGoals, teamGoals);
   
   const stats = {
     teamId,
     teamName,
-    finalScore: 0,
-    possession: 50, // Default, can be updated manually
-    shots: 0,
-    shotsOnTarget: 0,
-    corners: 0,
+    finalScore: teamGoals,
+    possession: possession,
+    shots: teamEvents.filter(e => e.type === 'shot').length,
+    shotsOnTarget: teamEvents.filter(e => e.type === 'shot' && (e.onTarget === true || e.description === 'on_target')).length,
+    corners: teamEvents.filter(e => e.type === 'corner').length,
     fouls: teamEvents.filter(e => e.type === 'foul').length,
     yellowCards: teamEvents.filter(e => e.type === 'yellow_card').length,
     redCards: teamEvents.filter(e => e.type === 'red_card').length,
     playerStats: []
   };
-  
-  // Count goals
-  stats.finalScore = teamEvents.filter(e => e.type === 'goal').length;
   
   // Create player statistics
   const playerMap = new Map();

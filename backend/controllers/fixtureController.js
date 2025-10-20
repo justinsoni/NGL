@@ -150,7 +150,7 @@ exports.startMatch = async (req, res) => {
 // GET /api/fixtures/:id/time - Get current match time
 exports.getMatchTime = async (req, res) => {
   try {
-    const match = await Fixture.findById(req.params.id);
+    const match = await Fixture.findById(req.params.id).populate('homeTeam awayTeam');
     if (!match) return res.status(404).json({ success: false, message: 'Match not found' });
     
     if (match.status !== 'live') {
@@ -170,12 +170,29 @@ exports.getMatchTime = async (req, res) => {
 exports.addEvent = async (req, res) => {
   try {
     const { minute, type, team, player, assist, goalType, fieldSide } = req.body;
-    const match = await Fixture.findById(req.params.id);
+    const match = await Fixture.findById(req.params.id).populate('homeTeam awayTeam');
     if (!match) return res.status(404).json({ success: false, message: 'Match not found' });
-    if (match.status !== 'live') return res.status(400).json({ success: false, message: 'Match not live' });
+    if (match.status !== 'live') {
+      // Auto-start if scheduled to avoid UX friction when admin adds first event
+      if (match.status === 'scheduled') {
+        match.status = 'live';
+        if (!match.kickoffAt) match.kickoffAt = new Date();
+        match.matchStartedAt = new Date();
+        match.currentMinute = 0;
+        match.addedTime = 0;
+        match.isHalfTime = false;
+        match.isFullTime = false;
+        match.matchPhase = 'first_half';
+        match.stoppageTimeAccumulated = 0;
+        match.lastEventTime = new Date();
+        match.timeAcceleration = match.timeAcceleration || 1;
+      } else {
+        return res.status(400).json({ success: false, message: 'Match not live' });
+      }
+    }
     
     // Create event object with basic fields
-    const event = { minute, type, team, player };
+    const event = { minute: typeof minute === 'number' ? minute : Number(minute) || match.currentMinute || 0, type, team, player };
     
     // Add goal-specific fields if it's a goal
     if (type === 'goal') {
@@ -183,6 +200,12 @@ exports.addEvent = async (req, res) => {
       if (goalType) event.goalType = goalType;
       if (fieldSide) event.fieldSide = fieldSide;
     }
+    // Allow shot metadata
+    if (type === 'shot') {
+      if (req.body.onTarget === true) event.onTarget = true;
+      if (req.body.description) event.description = req.body.description;
+    }
+    // Corners and fouls need no extra fields
     
     match.events.push(event);
     if (type === 'goal') {
@@ -217,13 +240,23 @@ exports.finishMatch = async (req, res) => {
       const homeTeamEvents = match.events.filter(event => event.team === 'home');
       const awayTeamEvents = match.events.filter(event => event.team === 'away');
       
+      // Compute shots and on-target using events, plus corners
+      const homeShots = homeTeamEvents.filter(e => e.type === 'shot').length;
+      const awayShots = awayTeamEvents.filter(e => e.type === 'shot').length;
+      const homeOnTarget = homeTeamEvents.filter(e => e.type === 'shot' && (e.onTarget === true || e.description === 'on_target')).length;
+      const awayOnTarget = awayTeamEvents.filter(e => e.type === 'shot' && (e.onTarget === true || e.description === 'on_target')).length;
+
+      // Calculate possession based on match statistics
+      const homePossession = calculatePossession(homeTeamEvents, awayTeamEvents, match.score.home, match.score.away);
+      const awayPossession = 100 - homePossession;
+
       matchData.homeTeamStats = {
         teamId: match.homeTeam,
         teamName: match.homeTeam.name,
         finalScore: match.score.home,
-        possession: 50, // Default, can be updated manually
-        shots: homeTeamEvents.filter(e => e.type === 'shot').length,
-        shotsOnTarget: homeTeamEvents.filter(e => e.type === 'shot').length,
+        possession: homePossession,
+        shots: homeShots,
+        shotsOnTarget: homeOnTarget,
         corners: homeTeamEvents.filter(e => e.type === 'corner').length,
         fouls: homeTeamEvents.filter(e => e.type === 'foul').length,
         yellowCards: homeTeamEvents.filter(e => e.type === 'yellow_card').length,
@@ -235,9 +268,9 @@ exports.finishMatch = async (req, res) => {
         teamId: match.awayTeam,
         teamName: match.awayTeam.name,
         finalScore: match.score.away,
-        possession: 50, // Default, can be updated manually
-        shots: awayTeamEvents.filter(e => e.type === 'shot').length,
-        shotsOnTarget: awayTeamEvents.filter(e => e.type === 'shot').length,
+        possession: awayPossession,
+        shots: awayShots,
+        shotsOnTarget: awayOnTarget,
         corners: awayTeamEvents.filter(e => e.type === 'corner').length,
         fouls: awayTeamEvents.filter(e => e.type === 'foul').length,
         yellowCards: awayTeamEvents.filter(e => e.type === 'yellow_card').length,
@@ -657,6 +690,72 @@ exports.setManualTime = async (req, res) => {
   }
 };
 
+// Helper function to calculate possession based on match statistics
+function calculatePossession(homeEvents, awayEvents, homeGoals, awayGoals) {
+  // Base possession starts at 50%
+  let homePossession = 50;
+  
+  // Calculate statistics for both teams
+  const homeShots = homeEvents.filter(e => e.type === 'shot').length;
+  const awayShots = awayEvents.filter(e => e.type === 'shot').length;
+  const homeShotsOnTarget = homeEvents.filter(e => e.type === 'shot' && (e.onTarget === true || e.description === 'on_target')).length;
+  const awayShotsOnTarget = awayEvents.filter(e => e.type === 'shot' && (e.onTarget === true || e.description === 'on_target')).length;
+  const homeCorners = homeEvents.filter(e => e.type === 'corner').length;
+  const awayCorners = awayEvents.filter(e => e.type === 'corner').length;
+  const homeFouls = homeEvents.filter(e => e.type === 'foul').length;
+  const awayFouls = awayEvents.filter(e => e.type === 'foul').length;
+  
+  // Calculate total activity for normalization
+  const totalShots = homeShots + awayShots;
+  const totalShotsOnTarget = homeShotsOnTarget + awayShotsOnTarget;
+  const totalCorners = homeCorners + awayCorners;
+  const totalFouls = homeFouls + awayFouls;
+  
+  // Adjust possession based on different factors
+  let possessionAdjustment = 0;
+  
+  // Goals scored (strongest factor) - 15% weight
+  if (homeGoals > awayGoals) {
+    possessionAdjustment += 15;
+  } else if (awayGoals > homeGoals) {
+    possessionAdjustment -= 15;
+  }
+  
+  // Shots on target (strong factor) - 10% weight
+  if (totalShotsOnTarget > 0) {
+    const shotsOnTargetRatio = homeShotsOnTarget / totalShotsOnTarget;
+    possessionAdjustment += (shotsOnTargetRatio - 0.5) * 20; // Scale to ±10%
+  }
+  
+  // Total shots (medium factor) - 8% weight
+  if (totalShots > 0) {
+    const shotsRatio = homeShots / totalShots;
+    possessionAdjustment += (shotsRatio - 0.5) * 16; // Scale to ±8%
+  }
+  
+  // Corners (medium factor) - 6% weight
+  if (totalCorners > 0) {
+    const cornersRatio = homeCorners / totalCorners;
+    possessionAdjustment += (cornersRatio - 0.5) * 12; // Scale to ±6%
+  }
+  
+  // Fouls (negative factor) - 4% weight
+  // More fouls = less possession (defensive play)
+  if (totalFouls > 0) {
+    const foulsRatio = homeFouls / totalFouls;
+    possessionAdjustment -= (foulsRatio - 0.5) * 8; // Scale to ±4%
+  }
+  
+  // Apply adjustment to base possession
+  homePossession += possessionAdjustment;
+  
+  // Ensure possession stays within realistic bounds (20% - 80%)
+  homePossession = Math.max(20, Math.min(80, homePossession));
+  
+  // Round to nearest integer
+  return Math.round(homePossession);
+}
+
 // Helper function to calculate player statistics from events
 function calculatePlayerStats(teamEvents) {
   const playerMap = new Map();
@@ -680,6 +779,9 @@ function calculatePlayerStats(teamEvents) {
       switch (event.type) {
         case 'goal':
           playerStats.goals++;
+          break;
+        case 'shot':
+          // Count shots in team-level, on-target rolled up later
           break;
         case 'assist':
           playerStats.assists++;

@@ -123,7 +123,7 @@ class MatchDataService {
     if (filters.team) params.append('team', filters.team);
     
     const queryString = params.toString();
-    const url = queryString ? `/api/match-data?${queryString}` : '/api/match-data';
+    const url = queryString ? `/match-data?${queryString}` : '/match-data';
     
     const response = await api.get(url);
     return response.data;
@@ -131,19 +131,19 @@ class MatchDataService {
 
   // Get specific match data by ID
   async getMatchDataById(id: string): Promise<{ success: boolean; data: MatchData }> {
-    const response = await api.get(`/api/match-data/${id}`);
+    const response = await api.get(`/match-data/${id}`);
     return response.data;
   }
 
   // Get match data by fixture ID
   async getMatchDataByFixture(fixtureId: string): Promise<{ success: boolean; data: MatchData }> {
-    const response = await api.get(`/api/match-data/fixture/${fixtureId}`);
+    const response = await api.get(`/match-data/fixture/${fixtureId}`);
     return response.data;
   }
 
   // Create match data from completed fixture
   async createMatchData(fixtureId: string, additionalData?: Partial<MatchData>): Promise<{ success: boolean; data: MatchData }> {
-    const response = await api.post('/api/match-data', {
+    const response = await api.post('/match-data', {
       fixtureId,
       ...additionalData
     });
@@ -152,19 +152,19 @@ class MatchDataService {
 
   // Update match data
   async updateMatchData(id: string, updateData: Partial<MatchData>): Promise<{ success: boolean; data: MatchData }> {
-    const response = await api.put(`/api/match-data/${id}`, updateData);
+    const response = await api.put(`/match-data/${id}`, updateData);
     return response.data;
   }
 
   // Delete match data
   async deleteMatchData(id: string): Promise<{ success: boolean; message: string }> {
-    const response = await api.delete(`/api/match-data/${id}`);
+    const response = await api.delete(`/match-data/${id}`);
     return response.data;
   }
 
   // Get team's match statistics
   async getTeamMatchStats(teamId: string, limit: number = 10): Promise<{ success: boolean; data: TeamMatchStats }> {
-    const response = await api.get(`/api/match-data/stats/team/${teamId}?limit=${limit}`);
+    const response = await api.get(`/match-data/stats/team/${teamId}?limit=${limit}`);
     return response.data;
   }
 

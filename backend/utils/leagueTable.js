@@ -51,8 +51,10 @@ async function initializeTableWithAllClubs(season = '2025', name = 'Default Leag
 async function updateTableForMatch({ season = '2025', name = 'Default League', homeClubId, awayClubId, homeGoals, awayGoals }) {
   const table = await ensureTableForSeason(season, name, [homeClubId, awayClubId]);
 
-  const home = table.standings.find(s => s.club.toString() === homeClubId.toString());
-  const away = table.standings.find(s => s.club.toString() === awayClubId.toString());
+  let home = table.standings.find(s => s.club && s.club.toString() === homeClubId.toString());
+  let away = table.standings.find(s => s.club && s.club.toString() === awayClubId.toString());
+  if (!home) { table.standings.push({ club: homeClubId }); home = table.standings[table.standings.length - 1]; }
+  if (!away) { table.standings.push({ club: awayClubId }); away = table.standings[table.standings.length - 1]; }
 
   home.played += 1; away.played += 1;
   home.gf += homeGoals; home.ga += awayGoals; home.gd = home.gf - home.ga;
@@ -71,11 +73,15 @@ async function updateTableForMatch({ season = '2025', name = 'Default League', h
 
 async function sortTable(tableId) {
   const table = await LeagueTable.findById(tableId).populate('standings.club', 'name logo');
+  // Remove any corrupt entries without a club reference
+  table.standings = table.standings.filter(s => !!s.club);
   table.standings.sort((a, b) => {
     if (b.points !== a.points) return b.points - a.points;
     if (b.gd !== a.gd) return b.gd - a.gd;
     if (b.gf !== a.gf) return b.gf - a.gf;
-    return a.club.name.localeCompare(b.club.name);
+    const an = (a.club && a.club.name) ? a.club.name : '';
+    const bn = (b.club && b.club.name) ? b.club.name : '';
+    return an.localeCompare(bn);
   });
   await table.save();
   return table;

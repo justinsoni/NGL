@@ -316,7 +316,7 @@ const MatchesPage: React.FC<MatchesPageProps> = ({ matchesData }) => {
                   const stageClass = isFinalStage ? 'bg-yellow-500 text-white' : (isSemi ? 'bg-purple-600 text-white' : 'bg-gray-300 text-gray-700');
                   
                   return (
-                    <div key={match._id} className="bg-theme-secondary-bg rounded-lg p-4 hover:shadow-md transition-shadow w-full max-w-2xl">
+                    <div key={match._id} className="bg-theme-secondary-bg rounded-lg p-4 hover:shadow-md transition-shadow w-full max-w-2xl cursor-pointer" onClick={() => window.location.hash = `#/match-report/${match._id}` }>
                       <div className="flex items-center justify-center">
                         <div className="flex items-center gap-4 flex-1 justify-center">
                           <div className="flex items-center gap-2">

@@ -2,7 +2,6 @@ require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const morgan = require('morgan');
-const mongoose = require('mongoose');
 
 // Import configurations
 const connectDB = require('./config/database');
@@ -55,18 +54,12 @@ app.use(requestLogger);
 
 // Health check endpoint
 app.get('/health', (req, res) => {
-  const healthCheck = {
+  res.status(200).json({
     success: true,
     message: 'Football League Hub API is running',
     timestamp: new Date().toISOString(),
-    environment: process.env.NODE_ENV || 'development',
-    uptime: process.uptime(),
-    memory: process.memoryUsage(),
-    database: mongoose.connection.readyState === 1 ? 'connected' : 'disconnected',
-    firebase: process.env.FIREBASE_PROJECT_ID ? 'configured' : 'not configured'
-  };
-  
-  res.status(200).json(healthCheck);
+    environment: process.env.NODE_ENV || 'development'
+  });
 });
 
 // API routes
@@ -194,18 +187,11 @@ const PORT = process.env.PORT || 5000;
 const http = require('http');
 const { Server } = require('socket.io');
 const server = http.createServer(app);
-
-// Configure server timeouts for Render
-server.keepAliveTimeout = 65000;
-server.headersTimeout = 66000;
-
 const io = new Server(server, {
   cors: {
     origin: '*',
     methods: ['GET','POST','PUT','DELETE']
-  },
-  pingTimeout: 60000,
-  pingInterval: 25000
+  }
 });
 
 app.set('io', io);
@@ -214,12 +200,11 @@ app.set('io', io);
 try {
   const { startScheduler } = require('./utils/scheduler');
   startScheduler(io);
-  console.log('✅ Scheduler started successfully');
 } catch (e) {
   console.error('Failed to start scheduler', e);
 }
 
-server.listen(PORT, '0.0.0.0', () => {
+server.listen(PORT, () => {
   console.log(`
 🚀 Football League Hub API Server Started
 📍 Environment: ${process.env.NODE_ENV || 'development'}
@@ -236,7 +221,6 @@ process.on('SIGTERM', () => {
   console.log('SIGTERM received. Shutting down gracefully...');
   server.close(() => {
     console.log('Process terminated');
-    process.exit(0);
   });
 });
 
@@ -244,19 +228,7 @@ process.on('SIGINT', () => {
   console.log('SIGINT received. Shutting down gracefully...');
   server.close(() => {
     console.log('Process terminated');
-    process.exit(0);
   });
-});
-
-// Handle uncaught exceptions
-process.on('uncaughtException', (err) => {
-  console.error('Uncaught Exception:', err);
-  process.exit(1);
-});
-
-process.on('unhandledRejection', (reason, promise) => {
-  console.error('Unhandled Rejection at:', promise, 'reason:', reason);
-  process.exit(1);
 });
 
 module.exports = app;
