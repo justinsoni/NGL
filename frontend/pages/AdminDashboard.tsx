@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Match, CreatedUser, PlayerRegistration, Club } from '../types';
+import { Match, CreatedUser, PlayerRegistration, Club, Product } from '../types';
 import axios from 'axios';
 import { useAuth } from '../contexts/AuthContext';
 import { clubService, CreateClubData } from '../services/clubService';
@@ -16,7 +16,7 @@ import { updateNewsById } from '@/api/news/updateNewsById';
 import { getLeagueConfig, updateLeagueConfig, resetLeagueConfig, LeagueConfigDTO } from '../services/leagueConfigService';
 import { initializeLeagueTableAdmin } from '../services/tableService';
 
-type AdminSection = 'Dashboard' | 'Manage Clubs' | 'Manage Fixtures' | 'Manage News' | 'Latest News & Features' | 'Manage Match Reports' | 'Manage Trending News' | 'User Management' | 'League Settings';
+type AdminSection = 'Dashboard' | 'Manage Clubs' | 'Manage Fixtures' | 'Manage Store' | 'Manage News' | 'Latest News & Features' | 'Manage Match Reports' | 'Manage Trending News' | 'User Management' | 'League Settings';
 
 interface AdminDashboardProps {
     matches: Match[];
@@ -31,6 +31,10 @@ interface AdminDashboardProps {
     onAddClub: (newClub: Club) => void;
     onUpdateClub: (updatedClub: Club) => void;
     onDeleteClub: (clubId: number | string) => void;
+    products: Product[];
+    onAddProduct: (newProduct: Product) => void;
+    onUpdateProduct: (id: string | number, updatedData: Partial<Product>) => Promise<any>;
+    onDeleteProduct: (productId: number | string) => void;
 }
 
 const AdminDashboard: React.FC<AdminDashboardProps> = ({
@@ -45,26 +49,30 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
     clubs: initialClubs,
     onAddClub,
     onUpdateClub,
-    onDeleteClub
+    onDeleteClub,
+    products,
+    onAddProduct,
+    onUpdateProduct,
+    onDeleteProduct
 }) => {
     const { user } = useAuth();
     const [activeSection, setActiveSection] = useState<AdminSection>('User Management');
     const [matchScores, setMatchScores] = useState<Record<number, { home: string; away: string }>>({});
     const [fixtures, setFixtures] = useState<FixtureDTO[]>([]);
-    const [eventInput, setEventInput] = useState<{ 
-        minute: string; 
-        type: 'goal'|'yellow_card'|'red_card'|'foul'|'corner'|'shot'; 
-        team: 'home'|'away'; 
-        player: string; 
+    const [eventInput, setEventInput] = useState<{
+        minute: string;
+        type: 'goal' | 'yellow_card' | 'red_card' | 'foul' | 'corner' | 'shot';
+        team: 'home' | 'away';
+        player: string;
         assist?: string;
-        goalType?: 'open_play'|'penalty'|'free_kick';
-        fieldSide?: 'mid'|'rw'|'lw';
+        goalType?: 'open_play' | 'penalty' | 'free_kick';
+        fieldSide?: 'mid' | 'rw' | 'lw';
         onTarget?: boolean;
-        targetId?: string 
-    }>({ 
-        minute: '', 
-        type: 'goal', 
-        team: 'home', 
+        targetId?: string
+    }>({
+        minute: '',
+        type: 'goal',
+        team: 'home',
         player: '',
         assist: '',
         goalType: 'open_play',
@@ -100,6 +108,155 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
         }
     };
 
+    // Store Management State
+    const [newProduct, setNewProduct] = useState<Omit<Product, 'id'>>({
+        name: '',
+        price: 0,
+        imageUrl: '',
+        category: 'Kits',
+        gender: 'Unisex',
+        description: '',
+        sizes: ['S', 'M', 'L', 'XL'],
+        tags: []
+    });
+    const [isSubmittingProduct, setIsSubmittingProduct] = useState(false);
+    const [editingProduct, setEditingProduct] = useState<Product | null>(null);
+    const [productImageFile, setProductImageFile] = useState<File | null>(null);
+    const [productImagePreview, setProductImagePreview] = useState<string>('');
+    const [relatedImageFiles, setRelatedImageFiles] = useState<File[]>([]);
+    const [relatedImagePreviews, setRelatedImagePreviews] = useState<string[]>([]);
+
+    const handleProductImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (file) {
+            setProductImageFile(file);
+            const reader = new FileReader();
+            reader.onloadend = () => {
+                setProductImagePreview(reader.result as string);
+            };
+            reader.readAsDataURL(file);
+        }
+    };
+
+    const handleRelatedImagesChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const files = Array.from(e.target.files || []);
+        if (files.length > 0) {
+            setRelatedImageFiles(prev => [...prev, ...files]);
+
+            files.forEach(file => {
+                const reader = new FileReader();
+                reader.onloadend = () => {
+                    setRelatedImagePreviews(prev => [...prev, reader.result as string]);
+                };
+                reader.readAsDataURL(file);
+            });
+        }
+    };
+
+    const removeRelatedImage = (index: number) => {
+        setRelatedImageFiles(prev => prev.filter((_, i) => i !== index));
+        setRelatedImagePreviews(prev => prev.filter((_, i) => i !== index));
+
+        // Also handle existing images if we're editing
+        if (editingProduct && newProduct.images) {
+            setNewProduct(prev => ({
+                ...prev,
+                images: prev.images?.filter((_, i) => i !== index)
+            }));
+        }
+    };
+
+    const handleEditProductClick = (product: Product) => {
+        setEditingProduct(product);
+        setNewProduct({
+            name: product.name,
+            price: product.price,
+            imageUrl: product.imageUrl || '',
+            category: product.category || 'Kits',
+            gender: (product as any).gender || 'Unisex',
+            description: product.description || '',
+            sizes: product.sizes || ['S', 'M', 'L', 'XL'],
+            images: product.images || [],
+            tags: product.tags || []
+        });
+        setRelatedImagePreviews(product.images || []);
+        setProductImagePreview(product.imageUrl || '');
+        setProductImageFile(null);
+        // Scroll to form
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+    };
+
+    const handleCancelProductEdit = () => {
+        setEditingProduct(null);
+        setNewProduct({
+            name: '',
+            price: 0,
+            imageUrl: '',
+            category: 'Kits',
+            gender: 'Unisex',
+            description: '',
+            sizes: ['S', 'M', 'L', 'XL'],
+            tags: []
+        });
+        setProductImageFile(null);
+        setProductImagePreview('');
+        setRelatedImageFiles([]);
+        setRelatedImagePreviews([]);
+    };
+
+    const handleAddProductSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        setIsSubmittingProduct(true);
+        try {
+            let finalImageUrl = newProduct.imageUrl;
+
+            // Upload image to Cloudinary if a file is selected
+            if (productImageFile) {
+                try {
+                    finalImageUrl = await uploadMatchImage(productImageFile, 'ml_default');
+                } catch (uploadError) {
+                    console.error('Main image upload failed:', uploadError);
+                    toast.error('Failed to upload main image.');
+                }
+            }
+
+            // Upload related images
+            let finalRelatedImages = [...(newProduct.images || [])];
+            if (relatedImageFiles.length > 0) {
+                try {
+                    const uploadPromises = relatedImageFiles.map(file => uploadMatchImage(file, 'ml_default'));
+                    const uploadedUrls = await Promise.all(uploadPromises);
+                    finalRelatedImages = [...finalRelatedImages, ...uploadedUrls];
+                } catch (uploadError) {
+                    console.error('Related images upload failed:', uploadError);
+                    toast.error('Some related images failed to upload.');
+                }
+            }
+
+            const productData: any = {
+                ...newProduct,
+                imageUrl: finalImageUrl,
+                images: finalRelatedImages
+            };
+
+            if (editingProduct) {
+                const id = editingProduct._id || editingProduct.id;
+                await onUpdateProduct(id, productData);
+            } else {
+                productData.id = Date.now();
+                await onAddProduct(productData);
+            }
+
+            handleCancelProductEdit();
+            toast.success(editingProduct ? 'Product updated successfully' : 'Product added successfully');
+        } catch (error) {
+            console.error('Failed to add product:', error);
+            toast.error('Failed to add product');
+        } finally {
+            setIsSubmittingProduct(false);
+        }
+    };
+
     const loadStadiumData = async (clubId?: string) => {
         if (!clubId) return;
         if (stadiumsByClub[clubId]) return; // cached
@@ -120,7 +277,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
     const getStadiumOptionsForMatch = (homeId: string, awayId: string): Array<{ value: string; label: string; clubName: string }> => {
         const options: Array<{ value: string; label: string; clubName: string }> = [];
-        
+
         // Add home team stadium
         if (homeId && stadiumsByClub[homeId]) {
             const homeClub = clubs.find(c => String(c.id) === String(homeId));
@@ -131,7 +288,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 clubName: homeClub?.name || 'Home'
             });
         }
-        
+
         // Add away team stadium
         if (awayId && stadiumsByClub[awayId]) {
             const awayClub = clubs.find(c => String(c.id) === String(awayId));
@@ -142,7 +299,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 clubName: awayClub?.name || 'Away'
             });
         }
-        
+
         return options;
     };
 
@@ -177,7 +334,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
     const [isSubmittingNews, setIsSubmittingNews] = useState(false);
     const [newsArticles, setNewsArticles] = useState<Array<{ _id: string; title: string; imageUrl: string, summary: string, content: string, createdAt: string, category: string }>>([]);
     const [editingNews, setEditingNews] = useState<any>(null);
-    
+
     // News form state
     const [newsForm, setNewsForm] = useState({
         title: '',
@@ -194,7 +351,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
     const [isSubmittingLatestNews, setIsSubmittingLatestNews] = useState(false);
     const [latestNewsArticles, setLatestNewsArticles] = useState<Array<{ _id: string; title: string; imageUrl: string, summary: string, content: string, createdAt: string, category: string, authorRole: string }>>([]);
     const [editingLatestNews, setEditingLatestNews] = useState<any>(null);
-    
+
     // Latest News form state
     const [latestNewsForm, setLatestNewsForm] = useState({
         title: '',
@@ -321,7 +478,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
             if (!other.kickoffAt) return false;
             if (excludeFixtureId && other._id === excludeFixtureId) return false;
             const otherStart = new Date(other.kickoffAt).getTime();
-            const involvesTeam = [other.homeTeam, other.awayTeam].some(t => (typeof t==='string'?t:(t?._id)) === teamId);
+            const involvesTeam = [other.homeTeam, other.awayTeam].some(t => (typeof t === 'string' ? t : (t?._id)) === teamId);
             if (!involvesTeam) return false;
             const a1 = start, a2 = start + MATCH_DURATION_MS;
             const b1 = otherStart, b2 = otherStart + MATCH_DURATION_MS;
@@ -348,7 +505,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
         if (Number.isNaN(d.getTime())) return '';
         const tzOffset = d.getTimezoneOffset();
         const local = new Date(d.getTime() - tzOffset * 60000);
-        return local.toISOString().slice(0,16);
+        return local.toISOString().slice(0, 16);
     };
 
     // Match Reports management state
@@ -380,32 +537,32 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
     });
 
 
-    
-        
+
+
     useEffect(() => {
         async function getNews() {
-        try {
-            const data = await fetchNews();
-            setNewsArticles(data);
-            
-            // Filter latest news articles (admin-created, not match reports or trending)
-            const latestNews = data
-                .filter((item: any) => item.authorRole === 'admin' && item.type !== 'match-report' && item.type !== 'trending')
-                .map((item: any) => ({
-                    _id: item._id,
-                    title: item.title,
-                    imageUrl: item.imageUrl,
-                    summary: item.summary,
-                    content: item.content,
-                    createdAt: item.createdAt,
-                    category: item.category,
-                    authorRole: item.authorRole
-                }));
-            setLatestNewsArticles(latestNews);
-        } catch (err) {
-            setNewsArticles([]);
-            setLatestNewsArticles([]);
-        }
+            try {
+                const data = await fetchNews();
+                setNewsArticles(data);
+
+                // Filter latest news articles (admin-created, not match reports or trending)
+                const latestNews = data
+                    .filter((item: any) => item.authorRole === 'admin' && item.type !== 'match-report' && item.type !== 'trending')
+                    .map((item: any) => ({
+                        _id: item._id,
+                        title: item.title,
+                        imageUrl: item.imageUrl,
+                        summary: item.summary,
+                        content: item.content,
+                        createdAt: item.createdAt,
+                        category: item.category,
+                        authorRole: item.authorRole
+                    }));
+                setLatestNewsArticles(latestNews);
+            } catch (err) {
+                setNewsArticles([]);
+                setLatestNewsArticles([]);
+            }
         }
         getNews();
     }, []);
@@ -462,12 +619,12 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
         const scores = matchScores[match.id];
         const homeScore = scores?.home !== undefined && scores.home !== '' ? parseInt(scores.home, 10) : match.homeScore;
         const awayScore = scores?.away !== undefined && scores.away !== '' ? parseInt(scores.away, 10) : match.awayScore;
-        
+
         if (isNaN(homeScore) || isNaN(awayScore) || homeScore < 0 || awayScore < 0) {
             alert('Please enter valid, non-negative scores.');
             return;
         }
-        
+
         onMatchUpdate(match.id, homeScore, awayScore);
     };
 
@@ -475,20 +632,20 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
         const scores = matchScores[match.id];
         const homeScore = scores?.home !== undefined && scores.home !== '' ? parseInt(scores.home, 10) : match.homeScore;
         const awayScore = scores?.away !== undefined && scores.away !== '' ? parseInt(scores.away, 10) : match.awayScore;
-        
+
         if (isNaN(homeScore) || isNaN(awayScore) || homeScore < 0 || awayScore < 0) {
             alert('Please enter valid, non-negative scores before finalizing.');
             return;
         }
-        
+
         onMatchUpdate(match.id, homeScore, awayScore);
         onMatchFinish(match.id);
     };
-    
+
     const handleCreateManagerSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         setErrorMessage('');
-        
+
         if (!newManagerName.trim() || !newManagerEmail.trim()) {
             setErrorMessage('Please fill in all required fields.');
             return;
@@ -516,7 +673,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
         try {
             // Get Firebase ID token for authentication
             const idToken = await user?.firebaseUser?.getIdToken();
-            
+
             if (!idToken) {
                 throw new Error('Authentication required. Please login again.');
             }
@@ -563,7 +720,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
             }
         } catch (error: any) {
             console.error('Error creating manager:', error);
-            
+
             if (error.response?.data?.message) {
                 setErrorMessage(error.response.data.message);
             } else if (error.response?.status === 409) {
@@ -596,7 +753,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     id: club._id
                 }));
                 setClubs(clubsWithId);
-                
+
                 // Pre-load stadium data for all clubs
                 clubsWithId.forEach((club: Club) => {
                     if (club.stadium) {
@@ -608,7 +765,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                         setStadiumsByClub(prev => ({ ...prev, [club.id]: stadiumData }));
                     }
                 });
-                
+
                 // Set default club for manager creation if not set and clubs exist
                 if (clubsWithId.length > 0 && !clubsWithId.find((c: Club) => String(c.id) === newManagerClubId)) {
                     setNewManagerClubId(clubsWithId[0].id);
@@ -621,9 +778,9 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
         };
         fetchClubs();
         // Load fixtures initially and subscribe to socket updates
-        listFixtures().then(setFixtures).catch(()=>{});
+        listFixtures().then(setFixtures).catch(() => { });
         const s = getSocket();
-        const refresh = async () => { try { const list = await listFixtures(); setFixtures(list); } catch {} };
+        const refresh = async () => { try { const list = await listFixtures(); setFixtures(list); } catch { } };
         s.on('match:event', refresh);
         s.on('match:finished', refresh);
         s.on('match:started', refresh);
@@ -631,10 +788,10 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
         s.on('final:created', refresh);
         s.on('semi:created', refresh);
         s.on('final:finished', refresh);
-        
+
         // Update match times every 30 seconds for live matches
         const timeInterval = setInterval(updateMatchTimes, 30000);
-        
+
         return () => {
             s.off('match:event', refresh);
             s.off('match:finished', refresh);
@@ -713,7 +870,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
             toast.error(e.message || 'Upload failed');
             return;
         }
-        
+
         // Save to MongoDB instead of localStorage
         try {
             const idToken = await user?.firebaseUser?.getIdToken();
@@ -721,7 +878,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 toast.error('Authentication required');
                 return;
             }
-            
+
             const matchReportData = {
                 title,
                 imageUrl,
@@ -731,7 +888,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 summary: title,
                 createdAt: new Date().toISOString()
             };
-            
+
             const created = await createNews(matchReportData, idToken);
             setMatchReports(prev => [{ id: created._id, title: created.title, imageUrl: created.imageUrl, content: created.content || '', createdAt: created.createdAt }, ...prev]);
             setMatchReportForm({ title: '', imageUrl: '', content: '' });
@@ -752,7 +909,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 toast.error('Authentication required');
                 return;
             }
-            
+
             await deleteNewsById(id, idToken);
             setMatchReports(prev => prev.filter(r => r.id !== id));
             toast.success('Match report removed successfully');
@@ -768,7 +925,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
         const icon = trendingNewsForm.icon.trim();
         if (!title) { toast.error('Please enter a trending news title'); return; }
         if (!trendingNewsImageFile) { toast.error('Please select an image to upload'); return; }
-        
+
         let imageUrl = '';
         try {
             const allowed = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
@@ -779,7 +936,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
             toast.error(e.message || 'Upload failed');
             return;
         }
-        
+
         // Save to MongoDB
         try {
             const idToken = await user?.firebaseUser?.getIdToken();
@@ -787,7 +944,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 toast.error('Authentication required');
                 return;
             }
-            
+
             const trendingData = {
                 title,
                 imageUrl,
@@ -797,7 +954,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 content: trendingNewsForm.content || title,
                 summary: title
             };
-            
+
             const created = await createNews(trendingData, idToken);
             setTrendingNews(prev => [{ id: created._id, title: created.title, imageUrl: created.imageUrl, icon: created.icon, content: created.content || '', createdAt: created.createdAt }, ...prev]);
             setTrendingNewsForm({ title: '', imageUrl: '', icon: '🔥', content: '' });
@@ -818,7 +975,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 toast.error('Authentication required');
                 return;
             }
-            
+
             await deleteNewsById(id, idToken);
             setTrendingNews(prev => prev.filter(t => t.id !== id));
             toast.success('Trending news removed successfully');
@@ -843,10 +1000,10 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
     const handleUpdateTrendingNews = async (e: React.FormEvent) => {
         e.preventDefault();
         setIsSubmittingTrendingNews(true);
-        
+
         try {
             let imageUrl = editingTrendingNews.imageUrl; // Keep existing image by default
-            
+
             // If a new image file is selected, upload it
             if (trendingNewsImageFile) {
                 const allowed = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
@@ -882,7 +1039,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
             const updated = await updateNewsById(editingTrendingNews._id, updatedTrendingNews, idToken);
 
             setTrendingNews(prev => prev.map(item => item.id === updated._id ? { ...item, title: updated.title, imageUrl: updated.imageUrl, icon: updated.icon } : item));
-            
+
             setTrendingNewsForm({ title: '', imageUrl: '', icon: '🔥' });
             setTrendingNewsImageFile(null);
             setTrendingNewsImagePreview('');
@@ -915,7 +1072,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 id: (created as any)._id
             };
             setClubs(prev => [...prev, newClub]);
-            
+
             // Load stadium data for the new club
             if (newClub.stadium) {
                 const stadiumData = {
@@ -925,11 +1082,11 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 };
                 setStadiumsByClub(prev => ({ ...prev, [newClub.id]: stadiumData }));
             }
-            
+
             onAddClub(newClub); // If you want to keep parent in sync
             setShowClubForm(false);
             toast.success('Club created successfully!');
-            
+
             // Automatically initialize/update the league table with the new club
             try {
                 await initializeLeagueTableAdmin();
@@ -954,14 +1111,14 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
         try {
             await clubService.deleteClub(clubId);
             setClubs(prev => prev.filter(c => c.id !== clubId));
-            
+
             // Clean up stadium data for the deleted club
             setStadiumsByClub(prev => {
                 const updated = { ...prev };
                 delete updated[clubId];
                 return updated;
             });
-            
+
             onDeleteClub(clubId); // If you want to keep parent in sync
             toast.success('Club deleted successfully');
         } catch (error: any) {
@@ -975,7 +1132,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
         console.log('🔍 Starting news creation process...');
         console.log('🔍 User:', user);
         console.log('🔍 Firebase user:', user?.firebaseUser);
-        
+
         setIsSubmittingNews(true);
 
         try {
@@ -1029,7 +1186,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 content: newsForm.content,
                 createdAt: new Date().toISOString()
             };
-            
+
             console.log('🔍 Article data:', newArticle);
             const created = await createNews(newArticle, idToken);
             console.log('🔍 Created article:', created);
@@ -1065,10 +1222,10 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
     const handleUpdateNews = async (e: React.FormEvent) => {
         e.preventDefault();
         setIsSubmittingNews(true);
-        
+
         try {
             let imageUrl = editingNews.imageUrl; // Keep existing image by default
-            
+
             // If a new image file is selected, upload it
             if (newsImageFile) {
                 const allowed = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
@@ -1117,7 +1274,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
             const updated = await updateNewsById(editingNews._id, updatedArticle, idToken);
 
             setNewsArticles(prev => prev.map(article => article._id === updated._id ? updated : article));
-            
+
             setNewsForm({ title: '', summary: '', imageUrl: '', category: 'Features', content: '' });
             setNewsImageFile(null);
             setNewsImagePreview('');
@@ -1156,7 +1313,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
     // Latest News & Features handler functions
     const handleLatestNewsImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0] || null;
-        
+
         if (!file) {
             setLatestNewsImageFile(null);
             setLatestNewsImagePreview('');
@@ -1219,7 +1376,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 type: 'article', // Regular article type for latest news
                 content: latestNewsForm.content
             };
-            
+
             const created = await createNews(newArticle, idToken);
             setLatestNewsArticles(prev => [created, ...prev]);
             setLatestNewsForm({ title: '', summary: '', imageUrl: '', category: 'Features', content: '' });
@@ -1252,10 +1409,10 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
     const handleUpdateLatestNews = async (e: React.FormEvent) => {
         e.preventDefault();
         setIsSubmittingLatestNews(true);
-        
+
         try {
             let imageUrl = editingLatestNews.imageUrl; // Keep existing image by default
-            
+
             // If a new image file is selected, upload it
             if (latestNewsImageFile) {
                 const allowed = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
@@ -1291,7 +1448,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
             const updated = await updateNewsById(editingLatestNews._id, updatedArticle, idToken);
             setLatestNewsArticles(prev => prev.map(article => article._id === updated._id ? updated : article));
-            
+
             setLatestNewsForm({ title: '', summary: '', imageUrl: '', category: 'Features', content: '' });
             setLatestNewsImageFile(null);
             setLatestNewsImagePreview('');
@@ -1339,7 +1496,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 name: leagueConfigForm.name,
                 description: leagueConfigForm.description
             });
-            
+
             setLeagueConfig(updatedConfig);
             toast.success('League configuration updated successfully');
         } catch (error: any) {
@@ -1375,7 +1532,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
     };
 
     const renderSection = () => {
-        switch(activeSection) {
+        switch (activeSection) {
             case 'Dashboard':
                 return <div>
                     <h2 className="text-2xl font-bold mb-4 text-theme-dark">Dashboard Overview</h2>
@@ -1389,7 +1546,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                         {user?.role !== 'admin' && (
                             <div className="p-3 bg-red-50 border border-red-200 rounded text-red-700 text-sm mb-4">Admin access required.</div>
                         )}
-                        
+
                         {/* League Period Display */}
                         {leagueConfig && (
                             <div className="bg-gradient-to-r from-theme-primary to-theme-accent text-white p-4 rounded-lg shadow-lg mb-6">
@@ -1419,7 +1576,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                 </div>
                             </div>
                         )}
-                        
+
                         <div className="flex items-center gap-2 mb-4 flex-wrap">
                             <button onClick={async () => { try { await initializeLeagueTableAdmin(); toast.success('League table initialized with all clubs'); } catch (e: any) { toast.error('Failed to initialize table: ' + (e.response?.data?.message || e.message)); } }} className="bg-green-600 text-white font-bold py-2 px-4 rounded-md hover:bg-green-700">Initialize Table</button>
                             <button onClick={async () => { try { await generateFixtures(); toast.success('Fixtures generated'); const list = await listFixtures(); setFixtures(list); } catch { toast.error('Failed to generate'); } }} className="bg-theme-primary text-theme-dark font-bold py-2 px-4 rounded-md">Generate Fixtures</button>
@@ -1436,22 +1593,22 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                     if (f.status === 'finished') return 4;
                                     return 5;
                                 };
-                                
+
                                 const priorityA = getPriority(a);
                                 const priorityB = getPriority(b);
-                                
+
                                 if (priorityA !== priorityB) {
                                     return priorityA - priorityB;
                                 }
-                                
+
                                 // Within same priority, sort by kickoff time
                                 const kickoffA = a.kickoffAt ? new Date(a.kickoffAt).getTime() : 0;
                                 const kickoffB = b.kickoffAt ? new Date(b.kickoffAt).getTime() : 0;
-                                
+
                                 if (kickoffA !== kickoffB) {
                                     return kickoffA - kickoffB;
                                 }
-                                
+
                                 // If no kickoff time, maintain original order (by _id)
                                 return 0;
                             }).map(f => {
@@ -1461,7 +1618,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                     <div key={f._id} className="bg-theme-secondary-bg p-4 rounded-lg shadow-sm">
                                         <div className="grid grid-cols-12 items-center gap-3">
                                             <div className="col-span-5 flex items-center gap-3 min-w-0">
-                                                {(() => { const isFinalStage = (f.stage==='final') || (!!f.isFinal); const isSemi = f.stage==='semi'; const label = isFinalStage ? 'FINAL' : (isSemi ? 'SEMIFINAL' : 'LEAGUE'); const cls = isFinalStage ? 'bg-yellow-500 text-white' : (isSemi ? 'bg-purple-600 text-white' : 'bg-gray-300'); return (<span className={`px-2 py-1 rounded text-xs whitespace-nowrap ${cls}`}>{label}</span>); })()}
+                                                {(() => { const isFinalStage = (f.stage === 'final') || (!!f.isFinal); const isSemi = f.stage === 'semi'; const label = isFinalStage ? 'FINAL' : (isSemi ? 'SEMIFINAL' : 'LEAGUE'); const cls = isFinalStage ? 'bg-yellow-500 text-white' : (isSemi ? 'bg-purple-600 text-white' : 'bg-gray-300'); return (<span className={`px-2 py-1 rounded text-xs whitespace-nowrap ${cls}`}>{label}</span>); })()}
                                                 <div className="flex items-center gap-2 min-w-0">
                                                     {home?.logo && <img src={home.logo} className="h-6 w-6" onError={(e) => { e.currentTarget.style.display = 'none'; }} />}
                                                     <span className="font-semibold truncate max-w-[140px]">{home?.name || 'Home'}</span>
@@ -1474,15 +1631,15 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                             </div>
                                             <div className="col-span-2 text-center">
                                                 {(() => {
-                                                    const homeId = (typeof f.homeTeam==='string'?f.homeTeam:f.homeTeam?._id);
-                                                    const awayId = (typeof f.awayTeam==='string'?f.awayTeam:f.awayTeam?._id);
-                                                    const isReady = !!(homeId && awayId && f.kickoffAt && f.venueName && f.venueName.trim().length>0);
+                                                    const homeId = (typeof f.homeTeam === 'string' ? f.homeTeam : f.homeTeam?._id);
+                                                    const awayId = (typeof f.awayTeam === 'string' ? f.awayTeam : f.awayTeam?._id);
+                                                    const isReady = !!(homeId && awayId && f.kickoffAt && f.venueName && f.venueName.trim().length > 0);
                                                     // Only display SCHEDULED badge when ready AND explicitly committed/saved
-                                                    const isCommitted = (f.status==='scheduled') || !!scheduledOnce[f._id];
+                                                    const isCommitted = (f.status === 'scheduled') || !!scheduledOnce[f._id];
                                                     const showScheduled = isReady && isCommitted;
-                                                    const label = f.status==='live' ? 'LIVE' : (f.status==='finished' ? 'FINISHED' : (showScheduled ? 'SCHEDULED' : ''));
-                                                    const cls = f.status==='live' ? 'bg-red-500 text-white' : (f.status==='finished' ? 'bg-gray-800 text-white' : (showScheduled ? 'bg-gray-200' : ''));
-                                                    
+                                                    const label = f.status === 'live' ? 'LIVE' : (f.status === 'finished' ? 'FINISHED' : (showScheduled ? 'SCHEDULED' : ''));
+                                                    const cls = f.status === 'live' ? 'bg-red-500 text-white' : (f.status === 'finished' ? 'bg-gray-800 text-white' : (showScheduled ? 'bg-gray-200' : ''));
+
                                                     // For live matches, show enhanced PES-style time display
                                                     if (f.status === 'live') {
                                                         const currentTime = matchTimes[f._id];
@@ -1504,7 +1661,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                                             </div>
                                                         );
                                                     }
-                                                    
+
                                                     // If ready but not committed, show a subtle hint
                                                     if (!label && isReady) {
                                                         return <span className="px-2 py-1 rounded text-xs bg-yellow-100 text-yellow-800">READY</span>;
@@ -1513,69 +1670,71 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                                 })()}
                                             </div>
                                             <div className="col-span-5 flex justify-end items-center gap-2">
-                                                {f.status==='scheduled' && (
+                                                {f.status === 'scheduled' && (
                                                     <>
-                                                        <button onClick={async()=>{ 
-                                                            try { 
-                                                                if (!((typeof f.homeTeam==='string'?f.homeTeam:f.homeTeam?._id) && (typeof f.awayTeam==='string'?f.awayTeam:f.awayTeam?._id) && f.kickoffAt && (f.venueName && f.venueName.trim().length>0))) {
+                                                        <button onClick={async () => {
+                                                            try {
+                                                                if (!((typeof f.homeTeam === 'string' ? f.homeTeam : f.homeTeam?._id) && (typeof f.awayTeam === 'string' ? f.awayTeam : f.awayTeam?._id) && f.kickoffAt && (f.venueName && f.venueName.trim().length > 0))) {
                                                                     toast.error('Please set teams, kickoff, and venue before starting');
                                                                     return;
                                                                 }
-                                                                await startMatch(f._id); 
-                                                                toast.success('Match started'); 
-                                                                const list=await listFixtures(); setFixtures(list);
-                                                            } catch (e:any) { toast.error('Start failed'); } 
+                                                                await startMatch(f._id);
+                                                                toast.success('Match started');
+                                                                const list = await listFixtures(); setFixtures(list);
+                                                            } catch (e: any) { toast.error('Start failed'); }
                                                         }} className="h-9 px-3 rounded bg-green-600 text-white">Start</button>
-                                                        <button onClick={async()=>{ try { await simulateMatch(f._id); toast.success('Simulated'); const list=await listFixtures(); setFixtures(list);} catch { toast.error('Sim failed'); } }} className="h-9 px-3 rounded bg-blue-600 text-white">Simulate</button>
+                                                        <button onClick={async () => { try { await simulateMatch(f._id); toast.success('Simulated'); const list = await listFixtures(); setFixtures(list); } catch { toast.error('Sim failed'); } }} className="h-9 px-3 rounded bg-blue-600 text-white">Simulate</button>
                                                     </>
                                                 )}
-                                                {f.status==='live' && (
-                                                    <button onClick={async()=>{ try { await finishMatch(f._id); toast.success('Finished'); const list=await listFixtures(); setFixtures(list);} catch { toast.error('Finish failed'); } }} className="h-9 px-3 rounded bg-red-600 text-white">Finish</button>
+                                                {f.status === 'live' && (
+                                                    <button onClick={async () => { try { await finishMatch(f._id); toast.success('Finished'); const list = await listFixtures(); setFixtures(list); } catch { toast.error('Finish failed'); } }} className="h-9 px-3 rounded bg-red-600 text-white">Finish</button>
                                                 )}
                                             </div>
                                         </div>
-                                        {f.status==='scheduled' && (
+                                        {f.status === 'scheduled' && (
                                             <div className="mt-3 grid grid-cols-12 items-center gap-3">
                                                 <div className="col-span-6 flex items-center gap-2">
                                                     <label className="text-xs text-theme-text-secondary">Kickoff</label>
-                                                    {(() => { const alreadyCommitted = !!scheduledOnce[f._id]; return (
-                                                    <input type="datetime-local" disabled={alreadyCommitted} defaultValue={toLocalInputValue(f.kickoffAt)} onChange={async e=>{
-                                                        const raw = e.target.value;
-                                                        const kickoffAt = raw ? new Date(raw).toISOString() : '';
-                                                        if (!kickoffAt) return;
-                                                        if (!isValidFutureIso(kickoffAt)) { toast.error('Kickoff must be a valid future date/time'); return; }
-                                                        try { 
-                                                            await scheduleMatch(f._id, { kickoffAt }); 
-                                                            const list = await listFixtures(); setFixtures(list);
-                                                        } catch { toast.error('Schedule failed'); }
-                                                    }} className={`bg-theme-page-bg border border-theme-border rounded px-2 py-1 ${alreadyCommitted?'opacity-60 cursor-not-allowed':''}`}/>
-                                                    ); })()}
+                                                    {(() => {
+                                                        const alreadyCommitted = !!scheduledOnce[f._id]; return (
+                                                            <input type="datetime-local" disabled={alreadyCommitted} defaultValue={toLocalInputValue(f.kickoffAt)} onChange={async e => {
+                                                                const raw = e.target.value;
+                                                                const kickoffAt = raw ? new Date(raw).toISOString() : '';
+                                                                if (!kickoffAt) return;
+                                                                if (!isValidFutureIso(kickoffAt)) { toast.error('Kickoff must be a valid future date/time'); return; }
+                                                                try {
+                                                                    await scheduleMatch(f._id, { kickoffAt });
+                                                                    const list = await listFixtures(); setFixtures(list);
+                                                                } catch { toast.error('Schedule failed'); }
+                                                            }} className={`bg-theme-page-bg border border-theme-border rounded px-2 py-1 ${alreadyCommitted ? 'opacity-60 cursor-not-allowed' : ''}`} />
+                                                        );
+                                                    })()}
                                                     <label className="text-xs text-theme-text-secondary ml-3">Venue</label>
-                                                    {(() => { 
+                                                    {(() => {
                                                         const alreadyCommitted = !!scheduledOnce[f._id];
-                                                        const homeId = (typeof f.homeTeam==='string'?f.homeTeam:f.homeTeam?._id);
-                                                        const awayId = (typeof f.awayTeam==='string'?f.awayTeam:f.awayTeam?._id);
+                                                        const homeId = (typeof f.homeTeam === 'string' ? f.homeTeam : f.homeTeam?._id);
+                                                        const awayId = (typeof f.awayTeam === 'string' ? f.awayTeam : f.awayTeam?._id);
                                                         const stadiumOptions = getStadiumOptionsForMatch(homeId, awayId);
-                                                        
+
                                                         // Load stadium data for both clubs when dropdown is shown
                                                         if (homeId && awayId && stadiumOptions.length === 0) {
                                                             loadStadiumData(homeId);
                                                             loadStadiumData(awayId);
                                                         }
-                                                        
+
                                                         return (
-                                                            <select 
-                                                                disabled={alreadyCommitted || stadiumOptions.length === 0} 
+                                                            <select
+                                                                disabled={alreadyCommitted || stadiumOptions.length === 0}
                                                                 value={f.venueName || ''}
                                                                 onChange={async e => {
                                                                     const venueName = e.target.value;
                                                                     if (!venueName) return;
-                                                                    try { 
-                                                                        await scheduleMatch(f._id, { venueName }); 
+                                                                    try {
+                                                                        await scheduleMatch(f._id, { venueName });
                                                                         const list = await listFixtures(); setFixtures(list);
                                                                     } catch { toast.error('Venue save failed'); }
                                                                 }}
-                                                                className={`bg-theme-page-bg border border-theme-border rounded px-2 py-1 min-w-[200px] ${alreadyCommitted || stadiumOptions.length === 0?'opacity-60 cursor-not-allowed':''}`}
+                                                                className={`bg-theme-page-bg border border-theme-border rounded px-2 py-1 min-w-[200px] ${alreadyCommitted || stadiumOptions.length === 0 ? 'opacity-60 cursor-not-allowed' : ''}`}
                                                             >
                                                                 <option value="">
                                                                     {stadiumOptions.length === 0 ? 'Loading stadiums...' : 'Select Stadium'}
@@ -1589,9 +1748,9 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                                         );
                                                     })()}
                                                     {(() => {
-                                                        const homeId = (typeof f.homeTeam==='string'?f.homeTeam:f.homeTeam?._id);
-                                                        const awayId = (typeof f.awayTeam==='string'?f.awayTeam:f.awayTeam?._id);
-                                                        const isReady = !!(homeId && awayId && f.kickoffAt && f.venueName && f.venueName.trim().length>0);
+                                                        const homeId = (typeof f.homeTeam === 'string' ? f.homeTeam : f.homeTeam?._id);
+                                                        const awayId = (typeof f.awayTeam === 'string' ? f.awayTeam : f.awayTeam?._id);
+                                                        const isReady = !!(homeId && awayId && f.kickoffAt && f.venueName && f.venueName.trim().length > 0);
                                                         const alreadyCommitted = !!scheduledOnce[f._id];
                                                         if (!isReady) {
                                                             return (
@@ -1614,19 +1773,19 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                                         }
                                                         return (
                                                             <button
-                                                                onClick={async()=>{ 
-                                                                    try { 
+                                                                onClick={async () => {
+                                                                    try {
                                                                         // Double-check all required fields are present before scheduling
-                                                                        const homeId = (typeof f.homeTeam==='string'?f.homeTeam:f.homeTeam?._id);
-                                                                        const awayId = (typeof f.awayTeam==='string'?f.awayTeam:f.awayTeam?._id);
+                                                                        const homeId = (typeof f.homeTeam === 'string' ? f.homeTeam : f.homeTeam?._id);
+                                                                        const awayId = (typeof f.awayTeam === 'string' ? f.awayTeam : f.awayTeam?._id);
                                                                         const hasKickoff = !!f.kickoffAt;
                                                                         const hasVenue = !!(f.venueName && f.venueName.trim().length > 0);
-                                                                        
+
                                                                         if (!homeId || !awayId || !hasKickoff || !hasVenue) {
                                                                             toast.error('Please fill in teams, kickoff time, and venue before scheduling');
                                                                             return;
                                                                         }
-                                                                        
+
                                                                         if (homeId === awayId) {
                                                                             toast.error('Home and away teams must be different');
                                                                             return;
@@ -1635,20 +1794,20 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                                                         if (!isValidFutureIso(String(f.kickoffAt))) { toast.error('Kickoff must be a future date/time'); return; }
                                                                         const venueValidation = validateVenueName(f.venueName || '');
                                                                         if (!venueValidation.ok) { toast.error(venueValidation.message || 'Invalid venue'); return; }
-                                                                        
-                                                                        const result = await scheduleMatch(f._id, {}); 
-                                                                        
+
+                                                                        const result = await scheduleMatch(f._id, {});
+
                                                                         // Only mark as scheduled if the backend confirms it's ready
                                                                         if (result.isScheduled) {
-                                                                            setScheduledOnce(prev=>({ ...prev, [f._id]: true }));
-                                                                            const list=await listFixtures(); setFixtures(list);
+                                                                            setScheduledOnce(prev => ({ ...prev, [f._id]: true }));
+                                                                            const list = await listFixtures(); setFixtures(list);
                                                                         } else {
                                                                             toast.error('Match could not be scheduled. Please check all fields.');
                                                                         }
-                                                                    } catch (e: any) { 
-                                                                        toast.error(e.response?.data?.message || 'Schedule failed'); 
-                                                                    } 
-                                                                }} 
+                                                                    } catch (e: any) {
+                                                                        toast.error(e.response?.data?.message || 'Schedule failed');
+                                                                    }
+                                                                }}
                                                                 className="h-9 px-3 rounded bg-green-600 text-white font-bold"
                                                             >
                                                                 Schedule
@@ -1659,8 +1818,8 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                                 <div className="col-span-6 flex items-center gap-2 justify-end">
                                                     <label className="text-xs text-theme-text-secondary">Set Teams</label>
                                                     {(() => {
-                                                        const homeId = (typeof f.homeTeam==='string'?f.homeTeam:f.homeTeam?._id)||'';
-                                                        const awayId = (typeof f.awayTeam==='string'?f.awayTeam:f.awayTeam?._id)||'';
+                                                        const homeId = (typeof f.homeTeam === 'string' ? f.homeTeam : f.homeTeam?._id) || '';
+                                                        const awayId = (typeof f.awayTeam === 'string' ? f.awayTeam : f.awayTeam?._id) || '';
                                                         // Determine the two clubs for this pairing from the fixture itself
                                                         const pairIds = Array.from(new Set([homeId, awayId].filter(Boolean)));
                                                         let pairClubs: { id: string; name: string }[] = [];
@@ -1679,73 +1838,79 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                                         const alreadyCommitted = !!scheduledOnce[f._id];
                                                         return (
                                                             <>
-                                                                <select disabled={options.length!==2 || alreadyCommitted} value={homeId} onChange={async e=>{ const newHome=e.target.value; if (!newHome || !awayId) return; if (newHome===awayId) { toast.error('Teams must be different'); return; } try { 
-                                                                    const kickoffIso = f.kickoffAt || '';
-                                                                    if (kickoffIso && (hasConflict(newHome, kickoffIso, f._id) || hasConflict(awayId, kickoffIso, f._id))) {
-                                                                        const nextSlot = findNextFreeSlot(newHome, awayId, kickoffIso, f._id);
-                                                                        if (nextSlot) {
-                                                                            await scheduleMatch(f._id,{homeTeamId:newHome,awayTeamId:awayId,kickoffAt:nextSlot});
-                                                                            toast.success('Home set with auto-reschedule');
+                                                                <select disabled={options.length !== 2 || alreadyCommitted} value={homeId} onChange={async e => {
+                                                                    const newHome = e.target.value; if (!newHome || !awayId) return; if (newHome === awayId) { toast.error('Teams must be different'); return; } try {
+                                                                        const kickoffIso = f.kickoffAt || '';
+                                                                        if (kickoffIso && (hasConflict(newHome, kickoffIso, f._id) || hasConflict(awayId, kickoffIso, f._id))) {
+                                                                            const nextSlot = findNextFreeSlot(newHome, awayId, kickoffIso, f._id);
+                                                                            if (nextSlot) {
+                                                                                await scheduleMatch(f._id, { homeTeamId: newHome, awayTeamId: awayId, kickoffAt: nextSlot });
+                                                                                toast.success('Home set with auto-reschedule');
+                                                                            } else {
+                                                                                toast.error('No free slot available in next 48h. Choose another time.');
+                                                                                return;
+                                                                            }
                                                                         } else {
-                                                                            toast.error('No free slot available in next 48h. Choose another time.');
-                                                                            return;
+                                                                            await scheduleMatch(f._id, { homeTeamId: newHome, awayTeamId: awayId });
+                                                                            toast.success('Home set');
                                                                         }
-                                                                    } else {
-                                                                        await scheduleMatch(f._id,{homeTeamId:newHome,awayTeamId:awayId});
-                                                                        toast.success('Home set');
-                                                                    }
-                                                                    const list=await listFixtures(); setFixtures(list);} catch{ toast.error('Update failed'); } }} className={`bg-theme-page-bg border border-theme-border rounded px-2 py-1 ${(options.length!==2||alreadyCommitted)?'opacity-50 cursor-not-allowed':''}`}>
+                                                                        const list = await listFixtures(); setFixtures(list);
+                                                                    } catch { toast.error('Update failed'); }
+                                                                }} className={`bg-theme-page-bg border border-theme-border rounded px-2 py-1 ${(options.length !== 2 || alreadyCommitted) ? 'opacity-50 cursor-not-allowed' : ''}`}>
                                                                     <option value="">Home Team</option>
-                                                                    {options.map(c=> (<option key={c.id} value={c.id}>{c.name}</option>))}
+                                                                    {options.map(c => (<option key={c.id} value={c.id}>{c.name}</option>))}
                                                                 </select>
-                                                                <select disabled={options.length!==2 || alreadyCommitted} value={awayId} onChange={async e=>{ const newAway=e.target.value; if (!newAway || !homeId) return; if (newAway===homeId) { toast.error('Teams must be different'); return; } try { 
-                                                                    const kickoffIso = f.kickoffAt || '';
-                                                                    if (kickoffIso && (hasConflict(homeId, kickoffIso, f._id) || hasConflict(newAway, kickoffIso, f._id))) {
-                                                                        const nextSlot = findNextFreeSlot(homeId, newAway, kickoffIso, f._id);
-                                                                        if (nextSlot) {
-                                                                            await scheduleMatch(f._id,{homeTeamId:homeId,awayTeamId:newAway,kickoffAt:nextSlot});
-                                                                            toast.success('Away set with auto-reschedule');
+                                                                <select disabled={options.length !== 2 || alreadyCommitted} value={awayId} onChange={async e => {
+                                                                    const newAway = e.target.value; if (!newAway || !homeId) return; if (newAway === homeId) { toast.error('Teams must be different'); return; } try {
+                                                                        const kickoffIso = f.kickoffAt || '';
+                                                                        if (kickoffIso && (hasConflict(homeId, kickoffIso, f._id) || hasConflict(newAway, kickoffIso, f._id))) {
+                                                                            const nextSlot = findNextFreeSlot(homeId, newAway, kickoffIso, f._id);
+                                                                            if (nextSlot) {
+                                                                                await scheduleMatch(f._id, { homeTeamId: homeId, awayTeamId: newAway, kickoffAt: nextSlot });
+                                                                                toast.success('Away set with auto-reschedule');
+                                                                            } else {
+                                                                                toast.error('No free slot available in next 48h. Choose another time.');
+                                                                                return;
+                                                                            }
                                                                         } else {
-                                                                            toast.error('No free slot available in next 48h. Choose another time.');
-                                                                            return;
+                                                                            await scheduleMatch(f._id, { homeTeamId: homeId, awayTeamId: newAway });
+                                                                            toast.success('Away set');
                                                                         }
-                                                                    } else {
-                                                                        await scheduleMatch(f._id,{homeTeamId:homeId,awayTeamId:newAway});
-                                                                        toast.success('Away set');
-                                                                    }
-                                                                    const list=await listFixtures(); setFixtures(list);} catch{ toast.error('Update failed'); } }} className={`bg-theme-page-bg border border-theme-border rounded px-2 py-1 ${(options.length!==2||alreadyCommitted)?'opacity-50 cursor-not-allowed':''}`}>
+                                                                        const list = await listFixtures(); setFixtures(list);
+                                                                    } catch { toast.error('Update failed'); }
+                                                                }} className={`bg-theme-page-bg border border-theme-border rounded px-2 py-1 ${(options.length !== 2 || alreadyCommitted) ? 'opacity-50 cursor-not-allowed' : ''}`}>
                                                                     <option value="">Away Team</option>
-                                                                    {options.map(c=> (<option key={c.id} value={c.id}>{c.name}</option>))}
+                                                                    {options.map(c => (<option key={c.id} value={c.id}>{c.name}</option>))}
                                                                 </select>
-                                                                <button disabled={options.length!==2 || alreadyCommitted} onClick={async()=>{ 
-                                                                    if (!homeId || !awayId || homeId===awayId) return; 
-                                                                    try { 
+                                                                <button disabled={options.length !== 2 || alreadyCommitted} onClick={async () => {
+                                                                    if (!homeId || !awayId || homeId === awayId) return;
+                                                                    try {
                                                                         // If swapping causes a conflict for either team, auto-reschedule to next free slot
                                                                         let kickoffIso = f.kickoffAt || '';
                                                                         if (!kickoffIso) { toast.error('Set kickoff time before swapping'); return; }
                                                                         const nextSlot = findNextFreeSlot(awayId, homeId, kickoffIso, f._id);
                                                                         if (hasConflict(awayId, kickoffIso, f._id) || hasConflict(homeId, kickoffIso, f._id)) {
                                                                             if (nextSlot) {
-                                                                                await scheduleMatch(f._id,{ homeTeamId: awayId, awayTeamId: homeId, kickoffAt: nextSlot });
+                                                                                await scheduleMatch(f._id, { homeTeamId: awayId, awayTeamId: homeId, kickoffAt: nextSlot });
                                                                                 toast.success('Swapped and auto-rescheduled to avoid conflict');
                                                                             } else {
                                                                                 toast.error('No free slot found in the next 48 hours. Please pick a different time.');
                                                                                 return;
                                                                             }
                                                                         } else {
-                                                                            await scheduleMatch(f._id,{ homeTeamId: awayId, awayTeamId: homeId });
+                                                                            await scheduleMatch(f._id, { homeTeamId: awayId, awayTeamId: homeId });
                                                                             toast.success('Swapped');
                                                                         }
-                                                                        const list=await listFixtures(); setFixtures(list);
-                                                                    } catch { toast.error('Swap failed'); } 
-                                                                }} className={`h-9 px-3 rounded bg-theme-secondary-bg ${(options.length!==2||alreadyCommitted)?'opacity-50 cursor-not-allowed':''}`}>Swap</button>
+                                                                        const list = await listFixtures(); setFixtures(list);
+                                                                    } catch { toast.error('Swap failed'); }
+                                                                }} className={`h-9 px-3 rounded bg-theme-secondary-bg ${(options.length !== 2 || alreadyCommitted) ? 'opacity-50 cursor-not-allowed' : ''}`}>Swap</button>
                                                             </>
                                                         );
                                                     })()}
                                                 </div>
-                                    </div>
+                                            </div>
                                         )}
-                                                {f.status==='live' && (
+                                        {f.status === 'live' && (
                                             <div className="mt-3 space-y-4">
                                                 {/* PES-style Timing Controls */}
                                                 <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
@@ -1753,14 +1918,14 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                                                         <div className="flex items-center gap-2">
                                                             <label className="text-xs text-blue-700">Time Speed:</label>
-                                                            <select 
-                                                                value={f.timeAcceleration || 1} 
+                                                            <select
+                                                                value={f.timeAcceleration || 1}
                                                                 onChange={async (e) => {
                                                                     const acceleration = parseInt(e.target.value);
                                                                     try {
                                                                         await setTimeAcceleration(f._id, acceleration);
                                                                         toast.success(`Time speed set to ${acceleration}x`);
-                                                                        const list = await listFixtures(); 
+                                                                        const list = await listFixtures();
                                                                         setFixtures(list);
                                                                     } catch (error) {
                                                                         toast.error('Failed to set time speed');
@@ -1789,7 +1954,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                                                 try {
                                                                     await setManualTime(f._id, 45, 'half_time');
                                                                     toast.success('Set to half-time');
-                                                                    const list = await listFixtures(); 
+                                                                    const list = await listFixtures();
                                                                     setFixtures(list);
                                                                 } catch (error) {
                                                                     toast.error('Failed to set half-time');
@@ -1804,7 +1969,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                                                 try {
                                                                     await setManualTime(f._id, 90, 'extra_time');
                                                                     toast.success('Set to extra time break');
-                                                                    const list = await listFixtures(); 
+                                                                    const list = await listFixtures();
                                                                     setFixtures(list);
                                                                 } catch (error) {
                                                                     toast.error('Failed to set extra time');
@@ -1819,7 +1984,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                                                 try {
                                                                     await setManualTime(f._id, 90, 'full_time');
                                                                     toast.success('Set to full-time');
-                                                                    const list = await listFixtures(); 
+                                                                    const list = await listFixtures();
                                                                     setFixtures(list);
                                                                 } catch (error) {
                                                                     toast.error('Failed to set full-time');
@@ -1831,315 +1996,595 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                                         </button>
                                                     </div>
                                                 </div>
-                                                
+
                                                 {/* Event Input Section */}
                                                 <div className="flex items-end gap-2 flex-wrap">
-                                                <div className="flex items-end gap-2">
-                                                    <label className="text-xs text-theme-text-secondary">Minute</label>
-                                                    <div className="flex flex-col">
-                                                        <input 
-                                                            type="number" 
-                                                            min={0} 
-                                                            max={120} 
-                                                            value={eventInput.targetId===f._id?eventInput.minute:''} 
-                                                            onChange={e=>{
-                                                                setEventInput(prev=>({...prev, targetId:f._id, minute:e.target.value}));
-                                                                clearValidationError('minute');
-                                                            }} 
-                                                            placeholder="e.g. 34" 
-                                                            className={`w-24 bg-theme-page-bg border rounded px-2 py-1 ${
-                                                                eventValidationErrors.minute ? 'border-red-500 focus:border-red-500' : 'border-theme-border focus:border-theme-primary'
-                                                            }`}
-                                                        />
-                                                        {eventValidationErrors.minute && (
-                                                            <span className="text-xs text-red-600 mt-1">{eventValidationErrors.minute}</span>
-                                                        )}
-                                                    </div>
-                                                </div>
-                                                <div className="flex items-end gap-2">
-                                                    <label className="text-xs text-theme-text-secondary">Type</label>
-                                                    <div className="flex flex-col">
-                                                        <select 
-                                                            value={eventInput.targetId===f._id?eventInput.type:'goal'} 
-                                                            onChange={e=>{
-                                                                const newType = e.target.value as any;
-                                                                setEventInput(prev=>{
-                                                                    const updated = {...prev, targetId:f._id, type: newType};
-                                                                    // Clear assist and fieldSide for all non-goal events
-                                                                    if (newType !== 'goal') {
-                                                                        updated.assist = '';
-                                                                        updated.fieldSide = 'mid';
-                                                                    }
-                                                                    return updated;
-                                                                });
-                                                                clearValidationError('type');
-                                                                clearValidationError('assist');
-                                                                clearValidationError('fieldSide');
-                                                            }} 
-                                                            className={`bg-theme-page-bg border rounded px-2 py-1 ${
-                                                                eventValidationErrors.type ? 'border-red-500 focus:border-red-500' : 'border-theme-border focus:border-theme-primary'
-                                                            }`}
-                                                        >
-                                                            <option value="goal">Goal</option>
-                                                            <option value="yellow_card">Yellow Card</option>
-                                                            <option value="red_card">Red Card</option>
-                                                            <option value="foul">Foul</option>
-                                                            <option value="corner">Corner</option>
-                                                            <option value="shot">Shot</option>
-                                                        </select>
-                                                        {eventValidationErrors.type && (
-                                                            <span className="text-xs text-red-600 mt-1">{eventValidationErrors.type}</span>
-                                                        )}
-                                                    </div>
-                                                </div>
-                                                <div className="flex items-end gap-2">
-                                                    <label className="text-xs text-theme-text-secondary">Team</label>
-                                                    <div className="flex flex-col">
-                                                        <select
-                                                            value={eventInput.targetId===f._id?eventInput.team:'home'}
-                                                            onChange={async e=>{
-                                                                const team = e.target.value as 'home'|'away';
-                                                                const clubId = team === 'home'
-                                                                    ? (typeof f.homeTeam==='string'? f.homeTeam : f.homeTeam?._id)
-                                                                    : (typeof f.awayTeam==='string'? f.awayTeam : f.awayTeam?._id);
-                                                                setEventInput(prev=>({ ...prev, targetId: f._id, team, player: '' }));
-                                                                clearValidationError('team');
-                                                                await loadApprovedPlayers(clubId);
-                                                            }}
-                                                            className={`bg-theme-page-bg border rounded px-2 py-1 ${
-                                                                eventValidationErrors.team ? 'border-red-500 focus:border-red-500' : 'border-theme-border focus:border-theme-primary'
-                                                            }`}
-                                                        >
-                                                            <option value="home">Home</option>
-                                                            <option value="away">Away</option>
-                                                        </select>
-                                                        {eventValidationErrors.team && (
-                                                            <span className="text-xs text-red-600 mt-1">{eventValidationErrors.team}</span>
-                                                        )}
-                                                    </div>
-                                                </div>
-                                                <div className="flex items-end gap-2">
-                                                    <label className="text-xs text-theme-text-secondary">Player</label>
-                                                    {(() => {
-                                                        const team = (eventInput.targetId===f._id?eventInput.team:'home') as 'home'|'away';
-                                                        const clubId = team === 'home'
-                                                            ? (typeof f.homeTeam==='string'? f.homeTeam : f.homeTeam?._id)
-                                                            : (typeof f.awayTeam==='string'? f.awayTeam : f.awayTeam?._id);
-                                                        const options = (clubId && approvedPlayersByClub[clubId]) || [];
-                                                        return (
-                                                            <div className="flex flex-col">
-                                                                <select
-                                                                    value={eventInput.targetId===f._id?eventInput.player:''}
-                                                                    onFocus={async ()=>{ await loadApprovedPlayers(clubId); }}
-                                                                    onChange={e=>{
-                                                                        setEventInput(prev=>({...prev, targetId:f._id, player: e.target.value }));
-                                                                        clearValidationError('player');
-                                                                    }}
-                                                                    className={`bg-theme-page-bg border rounded px-2 py-1 min-w-[200px] ${
-                                                                        eventValidationErrors.player ? 'border-red-500 focus:border-red-500' : 'border-theme-border focus:border-theme-primary'
-                                                                    }`}
-                                                                >
-                                                                    <option value="">Select Player</option>
-                                                                    {options.map(p => (
-                                                                        <option key={p._id} value={p.name}>{p.name}</option>
-                                                                    ))}
-                                                                </select>
-                                                                {eventValidationErrors.player && (
-                                                                    <span className="text-xs text-red-600 mt-1">{eventValidationErrors.player}</span>
-                                                                )}
-                                                            </div>
-                                                        );
-                                                    })()}
-                                                </div>
-                                                
-                                                {/* Assist field for Goal events only */}
-                                                {eventInput.targetId===f._id && eventInput.type === 'goal' && (
                                                     <div className="flex items-end gap-2">
-                                                        <label className="text-xs text-theme-text-secondary">Assist</label>
+                                                        <label className="text-xs text-theme-text-secondary">Minute</label>
+                                                        <div className="flex flex-col">
+                                                            <input
+                                                                type="number"
+                                                                min={0}
+                                                                max={120}
+                                                                value={eventInput.targetId === f._id ? eventInput.minute : ''}
+                                                                onChange={e => {
+                                                                    setEventInput(prev => ({ ...prev, targetId: f._id, minute: e.target.value }));
+                                                                    clearValidationError('minute');
+                                                                }}
+                                                                placeholder="e.g. 34"
+                                                                className={`w-24 bg-theme-page-bg border rounded px-2 py-1 ${eventValidationErrors.minute ? 'border-red-500 focus:border-red-500' : 'border-theme-border focus:border-theme-primary'
+                                                                    }`}
+                                                            />
+                                                            {eventValidationErrors.minute && (
+                                                                <span className="text-xs text-red-600 mt-1">{eventValidationErrors.minute}</span>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                    <div className="flex items-end gap-2">
+                                                        <label className="text-xs text-theme-text-secondary">Type</label>
+                                                        <div className="flex flex-col">
+                                                            <select
+                                                                value={eventInput.targetId === f._id ? eventInput.type : 'goal'}
+                                                                onChange={e => {
+                                                                    const newType = e.target.value as any;
+                                                                    setEventInput(prev => {
+                                                                        const updated = { ...prev, targetId: f._id, type: newType };
+                                                                        // Clear assist and fieldSide for all non-goal events
+                                                                        if (newType !== 'goal') {
+                                                                            updated.assist = '';
+                                                                            updated.fieldSide = 'mid';
+                                                                        }
+                                                                        return updated;
+                                                                    });
+                                                                    clearValidationError('type');
+                                                                    clearValidationError('assist');
+                                                                    clearValidationError('fieldSide');
+                                                                }}
+                                                                className={`bg-theme-page-bg border rounded px-2 py-1 ${eventValidationErrors.type ? 'border-red-500 focus:border-red-500' : 'border-theme-border focus:border-theme-primary'
+                                                                    }`}
+                                                            >
+                                                                <option value="goal">Goal</option>
+                                                                <option value="yellow_card">Yellow Card</option>
+                                                                <option value="red_card">Red Card</option>
+                                                                <option value="foul">Foul</option>
+                                                                <option value="corner">Corner</option>
+                                                                <option value="shot">Shot</option>
+                                                            </select>
+                                                            {eventValidationErrors.type && (
+                                                                <span className="text-xs text-red-600 mt-1">{eventValidationErrors.type}</span>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                    <div className="flex items-end gap-2">
+                                                        <label className="text-xs text-theme-text-secondary">Team</label>
+                                                        <div className="flex flex-col">
+                                                            <select
+                                                                value={eventInput.targetId === f._id ? eventInput.team : 'home'}
+                                                                onChange={async e => {
+                                                                    const team = e.target.value as 'home' | 'away';
+                                                                    const clubId = team === 'home'
+                                                                        ? (typeof f.homeTeam === 'string' ? f.homeTeam : f.homeTeam?._id)
+                                                                        : (typeof f.awayTeam === 'string' ? f.awayTeam : f.awayTeam?._id);
+                                                                    setEventInput(prev => ({ ...prev, targetId: f._id, team, player: '' }));
+                                                                    clearValidationError('team');
+                                                                    await loadApprovedPlayers(clubId);
+                                                                }}
+                                                                className={`bg-theme-page-bg border rounded px-2 py-1 ${eventValidationErrors.team ? 'border-red-500 focus:border-red-500' : 'border-theme-border focus:border-theme-primary'
+                                                                    }`}
+                                                            >
+                                                                <option value="home">Home</option>
+                                                                <option value="away">Away</option>
+                                                            </select>
+                                                            {eventValidationErrors.team && (
+                                                                <span className="text-xs text-red-600 mt-1">{eventValidationErrors.team}</span>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                    <div className="flex items-end gap-2">
+                                                        <label className="text-xs text-theme-text-secondary">Player</label>
                                                         {(() => {
-                                                            const team = (eventInput.targetId===f._id?eventInput.team:'home') as 'home'|'away';
+                                                            const team = (eventInput.targetId === f._id ? eventInput.team : 'home') as 'home' | 'away';
                                                             const clubId = team === 'home'
-                                                                ? (typeof f.homeTeam==='string'? f.homeTeam : f.homeTeam?._id)
-                                                                : (typeof f.awayTeam==='string'? f.awayTeam : f.awayTeam?._id);
+                                                                ? (typeof f.homeTeam === 'string' ? f.homeTeam : f.homeTeam?._id)
+                                                                : (typeof f.awayTeam === 'string' ? f.awayTeam : f.awayTeam?._id);
                                                             const options = (clubId && approvedPlayersByClub[clubId]) || [];
                                                             return (
                                                                 <div className="flex flex-col">
                                                                     <select
-                                                                        value={eventInput.targetId===f._id?eventInput.assist:''}
-                                                                        onFocus={async ()=>{ await loadApprovedPlayers(clubId); }}
-                                                                        onChange={e=>{
-                                                                            setEventInput(prev=>({...prev, targetId:f._id, assist: e.target.value }));
-                                                                            clearValidationError('assist');
+                                                                        value={eventInput.targetId === f._id ? eventInput.player : ''}
+                                                                        onFocus={async () => { await loadApprovedPlayers(clubId); }}
+                                                                        onChange={e => {
+                                                                            setEventInput(prev => ({ ...prev, targetId: f._id, player: e.target.value }));
+                                                                            clearValidationError('player');
                                                                         }}
-                                                                        className={`bg-theme-page-bg border rounded px-2 py-1 min-w-[200px] ${
-                                                                            eventValidationErrors.assist ? 'border-red-500 focus:border-red-500' : 'border-theme-border focus:border-theme-primary'
-                                                                        }`}
+                                                                        className={`bg-theme-page-bg border rounded px-2 py-1 min-w-[200px] ${eventValidationErrors.player ? 'border-red-500 focus:border-red-500' : 'border-theme-border focus:border-theme-primary'
+                                                                            }`}
                                                                     >
-                                                                        <option value="No Assist">No Assist</option>
+                                                                        <option value="">Select Player</option>
                                                                         {options.map(p => (
                                                                             <option key={p._id} value={p.name}>{p.name}</option>
                                                                         ))}
                                                                     </select>
-                                                                    {eventValidationErrors.assist && (
-                                                                        <span className="text-xs text-red-600 mt-1">{eventValidationErrors.assist}</span>
+                                                                    {eventValidationErrors.player && (
+                                                                        <span className="text-xs text-red-600 mt-1">{eventValidationErrors.player}</span>
                                                                     )}
                                                                 </div>
                                                             );
                                                         })()}
                                                     </div>
-                                                )}
 
-                                                {/* Goal Type field for goals only */}
-                                                {eventInput.targetId===f._id && eventInput.type === 'goal' && (
-                                                    <div className="flex items-end gap-2">
-                                                        <label className="text-xs text-theme-text-secondary">Goal Type</label>
-                                                        <div className="flex flex-col">
-                                                            <select
-                                                                value={eventInput.targetId===f._id?eventInput.goalType:'open_play'}
-                                                                onChange={e=>{
-                                                                    setEventInput(prev=>({...prev, targetId:f._id, goalType: e.target.value as any}));
-                                                                    clearValidationError('goalType');
-                                                                }}
-                                                                className={`bg-theme-page-bg border rounded px-2 py-1 ${
-                                                                    eventValidationErrors.goalType ? 'border-red-500 focus:border-red-500' : 'border-theme-border focus:border-theme-primary'
-                                                                }`}
-                                                            >
-                                                                <option value="open_play">Open Play</option>
-                                                                <option value="penalty">Penalty</option>
-                                                                <option value="free_kick">Free Kick</option>
-                                                            </select>
-                                                            {eventValidationErrors.goalType && (
-                                                                <span className="text-xs text-red-600 mt-1">{eventValidationErrors.goalType}</span>
-                                                            )}
+                                                    {/* Assist field for Goal events only */}
+                                                    {eventInput.targetId === f._id && eventInput.type === 'goal' && (
+                                                        <div className="flex items-end gap-2">
+                                                            <label className="text-xs text-theme-text-secondary">Assist</label>
+                                                            {(() => {
+                                                                const team = (eventInput.targetId === f._id ? eventInput.team : 'home') as 'home' | 'away';
+                                                                const clubId = team === 'home'
+                                                                    ? (typeof f.homeTeam === 'string' ? f.homeTeam : f.homeTeam?._id)
+                                                                    : (typeof f.awayTeam === 'string' ? f.awayTeam : f.awayTeam?._id);
+                                                                const options = (clubId && approvedPlayersByClub[clubId]) || [];
+                                                                return (
+                                                                    <div className="flex flex-col">
+                                                                        <select
+                                                                            value={eventInput.targetId === f._id ? eventInput.assist : ''}
+                                                                            onFocus={async () => { await loadApprovedPlayers(clubId); }}
+                                                                            onChange={e => {
+                                                                                setEventInput(prev => ({ ...prev, targetId: f._id, assist: e.target.value }));
+                                                                                clearValidationError('assist');
+                                                                            }}
+                                                                            className={`bg-theme-page-bg border rounded px-2 py-1 min-w-[200px] ${eventValidationErrors.assist ? 'border-red-500 focus:border-red-500' : 'border-theme-border focus:border-theme-primary'
+                                                                                }`}
+                                                                        >
+                                                                            <option value="No Assist">No Assist</option>
+                                                                            {options.map(p => (
+                                                                                <option key={p._id} value={p.name}>{p.name}</option>
+                                                                            ))}
+                                                                        </select>
+                                                                        {eventValidationErrors.assist && (
+                                                                            <span className="text-xs text-red-600 mt-1">{eventValidationErrors.assist}</span>
+                                                                        )}
+                                                                    </div>
+                                                                );
+                                                            })()}
                                                         </div>
-                                                    </div>
-                                                )}
+                                                    )}
 
-                                                {/* Field Side field for Goal events only */}
-                                                {eventInput.targetId===f._id && eventInput.type === 'goal' && (
-                                                    <div className="flex items-end gap-2">
-                                                        <label className="text-xs text-theme-text-secondary">Field Side</label>
-                                                        <div className="flex flex-col">
-                                                            <select
-                                                                value={eventInput.targetId===f._id?eventInput.fieldSide:'mid'}
-                                                                onChange={e=>{
-                                                                    setEventInput(prev=>({...prev, targetId:f._id, fieldSide: e.target.value as any}));
-                                                                    clearValidationError('fieldSide');
-                                                                }}
-                                                                className={`bg-theme-page-bg border rounded px-2 py-1 ${
-                                                                    eventValidationErrors.fieldSide ? 'border-red-500 focus:border-red-500' : 'border-theme-border focus:border-theme-primary'
-                                                                }`}
-                                                            >
-                                                                <option value="mid">Mid</option>
-                                                                <option value="rw">Right Wing (RW)</option>
-                                                                <option value="lw">Left Wing (LW)</option>
-                                                            </select>
-                                                            {eventValidationErrors.fieldSide && (
-                                                                <span className="text-xs text-red-600 mt-1">{eventValidationErrors.fieldSide}</span>
-                                                            )}
+                                                    {/* Goal Type field for goals only */}
+                                                    {eventInput.targetId === f._id && eventInput.type === 'goal' && (
+                                                        <div className="flex items-end gap-2">
+                                                            <label className="text-xs text-theme-text-secondary">Goal Type</label>
+                                                            <div className="flex flex-col">
+                                                                <select
+                                                                    value={eventInput.targetId === f._id ? eventInput.goalType : 'open_play'}
+                                                                    onChange={e => {
+                                                                        setEventInput(prev => ({ ...prev, targetId: f._id, goalType: e.target.value as any }));
+                                                                        clearValidationError('goalType');
+                                                                    }}
+                                                                    className={`bg-theme-page-bg border rounded px-2 py-1 ${eventValidationErrors.goalType ? 'border-red-500 focus:border-red-500' : 'border-theme-border focus:border-theme-primary'
+                                                                        }`}
+                                                                >
+                                                                    <option value="open_play">Open Play</option>
+                                                                    <option value="penalty">Penalty</option>
+                                                                    <option value="free_kick">Free Kick</option>
+                                                                </select>
+                                                                {eventValidationErrors.goalType && (
+                                                                    <span className="text-xs text-red-600 mt-1">{eventValidationErrors.goalType}</span>
+                                                                )}
+                                                            </div>
                                                         </div>
-                                                    </div>
-                                                )}
+                                                    )}
 
-                                                {/* Fields for shots */}
-                                                {eventInput.targetId===f._id && eventInput.type === 'shot' && (
-                                                    <div className="flex items-center gap-2">
-                                                        <label className="text-xs text-theme-text-secondary">On Target</label>
-                                                        <input type="checkbox" checked={!!eventInput.onTarget} onChange={e=>setEventInput(prev=>({ ...prev, targetId:f._id, onTarget: e.target.checked }))} />
-                                                    </div>
-                                                )}
-                                                {f.status==='finished' && (
-                                                    <div className="mt-3 bg-theme-secondary-bg p-3 rounded">
-                                                        <div className="flex items-center gap-3">
-                                                            <label className="text-xs text-theme-text-secondary">Possession Home (%)</label>
-                                                            <input type="number" min={0} max={100} value={possessionInputs[f._id]?.home || ''} onChange={e=>setPossessionInputs(prev=>({ ...prev, [f._id]: { ...(prev[f._id]||{ home:'', away:'' }), home: e.target.value } }))} className="w-20 bg-theme-page-bg border border-theme-border rounded px-2 py-1" />
-                                                            <label className="text-xs text-theme-text-secondary">Away (%)</label>
-                                                            <input type="number" min={0} max={100} value={possessionInputs[f._id]?.away || ''} onChange={e=>setPossessionInputs(prev=>({ ...prev, [f._id]: { ...(prev[f._id]||{ home:'', away:'' }), away: e.target.value } }))} className="w-20 bg-theme-page-bg border border-theme-border rounded px-2 py-1" />
-                                                            <button
-                                                                onClick={async()=>{
-                                                                    try {
-                                                                        const home = Math.min(100, Math.max(0, parseInt(possessionInputs[f._id]?.home || '50', 10)));
-                                                                        const away = Math.min(100, Math.max(0, parseInt(possessionInputs[f._id]?.away || String(100-home), 10)));
-                                                                        const fix = (home>100?100:home);
-                                                                        const adjAway = Math.max(0, Math.min(100, away));
-                                                                        // Update MatchData possession after finish via API
-                                                                        // get by fixture id then update
+                                                    {/* Field Side field for Goal events only */}
+                                                    {eventInput.targetId === f._id && eventInput.type === 'goal' && (
+                                                        <div className="flex items-end gap-2">
+                                                            <label className="text-xs text-theme-text-secondary">Field Side</label>
+                                                            <div className="flex flex-col">
+                                                                <select
+                                                                    value={eventInput.targetId === f._id ? eventInput.fieldSide : 'mid'}
+                                                                    onChange={e => {
+                                                                        setEventInput(prev => ({ ...prev, targetId: f._id, fieldSide: e.target.value as any }));
+                                                                        clearValidationError('fieldSide');
+                                                                    }}
+                                                                    className={`bg-theme-page-bg border rounded px-2 py-1 ${eventValidationErrors.fieldSide ? 'border-red-500 focus:border-red-500' : 'border-theme-border focus:border-theme-primary'
+                                                                        }`}
+                                                                >
+                                                                    <option value="mid">Mid</option>
+                                                                    <option value="rw">Right Wing (RW)</option>
+                                                                    <option value="lw">Left Wing (LW)</option>
+                                                                </select>
+                                                                {eventValidationErrors.fieldSide && (
+                                                                    <span className="text-xs text-red-600 mt-1">{eventValidationErrors.fieldSide}</span>
+                                                                )}
+                                                            </div>
+                                                        </div>
+                                                    )}
+
+                                                    {/* Fields for shots */}
+                                                    {eventInput.targetId === f._id && eventInput.type === 'shot' && (
+                                                        <div className="flex items-center gap-2">
+                                                            <label className="text-xs text-theme-text-secondary">On Target</label>
+                                                            <input type="checkbox" checked={!!eventInput.onTarget} onChange={e => setEventInput(prev => ({ ...prev, targetId: f._id, onTarget: e.target.checked }))} />
+                                                        </div>
+                                                    )}
+                                                    {f.status === 'finished' && (
+                                                        <div className="mt-3 bg-theme-secondary-bg p-3 rounded">
+                                                            <div className="flex items-center gap-3">
+                                                                <label className="text-xs text-theme-text-secondary">Possession Home (%)</label>
+                                                                <input type="number" min={0} max={100} value={possessionInputs[f._id]?.home || ''} onChange={e => setPossessionInputs(prev => ({ ...prev, [f._id]: { ...(prev[f._id] || { home: '', away: '' }), home: e.target.value } }))} className="w-20 bg-theme-page-bg border border-theme-border rounded px-2 py-1" />
+                                                                <label className="text-xs text-theme-text-secondary">Away (%)</label>
+                                                                <input type="number" min={0} max={100} value={possessionInputs[f._id]?.away || ''} onChange={e => setPossessionInputs(prev => ({ ...prev, [f._id]: { ...(prev[f._id] || { home: '', away: '' }), away: e.target.value } }))} className="w-20 bg-theme-page-bg border border-theme-border rounded px-2 py-1" />
+                                                                <button
+                                                                    onClick={async () => {
                                                                         try {
-                                                                            const { default: matchDataService } = await import('../services/matchDataService');
-                                                                            const md = await matchDataService.getMatchDataByFixture(f._id);
-                                                                            await matchDataService.updateMatchData(md.data._id, { homeTeamStats: { ...md.data.homeTeamStats, possession: fix }, awayTeamStats: { ...md.data.awayTeamStats, possession: adjAway } });
-                                                                            toast.success('Possession saved to report');
-                                                                        } catch (e) { toast.error('Failed to save possession'); }
-                                                                    } catch {}
-                                                                }}
-                                                                className="h-8 px-3 rounded bg-green-600 text-white text-xs"
-                                                            >Save Possession</button>
+                                                                            const home = Math.min(100, Math.max(0, parseInt(possessionInputs[f._id]?.home || '50', 10)));
+                                                                            const away = Math.min(100, Math.max(0, parseInt(possessionInputs[f._id]?.away || String(100 - home), 10)));
+                                                                            const fix = (home > 100 ? 100 : home);
+                                                                            const adjAway = Math.max(0, Math.min(100, away));
+                                                                            // Update MatchData possession after finish via API
+                                                                            // get by fixture id then update
+                                                                            try {
+                                                                                const { default: matchDataService } = await import('../services/matchDataService');
+                                                                                const md = await matchDataService.getMatchDataByFixture(f._id);
+                                                                                await matchDataService.updateMatchData(md.data._id, { homeTeamStats: { ...md.data.homeTeamStats, possession: fix }, awayTeamStats: { ...md.data.awayTeamStats, possession: adjAway } });
+                                                                                toast.success('Possession saved to report');
+                                                                            } catch (e) { toast.error('Failed to save possession'); }
+                                                                        } catch { }
+                                                                    }}
+                                                                    className="h-8 px-3 rounded bg-green-600 text-white text-xs"
+                                                                >Save Possession</button>
+                                                            </div>
                                                         </div>
-                                                    </div>
-                                                )}
-                                                
-                                                <button onClick={async()=>{
-                                                    if (eventInput.targetId!==f._id) return;
-                                                    
-                                                    // Validate the form before proceeding
-                                                    const validation = validateEventForm(eventInput);
-                                                    if (!validation.isValid) {
-                                                        setEventValidationErrors(validation.errors);
-                                                        toast.error('Please fix the validation errors before adding the event.');
-                                                        return;
-                                                    }
-                                                    
-                                                    // Clear any existing validation errors
-                                                    clearAllValidationErrors();
-                                                    
-                                                    try { 
-                                                        const minuteNum = parseInt(eventInput.minute, 10);
-                                                        const eventData: any = { 
-                                                            minute: minuteNum, 
-                                                            type: eventInput.type, 
-                                                            team: eventInput.team, 
-                                                            player: eventInput.player
-                                                        };
-                                                        
-                                                        // Add assist and fieldSide only for Goal events
-                                                        if (eventInput.type === 'goal') {
-                                                            eventData.assist = eventInput.assist || 'No Assist';
-                                                            eventData.fieldSide = eventInput.fieldSide;
+                                                    )}
+
+                                                    <button onClick={async () => {
+                                                        if (eventInput.targetId !== f._id) return;
+
+                                                        // Validate the form before proceeding
+                                                        const validation = validateEventForm(eventInput);
+                                                        if (!validation.isValid) {
+                                                            setEventValidationErrors(validation.errors);
+                                                            toast.error('Please fix the validation errors before adding the event.');
+                                                            return;
                                                         }
-                                                        
-                                                        // Add goal-specific fields only if it's a goal
-                                                        if (eventInput.type === 'goal') {
-                                                            if (eventInput.goalType) eventData.goalType = eventInput.goalType;
-                                                        }
-                                                        // Add shot-specific fields
-                                                        if (eventInput.type === 'shot') {
-                                                            if (eventInput.onTarget) { eventData.onTarget = true; eventData.description = 'on_target'; }
-                                                        }
-                                                        
-                                                        await addEvent(f._id, eventData); 
-                                                        toast.success('Event added successfully!'); 
-                                                        setEventInput({ 
-                                                            minute:'', 
-                                                            type:'goal', 
-                                                            team:'home', 
-                                                            player:'', 
-                                                            assist: 'No Assist',
-                                                            goalType: 'open_play',
-                                                            fieldSide: 'mid',
-                                                            onTarget: false,
-                                                            targetId:undefined 
-                                                        }); 
-                                                    } catch { toast.error('Failed to add event'); }
-                                                }} className="bg-theme-primary text-theme-dark font-bold px-3 py-1 rounded">Add Event</button>
+
+                                                        // Clear any existing validation errors
+                                                        clearAllValidationErrors();
+
+                                                        try {
+                                                            const minuteNum = parseInt(eventInput.minute, 10);
+                                                            const eventData: any = {
+                                                                minute: minuteNum,
+                                                                type: eventInput.type,
+                                                                team: eventInput.team,
+                                                                player: eventInput.player
+                                                            };
+
+                                                            // Add assist and fieldSide only for Goal events
+                                                            if (eventInput.type === 'goal') {
+                                                                eventData.assist = eventInput.assist || 'No Assist';
+                                                                eventData.fieldSide = eventInput.fieldSide;
+                                                            }
+
+                                                            // Add goal-specific fields only if it's a goal
+                                                            if (eventInput.type === 'goal') {
+                                                                if (eventInput.goalType) eventData.goalType = eventInput.goalType;
+                                                            }
+                                                            // Add shot-specific fields
+                                                            if (eventInput.type === 'shot') {
+                                                                if (eventInput.onTarget) { eventData.onTarget = true; eventData.description = 'on_target'; }
+                                                            }
+
+                                                            await addEvent(f._id, eventData);
+                                                            toast.success('Event added successfully!');
+                                                            setEventInput({
+                                                                minute: '',
+                                                                type: 'goal',
+                                                                team: 'home',
+                                                                player: '',
+                                                                assist: 'No Assist',
+                                                                goalType: 'open_play',
+                                                                fieldSide: 'mid',
+                                                                onTarget: false,
+                                                                targetId: undefined
+                                                            });
+                                                        } catch { toast.error('Failed to add event'); }
+                                                    }} className="bg-theme-primary text-theme-dark font-bold px-3 py-1 rounded">Add Event</button>
                                                 </div>
                                             </div>
                                         )}
                                     </div>
                                 );
                             })}
-                            {fixtures.length===0 && (
+                            {fixtures.length === 0 && (
                                 <div className="text-sm text-theme-text-secondary">No fixtures yet. Click Generate Fixtures.</div>
                             )}
+                        </div>
+                    </div>
+                );
+            case 'Manage Store':
+                return (
+                    <div className="space-y-8">
+                        <div className="flex justify-between items-center border-b border-theme-primary pb-4">
+                            <h2 className="text-2xl font-bold text-theme-dark">Manage Store</h2>
+                        </div>
+
+                        {/* Add Product Form - Matching User Image */}
+                        <div className="bg-white p-8 rounded-lg shadow-sm border border-gray-100">
+                            <div className="border-b border-gray-200 pb-2 mb-6">
+                                <h3 className="text-xl font-bold text-gray-800">
+                                    {editingProduct ? 'Edit Product' : 'Add New Product'}
+                                </h3>
+                            </div>
+                            <form onSubmit={handleAddProductSubmit} className="space-y-6">
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-600 mb-2">Product Name *</label>
+                                        <input
+                                            type="text"
+                                            value={newProduct.name}
+                                            onChange={e => setNewProduct(prev => ({ ...prev, name: e.target.value }))}
+                                            required
+                                            className="w-full border border-gray-300 rounded-md px-4 py-2.5 text-gray-800 focus:ring-1 focus:ring-[#5A8D83] focus:border-[#5A8D83] outline-none"
+                                            placeholder="e.g. 24/25 Home Kit"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-600 mb-2">Price (₹) *</label>
+                                        <input
+                                            type="number"
+                                            value={newProduct.price === 0 ? '' : newProduct.price}
+                                            onChange={e => setNewProduct(prev => ({ ...prev, price: e.target.value === '' ? 0 : Number(e.target.value) }))}
+                                            required
+                                            min="0"
+                                            step="1"
+                                            className="w-full border border-gray-300 rounded-md px-4 py-2.5 text-gray-800 focus:ring-1 focus:ring-[#5A8D83] focus:border-[#5A8D83] outline-none"
+                                        />
+                                    </div>
+                                </div>
+
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-600 mb-2">Category *</label>
+                                        <select
+                                            value={newProduct.category}
+                                            onChange={e => setNewProduct(prev => ({ ...prev, category: e.target.value }))}
+                                            className="w-full border border-gray-300 rounded-md px-4 py-2.5 text-gray-800 focus:ring-1 focus:ring-[#5A8D83] focus:border-[#5A8D83] outline-none bg-white"
+                                        >
+                                            <option value="Kits">Kits</option>
+                                            <option value="Training">Training</option>
+                                            <option value="Equipment">Equipment</option>
+                                            <option value="Accessories">Accessories</option>
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-600 mb-2">Gender *</label>
+                                        <select
+                                            value={newProduct.gender}
+                                            onChange={e => setNewProduct(prev => ({ ...prev, gender: e.target.value as any }))}
+                                            className="w-full border border-gray-300 rounded-md px-4 py-2.5 text-gray-800 focus:ring-1 focus:ring-[#5A8D83] focus:border-[#5A8D83] outline-none bg-white"
+                                        >
+                                            <option value="Unisex">Unisex</option>
+                                            <option value="Men">Men</option>
+                                            <option value="Women">Women</option>
+                                            <option value="Kids">Kids</option>
+                                        </select>
+                                    </div>
+                                </div>
+
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-600 mb-2">Product Image *</label>
+                                    <div className="flex items-start gap-4">
+                                        <div className="flex-grow">
+                                            <div className="flex items-center gap-4">
+                                                <label className="px-6 py-2.5 bg-[#5A8D83] text-white font-bold rounded-full cursor-pointer hover:bg-[#4A7D73] transition-colors text-sm shadow-sm">
+                                                    Choose File
+                                                    <input
+                                                        type="file"
+                                                        className="hidden"
+                                                        accept="image/*"
+                                                        onChange={handleProductImageChange}
+                                                    />
+                                                </label>
+                                                <span className="text-gray-400 text-sm truncate max-w-[200px]">
+                                                    {productImageFile ? productImageFile.name : 'No file chosen'}
+                                                </span>
+                                            </div>
+                                            <div className="mt-3">
+                                                <p className="text-[10px] text-gray-400 uppercase font-bold tracking-wider mb-2 text-center">
+                                                    Device upload only
+                                                </p>
+                                            </div>
+                                        </div>
+
+                                        {/* Image Preview */}
+                                        <div className="w-24 h-24 border-2 border-dashed border-gray-200 rounded-lg overflow-hidden flex-shrink-0 flex items-center justify-center bg-gray-50">
+                                            {(productImagePreview || newProduct.imageUrl) ? (
+                                                <img
+                                                    src={productImagePreview || newProduct.imageUrl}
+                                                    alt="Preview"
+                                                    className="w-full h-full object-cover"
+                                                />
+                                            ) : (
+                                                <div className="text-center p-2">
+                                                    <svg className="w-8 h-8 text-gray-300 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                                                    </svg>
+                                                    <span className="text-[10px] text-gray-400 uppercase font-black">Preview</span>
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Related Gallery Images */}
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-600 mb-2">Related Gallery Images (Optional)</label>
+                                    <div className="space-y-4">
+                                        <div className="flex items-center gap-4">
+                                            <label className="px-6 py-2.5 bg-gray-100 text-gray-700 font-bold rounded-full cursor-pointer hover:bg-gray-200 transition-colors text-sm shadow-sm border border-gray-200">
+                                                Add Images
+                                                <input
+                                                    type="file"
+                                                    className="hidden"
+                                                    accept="image/*"
+                                                    multiple
+                                                    onChange={handleRelatedImagesChange}
+                                                />
+                                            </label>
+                                            <span className="text-gray-400 text-xs italic">
+                                                Select multiple images for the product gallery
+                                            </span>
+                                        </div>
+
+                                        {relatedImagePreviews.length > 0 && (
+                                            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4 p-4 bg-gray-50 rounded-xl border border-dashed border-gray-200">
+                                                {relatedImagePreviews.map((preview, index) => (
+                                                    <div key={index} className="relative group aspect-square rounded-lg overflow-hidden border border-gray-200 bg-white shadow-sm hover:shadow-md transition-all">
+                                                        <img src={preview} alt={`Preview ${index}`} className="w-full h-full object-cover" />
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => removeRelatedImage(index)}
+                                                            className="absolute top-1 right-1 bg-red-500 text-white w-6 h-6 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-600 text-xs font-bold shadow-md"
+                                                        >
+                                                            ×
+                                                        </button>
+                                                    </div>
+                                                ))}
+                                                <label className="aspect-square rounded-lg border-2 border-dashed border-gray-200 flex flex-col items-center justify-center cursor-pointer hover:border-[#5A8D83] hover:bg-white transition-all group">
+                                                    <span className="text-2xl text-gray-300 group-hover:text-[#5A8D83]">+</span>
+                                                    <span className="text-[10px] font-black text-gray-300 uppercase group-hover:text-[#5A8D83]">Add more</span>
+                                                    <input
+                                                        type="file"
+                                                        className="hidden"
+                                                        accept="image/*"
+                                                        multiple
+                                                        onChange={handleRelatedImagesChange}
+                                                    />
+                                                </label>
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-600 mb-2">Description</label>
+                                    <textarea
+                                        rows={4}
+                                        value={newProduct.description}
+                                        onChange={e => setNewProduct(prev => ({ ...prev, description: e.target.value }))}
+                                        className="w-full border border-gray-300 rounded-md px-4 py-2.5 text-gray-800 focus:ring-1 focus:ring-[#5A8D83] focus:border-[#5A8D83] outline-none resize-none"
+                                        placeholder="Detailed product information..."
+                                    />
+                                </div>
+
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-600 mb-2">Sizes (comma separated)</label>
+                                        <input
+                                            type="text"
+                                            value={newProduct.sizes?.join(',')}
+                                            onChange={e => setNewProduct(prev => ({ ...prev, sizes: e.target.value.split(',').map(s => s.trim()) }))}
+                                            className="w-full border border-gray-300 rounded-md px-4 py-2.5 text-gray-800 focus:ring-1 focus:ring-[#5A8D83] focus:border-[#5A8D83] outline-none"
+                                            placeholder="S,M,L,XL"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-600 mb-2">Tags (comma separated)</label>
+                                        <input
+                                            type="text"
+                                            value={newProduct.tags?.join(', ')}
+                                            onChange={e => setNewProduct(prev => ({ ...prev, tags: e.target.value.split(',').map(t => t.trim()).filter(t => t !== '') }))}
+                                            className="w-full border border-gray-300 rounded-md px-4 py-2.5 text-gray-800 focus:ring-1 focus:ring-[#5A8D83] focus:border-[#5A8D83] outline-none"
+                                            placeholder="New, Bestseller, Limited"
+                                        />
+                                    </div>
+                                </div>
+
+                                <div className="flex justify-end items-center gap-6 pt-6 border-t border-gray-100">
+                                    <button
+                                        type="button"
+                                        onClick={handleCancelProductEdit}
+                                        className="text-gray-800 font-bold hover:underline"
+                                    >
+                                        Cancel
+                                    </button>
+                                    <button
+                                        type="submit"
+                                        disabled={isSubmittingProduct}
+                                        className="bg-[#5A8D83] text-white font-bold py-3 px-10 rounded-md hover:bg-[#4A7D73] transition-colors disabled:opacity-50 shadow-sm"
+                                    >
+                                        {isSubmittingProduct ? (editingProduct ? 'Updating...' : 'Creating...') : (editingProduct ? 'Update Product' : 'Create Product')}
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+
+                        {/* Inventory Section */}
+                        <div className="bg-theme-secondary-bg p-8 rounded-lg shadow-sm">
+                            <div className="flex justify-between items-center mb-6 border-b border-theme-primary pb-2">
+                                <h3 className="text-xl font-bold text-theme-dark">Inventory ({products.length})</h3>
+                            </div>
+                            <div className="overflow-x-auto">
+                                <table className="w-full text-left">
+                                    <thead>
+                                        <tr className="text-theme-text-secondary text-sm border-b border-theme-border">
+                                            <th className="pb-2 font-semibold">Product</th>
+                                            <th className="pb-2 font-semibold">Category</th>
+                                            <th className="pb-2 font-semibold">Price</th>
+                                            <th className="pb-2 font-semibold text-right">Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-theme-border">
+                                        {products.map(product => (
+                                            <tr key={product.id} className="text-theme-dark">
+                                                <td className="py-3">
+                                                    <div className="flex items-center gap-3">
+                                                        <div className="w-10 h-10 bg-gray-100 rounded overflow-hidden flex-shrink-0">
+                                                            {product.imageUrl ? (
+                                                                <img src={product.imageUrl} alt={product.name} className="w-full h-full object-cover" />
+                                                            ) : (
+                                                                <div className="w-full h-full flex items-center justify-center text-xs text-gray-400">IMG</div>
+                                                            )}
+                                                        </div>
+                                                        <span className="font-medium text-sm">{product.name}</span>
+                                                    </div>
+                                                </td>
+                                                <td className="py-3 text-sm">{product.category}</td>
+                                                <td className="py-3 text-sm font-bold">€{product.price.toFixed(2)}</td>
+                                                <td className="py-3 text-right">
+                                                    <div className="flex justify-end items-center gap-2">
+                                                        <button
+                                                            onClick={() => handleEditProductClick(product)}
+                                                            className="text-[#5A8D83] hover:text-[#4A7D73] p-1 transition-colors"
+                                                            title="Edit Product"
+                                                        >
+                                                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                                            </svg>
+                                                        </button>
+                                                        <button
+                                                            onClick={() => onDeleteProduct(product.id)}
+                                                            className="text-red-500 hover:text-red-700 p-1 transition-colors"
+                                                            title="Delete Product"
+                                                        >
+                                                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                                            </svg>
+                                                        </button>
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        ))}
+                                        {products.length === 0 && (
+                                            <tr>
+                                                <td colSpan={4} className="py-8 text-center text-theme-text-secondary italic">
+                                                    No products in inventory.
+                                                </td>
+                                            </tr>
+                                        )}
+                                    </tbody>
+                                </table>
+                            </div>
                         </div>
                     </div>
                 );
@@ -2195,25 +2640,25 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                 <h3 className="text-xl font-semibold mb-4 text-theme-dark border-b-2 border-theme-primary pb-2">
                                     {editingNews ? 'Edit News Article' : 'Create New News Article'}
                                 </h3>
-                                
+
                                 <form onSubmit={editingNews ? handleUpdateNews : handleCreateNews} className="space-y-4">
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                         <div>
                                             <label htmlFor="newsTitle" className="block text-sm font-medium text-theme-text-secondary mb-1">Article Title *</label>
-                                            <input 
-                                                type="text" 
-                                                id="newsTitle" 
-                                                value={newsForm.title} 
-                                                onChange={e => setNewsForm(prev => ({ ...prev, title: e.target.value }))} 
-                                                required 
-                                                className="w-full bg-theme-page-bg border border-theme-border rounded-md shadow-sm py-2 px-3 text-theme-dark focus:outline-none focus:ring-theme-primary focus:border-theme-primary" 
+                                            <input
+                                                type="text"
+                                                id="newsTitle"
+                                                value={newsForm.title}
+                                                onChange={e => setNewsForm(prev => ({ ...prev, title: e.target.value }))}
+                                                required
+                                                className="w-full bg-theme-page-bg border border-theme-border rounded-md shadow-sm py-2 px-3 text-theme-dark focus:outline-none focus:ring-theme-primary focus:border-theme-primary"
                                                 placeholder="Enter article title"
                                             />
                                         </div>
                                         <div>
                                             <label htmlFor="newsCategory" className="block text-sm font-medium text-theme-text-secondary mb-1">Category *</label>
-                                            <select 
-                                                id="newsCategory" 
+                                            <select
+                                                id="newsCategory"
                                                 value={newsForm.category}
                                                 onChange={e => setNewsForm(prev => ({ ...prev, category: e.target.value }))}
                                                 className="w-full bg-theme-page-bg border border-theme-border rounded-md shadow-sm py-2 px-3 text-theme-dark focus:outline-none focus:ring-theme-primary focus:border-theme-primary"
@@ -2226,12 +2671,12 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                             </select>
                                         </div>
                                     </div>
-                                    
+
                                     <div>
                                         <label htmlFor="newsImageFile" className="block text-sm font-medium text-theme-text-secondary mb-1">Image *</label>
-                                        <input 
-                                            type="file" 
-                                            id="newsImageFile" 
+                                        <input
+                                            type="file"
+                                            id="newsImageFile"
                                             accept="image/jpeg,image/jpg,image/png,image/webp"
                                             onChange={(e) => {
                                                 const file = e.target.files?.[0] || null;
@@ -2243,44 +2688,44 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                                 }
                                             }}
                                             required={!editingNews}
-                                            className="w-full bg-theme-page-bg border border-theme-border rounded-md shadow-sm py-2 px-3 text-theme-dark focus:outline-none focus:ring-theme-primary focus:border-theme-primary" 
+                                            className="w-full bg-theme-page-bg border border-theme-border rounded-md shadow-sm py-2 px-3 text-theme-dark focus:outline-none focus:ring-theme-primary focus:border-theme-primary"
                                         />
                                         {newsImagePreview && (
-                                            <img src={newsImagePreview} alt="Preview" className="mt-2 h-32 w-full object-cover rounded"/>
+                                            <img src={newsImagePreview} alt="Preview" className="mt-2 h-32 w-full object-cover rounded" />
                                         )}
                                         {editingNews && !newsImagePreview && (
                                             <div className="mt-2">
                                                 <p className="text-sm text-theme-text-secondary mb-2">Current image:</p>
-                                                <img src={editingNews.imageUrl} alt="Current" className="h-32 w-full object-cover rounded"/>
+                                                <img src={editingNews.imageUrl} alt="Current" className="h-32 w-full object-cover rounded" />
                                             </div>
                                         )}
                                     </div>
-                                    
+
                                     <div>
                                         <label htmlFor="newsSummary" className="block text-sm font-medium text-theme-text-secondary mb-1">Summary *</label>
-                                        <textarea 
-                                            id="newsSummary" 
-                                            value={newsForm.summary} 
-                                            onChange={e => setNewsForm(prev => ({ ...prev, summary: e.target.value }))} 
-                                            required 
+                                        <textarea
+                                            id="newsSummary"
+                                            value={newsForm.summary}
+                                            onChange={e => setNewsForm(prev => ({ ...prev, summary: e.target.value }))}
+                                            required
                                             rows={3}
-                                            className="w-full bg-theme-page-bg border border-theme-border rounded-md shadow-sm py-2 px-3 text-theme-dark focus:outline-none focus:ring-theme-primary focus:border-theme-primary" 
+                                            className="w-full bg-theme-page-bg border border-theme-border rounded-md shadow-sm py-2 px-3 text-theme-dark focus:outline-none focus:ring-theme-primary focus:border-theme-primary"
                                             placeholder="Brief summary of the article"
                                         />
                                     </div>
-                                    
+
                                     <div>
                                         <label htmlFor="newsContent" className="block text-sm font-medium text-theme-text-secondary mb-1">Full Content</label>
-                                        <textarea 
-                                            id="newsContent" 
-                                            value={newsForm.content} 
-                                            onChange={e => setNewsForm(prev => ({ ...prev, content: e.target.value }))} 
+                                        <textarea
+                                            id="newsContent"
+                                            value={newsForm.content}
+                                            onChange={e => setNewsForm(prev => ({ ...prev, content: e.target.value }))}
                                             rows={6}
-                                            className="w-full bg-theme-page-bg border border-theme-border rounded-md shadow-sm py-2 px-3 text-theme-dark focus:outline-none focus:ring-theme-primary focus:border-theme-primary" 
+                                            className="w-full bg-theme-page-bg border border-theme-border rounded-md shadow-sm py-2 px-3 text-theme-dark focus:outline-none focus:ring-theme-primary focus:border-theme-primary"
                                             placeholder="Full article content (optional)"
                                         />
                                     </div>
-                                    
+
                                     <div className="flex gap-3">
                                         <button
                                             type="submit"
@@ -2305,7 +2750,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                         >
                                             Cancel
                                         </button>
-                                                </div>
+                                    </div>
                                 </form>
                             </div>
                         ) : (
@@ -2319,9 +2764,9 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                     {newsArticles.map(article => (
                                         <div key={article._id} className="bg-theme-secondary-bg rounded-lg overflow-hidden shadow-lg">
                                             <div className="relative h-48">
-                                                <img 
-                                                    src={article.imageUrl} 
-                                                    alt={article.title} 
+                                                <img
+                                                    src={article.imageUrl}
+                                                    alt={article.title}
                                                     className="w-full h-full object-cover"
                                                 />
                                                 <div className="absolute top-2 left-2">
@@ -2335,22 +2780,22 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                                 <p className="text-sm text-theme-text-secondary mb-3 line-clamp-3">{article.summary}</p>
                                                 <div className="flex justify-between items-center text-xs text-theme-text-secondary">
                                                     <span>{new Date(article.createdAt).toLocaleDateString()}</span>
-                                                <div className="flex gap-2">
-                                                    <button
+                                                    <div className="flex gap-2">
+                                                        <button
                                                             onClick={() => handleEditNews(article)}
                                                             className="text-blue-600 hover:text-blue-800"
-                                                    >
+                                                        >
                                                             Edit
-                                                    </button>
-                                                    <button
+                                                        </button>
+                                                        <button
                                                             onClick={() => handleDeleteNews(article._id)}
                                                             className="text-red-600 hover:text-red-800"
                                                         >
                                                             Delete
-                                                    </button>
+                                                        </button>
+                                                    </div>
                                                 </div>
                                             </div>
-                                        </div>
                                         </div>
                                     ))}
                                 </div>
@@ -2367,8 +2812,8 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                             Create First Article
                                         </button>
                                     </div>
-                            )}
-                        </div>
+                                )}
+                            </div>
                         )}
                     </div>
                 );
@@ -2390,25 +2835,25 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                 <h3 className="text-xl font-semibold mb-4 text-theme-dark border-b-2 border-theme-primary pb-2">
                                     {editingLatestNews ? 'Edit Latest News Article' : 'Create New Latest News Article'}
                                 </h3>
-                                
+
                                 <form onSubmit={editingLatestNews ? handleUpdateLatestNews : handleCreateLatestNews} className="space-y-6">
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                         <div>
                                             <label htmlFor="latestNewsTitle" className="block text-sm font-medium text-theme-text-secondary mb-2">Article Title *</label>
-                                            <input 
-                                                type="text" 
-                                                id="latestNewsTitle" 
-                                                value={latestNewsForm.title} 
-                                                onChange={e => setLatestNewsForm(prev => ({ ...prev, title: e.target.value }))} 
-                                                required 
-                                                className="w-full bg-theme-page-bg border border-theme-border rounded-md shadow-sm py-3 px-4 text-theme-dark focus:outline-none focus:ring-2 focus:ring-theme-primary focus:border-theme-primary text-lg" 
+                                            <input
+                                                type="text"
+                                                id="latestNewsTitle"
+                                                value={latestNewsForm.title}
+                                                onChange={e => setLatestNewsForm(prev => ({ ...prev, title: e.target.value }))}
+                                                required
+                                                className="w-full bg-theme-page-bg border border-theme-border rounded-md shadow-sm py-3 px-4 text-theme-dark focus:outline-none focus:ring-2 focus:ring-theme-primary focus:border-theme-primary text-lg"
                                                 placeholder="Enter compelling article title"
                                             />
                                         </div>
                                         <div>
                                             <label htmlFor="latestNewsCategory" className="block text-sm font-medium text-theme-text-secondary mb-2">Category *</label>
-                                            <select 
-                                                id="latestNewsCategory" 
+                                            <select
+                                                id="latestNewsCategory"
                                                 value={latestNewsForm.category}
                                                 onChange={e => setLatestNewsForm(prev => ({ ...prev, category: e.target.value }))}
                                                 className="w-full bg-theme-page-bg border border-theme-border rounded-md shadow-sm py-3 px-4 text-theme-dark focus:outline-none focus:ring-2 focus:ring-theme-primary focus:border-theme-primary text-lg"
@@ -2421,13 +2866,13 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                             </select>
                                         </div>
                                     </div>
-                                    
+
                                     <div>
                                         <label htmlFor="latestNewsImageFile" className="block text-sm font-medium text-theme-text-secondary mb-2">Featured Image *</label>
                                         <div className="border-2 border-dashed border-theme-border rounded-lg p-6 text-center hover:border-theme-primary transition-colors">
-                                            <input 
-                                                type="file" 
-                                                id="latestNewsImageFile" 
+                                            <input
+                                                type="file"
+                                                id="latestNewsImageFile"
                                                 accept="image/jpeg,image/jpg,image/png,image/webp"
                                                 onChange={handleLatestNewsImageUpload}
                                                 required={!editingLatestNews}
@@ -2436,7 +2881,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                             <label htmlFor="latestNewsImageFile" className="cursor-pointer">
                                                 {latestNewsImagePreview ? (
                                                     <div className="space-y-2">
-                                                        <img src={latestNewsImagePreview} alt="Preview" className="mx-auto h-48 w-full object-cover rounded-lg"/>
+                                                        <img src={latestNewsImagePreview} alt="Preview" className="mx-auto h-48 w-full object-cover rounded-lg" />
                                                         <p className="text-sm text-theme-text-secondary">Click to change image</p>
                                                     </div>
                                                 ) : (
@@ -2451,36 +2896,36 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                         {editingLatestNews && !latestNewsImagePreview && (
                                             <div className="mt-4">
                                                 <p className="text-sm text-theme-text-secondary mb-2">Current image:</p>
-                                                <img src={editingLatestNews.imageUrl} alt="Current" className="h-48 w-full object-cover rounded-lg"/>
+                                                <img src={editingLatestNews.imageUrl} alt="Current" className="h-48 w-full object-cover rounded-lg" />
                                             </div>
                                         )}
                                     </div>
-                                    
+
                                     <div>
                                         <label htmlFor="latestNewsSummary" className="block text-sm font-medium text-theme-text-secondary mb-2">Article Summary *</label>
-                                        <textarea 
-                                            id="latestNewsSummary" 
-                                            value={latestNewsForm.summary} 
-                                            onChange={e => setLatestNewsForm(prev => ({ ...prev, summary: e.target.value }))} 
-                                            required 
+                                        <textarea
+                                            id="latestNewsSummary"
+                                            value={latestNewsForm.summary}
+                                            onChange={e => setLatestNewsForm(prev => ({ ...prev, summary: e.target.value }))}
+                                            required
                                             rows={4}
-                                            className="w-full bg-theme-page-bg border border-theme-border rounded-md shadow-sm py-3 px-4 text-theme-dark focus:outline-none focus:ring-2 focus:ring-theme-primary focus:border-theme-primary resize-none" 
+                                            className="w-full bg-theme-page-bg border border-theme-border rounded-md shadow-sm py-3 px-4 text-theme-dark focus:outline-none focus:ring-2 focus:ring-theme-primary focus:border-theme-primary resize-none"
                                             placeholder="Write a compelling summary that will appear on the homepage..."
                                         />
                                     </div>
-                                    
+
                                     <div>
                                         <label htmlFor="latestNewsContent" className="block text-sm font-medium text-theme-text-secondary mb-2">Full Article Content</label>
-                                        <textarea 
-                                            id="latestNewsContent" 
-                                            value={latestNewsForm.content} 
-                                            onChange={e => setLatestNewsForm(prev => ({ ...prev, content: e.target.value }))} 
+                                        <textarea
+                                            id="latestNewsContent"
+                                            value={latestNewsForm.content}
+                                            onChange={e => setLatestNewsForm(prev => ({ ...prev, content: e.target.value }))}
                                             rows={8}
-                                            className="w-full bg-theme-page-bg border border-theme-border rounded-md shadow-sm py-3 px-4 text-theme-dark focus:outline-none focus:ring-2 focus:ring-theme-primary focus:border-theme-primary resize-none" 
+                                            className="w-full bg-theme-page-bg border border-theme-border rounded-md shadow-sm py-3 px-4 text-theme-dark focus:outline-none focus:ring-2 focus:ring-theme-primary focus:border-theme-primary resize-none"
                                             placeholder="Write the full article content here..."
                                         />
                                     </div>
-                                    
+
                                     <div className="flex gap-4 pt-4">
                                         <button
                                             type="submit"
@@ -2520,9 +2965,9 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                     {latestNewsArticles.map(article => (
                                         <div key={article._id} className="bg-theme-secondary-bg rounded-lg overflow-hidden shadow-lg hover:shadow-xl transition-shadow">
                                             <div className="relative h-48">
-                                                <img 
-                                                    src={article.imageUrl} 
-                                                    alt={article.title} 
+                                                <img
+                                                    src={article.imageUrl}
+                                                    alt={article.title}
                                                     className="w-full h-full object-cover"
                                                 />
                                                 <div className="absolute top-2 left-2">
@@ -2587,7 +3032,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
                         <div className="max-w-4xl mx-auto bg-theme-secondary-bg p-6 rounded-xl shadow-lg mb-6">
                             <h3 className="text-xl font-semibold mb-4 text-theme-dark border-b-2 border-theme-primary pb-2">Add Match Report</h3>
-                            
+
                             <div className="space-y-4">
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                     <div>
@@ -2595,7 +3040,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                         <input
                                             type="text"
                                             value={matchReportForm.title}
-                                            onChange={e=>setMatchReportForm(prev=>({ ...prev, title: e.target.value }))}
+                                            onChange={e => setMatchReportForm(prev => ({ ...prev, title: e.target.value }))}
                                             placeholder="e.g., Late header seals comeback win"
                                             className="w-full bg-theme-page-bg border border-theme-border rounded-md shadow-sm py-2 px-3 text-theme-dark focus:outline-none focus:ring-theme-primary focus:border-theme-primary"
                                         />
@@ -2605,7 +3050,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                         <input
                                             type="file"
                                             accept="image/jpeg,image/jpg,image/png,image/webp"
-                                            onChange={(e)=>{
+                                            onChange={(e) => {
                                                 const f = e.target.files?.[0] || null;
                                                 setMatchReportImageFile(f);
                                                 if (f && f.type.startsWith('image/')) setMatchReportImagePreview(URL.createObjectURL(f)); else setMatchReportImagePreview('');
@@ -2613,23 +3058,23 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                             className="w-full"
                                         />
                                         {matchReportImagePreview && (
-                                            <img src={matchReportImagePreview} alt="Preview" className="mt-2 h-20 w-full object-cover rounded"/>
+                                            <img src={matchReportImagePreview} alt="Preview" className="mt-2 h-20 w-full object-cover rounded" />
                                         )}
                                     </div>
                                 </div>
-                                
+
                                 <div>
                                     <label className="block text-sm font-medium text-theme-text-secondary mb-1">Full Article Content</label>
                                     <textarea
                                         value={matchReportForm.content}
-                                        onChange={e=>setMatchReportForm(prev=>({ ...prev, content: e.target.value }))}
+                                        onChange={e => setMatchReportForm(prev => ({ ...prev, content: e.target.value }))}
                                         rows={8}
                                         className="w-full bg-theme-page-bg border border-theme-border rounded-md shadow-sm py-3 px-4 text-theme-dark focus:outline-none focus:ring-theme-primary focus:border-theme-primary resize-none"
                                         placeholder="Write the full article content here..."
                                     />
                                 </div>
                             </div>
-                            
+
                             <div className="mt-4 flex items-center justify-end">
                                 <button onClick={addMatchReport} className="bg-theme-primary text-theme-dark font-bold py-2 px-5 rounded-md">Publish</button>
                             </div>
@@ -2644,14 +3089,14 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                     {matchReports.map(r => (
                                         <div key={r.id} className="bg-theme-secondary-bg rounded-lg overflow-hidden shadow hover:shadow-md transition-shadow">
                                             <div className="relative h-44">
-                                                <img src={r.imageUrl} alt={r.title} className="w-full h-full object-cover"/>
+                                                <img src={r.imageUrl} alt={r.title} className="w-full h-full object-cover" />
                                                 <span className="absolute top-2 left-2 bg-theme-accent text-white text-xs font-bold px-2 py-1 rounded">Match report</span>
                                             </div>
                                             <div className="p-4">
                                                 <h4 className="font-semibold text-theme-dark mb-1 line-clamp-2">{r.title}</h4>
                                                 <p className="text-xs text-theme-text-secondary">{new Date(r.createdAt).toLocaleDateString()}</p>
                                                 <div className="mt-3 flex justify-end">
-                                                    <button onClick={()=>removeMatchReport(r.id)} className="text-red-600 hover:text-red-800 text-sm">Remove</button>
+                                                    <button onClick={() => removeMatchReport(r.id)} className="text-red-600 hover:text-red-800 text-sm">Remove</button>
                                                 </div>
                                             </div>
                                         </div>
@@ -2679,25 +3124,25 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                 <h3 className="text-xl font-semibold mb-4 text-theme-dark border-b-2 border-theme-primary pb-2">
                                     {editingTrendingNews ? 'Edit Trending News' : 'Add New Trending News'}
                                 </h3>
-                                
+
                                 <form onSubmit={editingTrendingNews ? handleUpdateTrendingNews : (e) => { e.preventDefault(); addTrendingNews(); }} className="space-y-4">
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                         <div>
                                             <label htmlFor="trendingTitle" className="block text-sm font-medium text-theme-text-secondary mb-1">Title *</label>
-                                            <input 
-                                                type="text" 
-                                                id="trendingTitle" 
-                                                value={trendingNewsForm.title} 
-                                                onChange={e => setTrendingNewsForm(prev => ({ ...prev, title: e.target.value }))} 
-                                                required 
-                                                className="w-full bg-theme-page-bg border border-theme-border rounded-md shadow-sm py-2 px-3 text-theme-dark focus:outline-none focus:ring-theme-primary focus:border-theme-primary" 
+                                            <input
+                                                type="text"
+                                                id="trendingTitle"
+                                                value={trendingNewsForm.title}
+                                                onChange={e => setTrendingNewsForm(prev => ({ ...prev, title: e.target.value }))}
+                                                required
+                                                className="w-full bg-theme-page-bg border border-theme-border rounded-md shadow-sm py-2 px-3 text-theme-dark focus:outline-none focus:ring-theme-primary focus:border-theme-primary"
                                                 placeholder="e.g., Best of Madueke 24/25"
                                             />
                                         </div>
                                         <div>
                                             <label htmlFor="trendingIcon" className="block text-sm font-medium text-theme-text-secondary mb-1">Icon *</label>
-                                            <select 
-                                                id="trendingIcon" 
+                                            <select
+                                                id="trendingIcon"
                                                 value={trendingNewsForm.icon}
                                                 onChange={e => setTrendingNewsForm(prev => ({ ...prev, icon: e.target.value }))}
                                                 className="w-full bg-theme-page-bg border border-theme-border rounded-md shadow-sm py-2 px-3 text-theme-dark focus:outline-none focus:ring-theme-primary focus:border-theme-primary"
@@ -2715,12 +3160,12 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                             </select>
                                         </div>
                                     </div>
-                                    
+
                                     <div>
                                         <label htmlFor="trendingImageFile" className="block text-sm font-medium text-theme-text-secondary mb-1">Image *</label>
-                                        <input 
-                                            type="file" 
-                                            id="trendingImageFile" 
+                                        <input
+                                            type="file"
+                                            id="trendingImageFile"
                                             accept="image/jpeg,image/jpg,image/png,image/webp"
                                             onChange={(e) => {
                                                 const file = e.target.files?.[0] || null;
@@ -2732,19 +3177,19 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                                 }
                                             }}
                                             required={!editingTrendingNews}
-                                            className="w-full bg-theme-page-bg border border-theme-border rounded-md shadow-sm py-2 px-3 text-theme-dark focus:outline-none focus:ring-theme-primary focus:border-theme-primary" 
+                                            className="w-full bg-theme-page-bg border border-theme-border rounded-md shadow-sm py-2 px-3 text-theme-dark focus:outline-none focus:ring-theme-primary focus:border-theme-primary"
                                         />
                                         {trendingNewsImagePreview && (
-                                            <img src={trendingNewsImagePreview} alt="Preview" className="mt-2 h-32 w-full object-cover rounded"/>
+                                            <img src={trendingNewsImagePreview} alt="Preview" className="mt-2 h-32 w-full object-cover rounded" />
                                         )}
                                         {editingTrendingNews && !trendingNewsImagePreview && (
                                             <div className="mt-2">
                                                 <p className="text-sm text-theme-text-secondary mb-2">Current image:</p>
-                                                <img src={editingTrendingNews.imageUrl} alt="Current" className="h-32 w-full object-cover rounded"/>
+                                                <img src={editingTrendingNews.imageUrl} alt="Current" className="h-32 w-full object-cover rounded" />
                                             </div>
                                         )}
                                     </div>
-                                    
+
                                     <div>
                                         <label htmlFor="trendingContent" className="block text-sm font-medium text-theme-text-secondary mb-1">Full Article Content</label>
                                         <textarea
@@ -2756,7 +3201,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                             placeholder="Write the full article content here..."
                                         />
                                     </div>
-                                    
+
                                     <div className="flex gap-3">
                                         <button
                                             type="submit"
@@ -2795,9 +3240,9 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                     {trendingNews.map(item => (
                                         <div key={item.id} className="bg-theme-secondary-bg rounded-lg overflow-hidden shadow-lg">
                                             <div className="relative h-48">
-                                                <img 
-                                                    src={item.imageUrl} 
-                                                    alt={item.title} 
+                                                <img
+                                                    src={item.imageUrl}
+                                                    alt={item.title}
                                                     className="w-full h-full object-cover"
                                                 />
                                                 <div className="absolute top-2 left-2">
@@ -2848,53 +3293,53 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     </div>
                 );
             case 'User Management':
-                 return (
+                return (
                     <div>
                         <h2 className="text-3xl font-bold mb-6 text-theme-dark">User Management</h2>
-                        
+
                         {/* Create Manager Form */}
                         <div className="max-w-2xl mb-8">
                             <div className="bg-theme-secondary-bg p-6 rounded-lg">
                                 <h3 className="text-xl font-semibold mb-4 text-theme-dark border-b-2 border-theme-primary pb-2">Create Club Manager</h3>
 
 
-                                
+
                                 {errorMessage && (
                                     <div className="mb-4 bg-red-50 border-l-4 border-red-400 text-red-700 p-4 rounded-lg">
                                         <p className="font-bold">Error:</p>
                                         <p>{errorMessage}</p>
                                     </div>
                                 )}
-                                
+
                                 <form onSubmit={handleCreateManagerSubmit} className="space-y-4">
                                     <div>
                                         <label htmlFor="newManagerName" className="block text-sm font-medium text-theme-text-secondary mb-1">Manager Name *</label>
-                                        <input 
-                                            type="text" 
-                                            id="newManagerName" 
-                                            value={newManagerName} 
-                                            onChange={e => setNewManagerName(e.target.value)} 
-                                            required 
-                                            className="w-full bg-theme-page-bg border border-theme-border rounded-md shadow-sm py-2 px-3 text-theme-dark focus:outline-none focus:ring-theme-primary focus:border-theme-primary" 
+                                        <input
+                                            type="text"
+                                            id="newManagerName"
+                                            value={newManagerName}
+                                            onChange={e => setNewManagerName(e.target.value)}
+                                            required
+                                            className="w-full bg-theme-page-bg border border-theme-border rounded-md shadow-sm py-2 px-3 text-theme-dark focus:outline-none focus:ring-theme-primary focus:border-theme-primary"
                                             placeholder="Enter manager's full name"
                                         />
                                     </div>
                                     <div>
                                         <label htmlFor="newManagerEmail" className="block text-sm font-medium text-theme-text-secondary mb-1">Manager Email *</label>
-                                        <input 
-                                            type="email" 
-                                            id="newManagerEmail" 
-                                            value={newManagerEmail} 
-                                            onChange={e => setNewManagerEmail(e.target.value)} 
-                                            required 
-                                            className="w-full bg-theme-page-bg border border-theme-border rounded-md shadow-sm py-2 px-3 text-theme-dark focus:outline-none focus:ring-theme-primary focus:border-theme-primary" 
+                                        <input
+                                            type="email"
+                                            id="newManagerEmail"
+                                            value={newManagerEmail}
+                                            onChange={e => setNewManagerEmail(e.target.value)}
+                                            required
+                                            className="w-full bg-theme-page-bg border border-theme-border rounded-md shadow-sm py-2 px-3 text-theme-dark focus:outline-none focus:ring-theme-primary focus:border-theme-primary"
                                             placeholder="manager@club.com"
                                         />
                                     </div>
                                     <div>
                                         <label htmlFor="newManagerClub" className="block text-sm font-medium text-theme-text-secondary mb-1">Assign to Club *</label>
-                                        <select 
-                                            id="newManagerClub" 
+                                        <select
+                                            id="newManagerClub"
                                             value={newManagerClubId}
                                             onChange={e => {
                                                 setNewManagerClubId(e.target.value);
@@ -2924,7 +3369,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                         )}
                                     </button>
                                 </form>
-                                
+
                                 {lastCreatedUser && (
                                     <div className="mt-6 bg-green-50 border-l-4 border-green-400 text-green-700 p-4 rounded-lg">
                                         <h4 className="font-bold flex items-center gap-2">
@@ -3002,7 +3447,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                                 </td>
                                                 <td className="px-4 py-3">
                                                     {user.role !== 'admin' && (
-                                                        <button 
+                                                        <button
                                                             onClick={() => handleDeactivateUser(user.id)}
                                                             className="text-red-600 hover:text-red-800 text-sm"
                                                         >
@@ -3022,7 +3467,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 return (
                     <div>
                         <h2 className="text-3xl font-bold mb-6 text-theme-dark">League Settings</h2>
-                        
+
                         {isLoadingLeagueConfig ? (
                             <div className="flex items-center justify-center py-12">
                                 <div className="animate-spin rounded-full h-8 w-8 border-2 border-theme-primary border-t-transparent"></div>
@@ -3080,7 +3525,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                     <h3 className="text-xl font-semibold mb-4 text-theme-dark border-b-2 border-theme-primary pb-2">
                                         Update League Configuration
                                     </h3>
-                                    
+
                                     <form onSubmit={handleUpdateLeagueConfig} className="space-y-4">
                                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                             <div>
@@ -3107,7 +3552,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                                 />
                                             </div>
                                         </div>
-                                        
+
                                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                             <div>
                                                 <label htmlFor="startDate" className="block text-sm font-medium text-theme-text-secondary mb-1">Start Date *</label>
@@ -3132,7 +3577,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                                 />
                                             </div>
                                         </div>
-                                        
+
                                         <div className="bg-blue-50 border-l-4 border-blue-400 text-blue-700 p-4 rounded-lg text-sm">
                                             <p className="font-semibold mb-1">📅 League Period Information:</p>
                                             <ul className="list-disc list-inside space-y-1 text-xs">
@@ -3142,7 +3587,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                                 <li>Start date cannot be in the past</li>
                                             </ul>
                                         </div>
-                                        
+
                                         <div className="flex gap-3">
                                             <button
                                                 type="submit"
@@ -3178,7 +3623,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
         }
     };
 
-    const sections: AdminSection[] = ['Dashboard', 'Manage Clubs', 'Manage Fixtures', 'Manage News', 'Latest News & Features', 'Manage Match Reports', 'Manage Trending News', 'User Management', 'League Settings'];
+    const sections: AdminSection[] = ['Dashboard', 'Manage Clubs', 'Manage Fixtures', 'Manage Store', 'Manage News', 'Latest News & Features', 'Manage Match Reports', 'Manage Trending News', 'User Management', 'League Settings'];
 
     return (
         <div className="flex min-h-screen bg-theme-light">
@@ -3188,7 +3633,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 <nav className="flex-grow">
                     <ul className="space-y-2 p-4">
                         {sections.map(section => (
-                             <li key={section}>
+                            <li key={section}>
                                 <button
                                     onClick={() => setActiveSection(section)}
                                     className={`w-full text-left px-4 py-2 rounded transition-colors ${activeSection === section ? 'bg-theme-primary text-theme-dark' : 'hover:bg-theme-secondary-bg'}`}

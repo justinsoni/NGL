@@ -25,6 +25,7 @@ const tableRoutes = require('./routes/table');
 const newsItemRoutes = require('./routes/newsItemRoutes');
 const leagueConfigRoutes = require('./routes/leagueConfig');
 const matchDataRoutes = require('./routes/matchData');
+const productRoutes = require('./routes/products');
 
 // Initialize Express app
 const app = express();
@@ -71,6 +72,7 @@ app.use('/api/table', tableRoutes);
 app.use('/api/news', newsItemRoutes);
 app.use('/api/league-config', leagueConfigRoutes);
 app.use('/api/match-data', matchDataRoutes);
+app.use('/api/products', productRoutes);
 
 // 404 handler for undefined routes
 app.use('*', (req, res) => {
@@ -133,7 +135,7 @@ app.use((err, req, res, next) => {
       field: e.path,
       message: e.message
     }));
-    
+
     return res.status(400).json({
       success: false,
       message: 'Validation failed',
@@ -190,7 +192,7 @@ const server = http.createServer(app);
 const io = new Server(server, {
   cors: {
     origin: '*',
-    methods: ['GET','POST','PUT','DELETE']
+    methods: ['GET', 'POST', 'PUT', 'DELETE']
   }
 });
 

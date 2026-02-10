@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { HashRouter, Routes, Route, useLocation, Navigate } from 'react-router-dom';
-import { Toaster } from 'react-hot-toast';
+import { Toaster, toast } from 'react-hot-toast';
 import { AuthProvider } from './contexts/AuthContext';
 import { QueryProvider } from './contexts/QueryProvider';
 import Navbar from './components/Navbar';
@@ -17,6 +17,7 @@ import ClubsPage from './pages/ClubsPage';
 import ClubDetailPage from './pages/ClubDetailPage';
 import TicketsPage from './pages/TicketsPage';
 import StorePage from './pages/StorePage';
+import ProductDetailPage from './pages/ProductDetailPage';
 import MediaPage from './pages/MediaPage';
 import AdminDashboard from './pages/AdminDashboard';
 import CoachDashboard from './pages/CoachDashboard';
@@ -24,16 +25,18 @@ import ClubManagerDashboard from './pages/ClubManagerDashboard';
 import PlayerDashboard from './pages/PlayerDashboard';
 import PlayerRegistrationPage from './pages/PlayerRegistrationPage';
 import LoginPage from './pages/LoginPage';
+import CheckoutPage from './pages/CheckoutPage';
 
 import NotFoundPage from './pages/NotFoundPage';
 import NewsDetailPage from './pages/NewsDetailPage';
 import PlayerProfileModal from './components/PlayerProfileModal';
 import AuthBridge from './components/AuthBridge';
-import { UserRole, Club, Match as MatchType, TableEntry, GroupName, CreatedUser, Player, LeaderStat, Position, PlayerRegistration } from './types';
-import { CLUBS, MATCHES, TABLE_DATA, PLAYERS } from './constants';
+import { UserRole, Club, Match as MatchType, TableEntry, GroupName, CreatedUser, Player, LeaderStat, Position, PlayerRegistration, Product, CartItem } from './types';
+import { CLUBS, MATCHES, TABLE_DATA, PLAYERS, PRODUCTS } from './constants';
 import { EmailService } from './utils/emailService';
 import { clubService } from './services/clubService';
 import { playerService } from './services/playerService';
+import { productService } from './services/productService';
 
 const ScrollToTop = () => {
   const { pathname } = useLocation();
@@ -69,6 +72,79 @@ const App = () => {
   const [isLoadingRegistrations, setIsLoadingRegistrations] = useState(false);
 
   const [currentUserId, setCurrentUserId] = useState<number | null>(null);
+  const [products, setProducts] = useState<Product[]>([]);
+  const [cart, setCart] = useState<CartItem[]>(() => {
+    const savedCart = localStorage.getItem('ngl-store-cart');
+    return savedCart ? JSON.parse(savedCart) : [];
+  });
+
+  // Save cart to local storage whenever it changes
+  useEffect(() => {
+    localStorage.setItem('ngl-store-cart', JSON.stringify(cart));
+  }, [cart]);
+
+  const handleAddToCart = (product: Product, size?: string, quantity: number = 1) => {
+    setCart(prevCart => {
+      const existingItemIndex = prevCart.findIndex(item => item.id === product.id && item.selectedSize === size);
+
+      if (existingItemIndex > -1) {
+        const updatedCart = [...prevCart];
+        updatedCart[existingItemIndex].quantity += quantity;
+        toast.success(`Updated ${product.name} quantity in bag`);
+        return updatedCart;
+      }
+
+      const newCartItem: CartItem = {
+        ...product,
+        quantity,
+        selectedSize: size
+      };
+      toast.success(`${product.name} added to bag`);
+      return [...prevCart, newCartItem];
+    });
+  };
+
+  const handleRemoveFromCart = (productId: string | number, size?: string) => {
+    setCart(prevCart => prevCart.filter(item => !(item.id === productId && item.selectedSize === size)));
+    toast.success('Item removed from bag');
+  };
+
+  const handleUpdateCartQuantity = (productId: string | number, delta: number, size?: string) => {
+    setCart(prevCart => {
+      return prevCart.map(item => {
+        if (item.id === productId && item.selectedSize === size) {
+          const newQuantity = Math.max(1, item.quantity + delta);
+          return { ...item, quantity: newQuantity };
+        }
+        return item;
+      });
+    });
+  };
+
+  const handleClearCart = () => {
+    setCart([]);
+  };
+
+  // Fetch products from API
+  const fetchProducts = async () => {
+    try {
+      const response = await productService.getProducts();
+      if (response.success && response.data) {
+        // Map _id to id if needed, or just use as is since Product type now supports _id
+        const normalized = response.data.map((p: any) => ({
+          ...p,
+          id: p._id || p.id
+        }));
+        setProducts(normalized);
+      }
+    } catch (error) {
+      console.error('Failed to fetch products:', error);
+    }
+  };
+
+  useEffect(() => {
+    fetchProducts();
+  }, []);
 
   // Fetch player registrations from API
   const fetchPlayerRegistrations = async () => {
@@ -632,6 +708,53 @@ const App = () => {
     setClubsData(prev => prev.filter(club => club.id !== clubId));
   };
 
+  const handleAddProduct = async (newProductData: Product) => {
+    try {
+      // Backend expects Omit<Product, 'id'>, we can pass everything and it will ignore id
+      const response = await productService.createProduct(newProductData);
+      if (response.success && response.data) {
+        const createdProduct = {
+          ...response.data,
+          id: response.data._id || response.data.id
+        };
+        setProducts(prev => [...prev, createdProduct]);
+        return createdProduct;
+      }
+    } catch (error: any) {
+      console.error('Failed to add product:', error);
+      if (error.response?.data) {
+        console.error('Error response details:', error.response.data);
+      }
+      throw error;
+    }
+  };
+
+  const handleUpdateProduct = async (id: string | number, updatedData: Partial<Product>) => {
+    try {
+      const response = await productService.updateProduct(id.toString(), updatedData);
+      if (response.success && response.data) {
+        setProducts(prev => prev.map(p => (p.id === id || p._id === id) ? { ...p, ...response.data } : p));
+        toast.success('Product updated successfully');
+        return response.data;
+      }
+    } catch (error: any) {
+      console.error('Failed to update product:', error);
+      toast.error('Failed to update product');
+      throw error;
+    }
+  };
+
+  const handleDeleteProduct = async (productId: number | string) => {
+    try {
+      const response = await productService.deleteProduct(productId);
+      if (response.success) {
+        setProducts(prev => prev.filter(p => p.id !== productId && p._id !== productId));
+      }
+    } catch (error) {
+      console.error('Failed to delete product:', error);
+    }
+  };
+
   const handlePlayerSelect = (playerId: number) => {
     const player = players.find(p => p.id === playerId);
     if (player) setViewingPlayer(player);
@@ -735,7 +858,14 @@ const App = () => {
             />
           )}
           <div className="text-theme-dark font-sans flex flex-col min-h-screen bg-theme-light">
-            <Navbar isLoggedIn={isLoggedIn} userRole={userRole} onLogout={handleLogout} />
+            <Navbar
+              isLoggedIn={isLoggedIn}
+              userRole={userRole}
+              onLogout={handleLogout}
+              cart={cart}
+              onRemoveFromCart={handleRemoveFromCart}
+              onUpdateQuantity={handleUpdateCartQuantity}
+            />
             <main className="flex-grow">
               <Routes>
                 <Route path="/" element={<HomePage matchesData={matchesData} tableData={tableData} competitionStage={competitionStage} leaderStats={leaderStats} onPlayerSelect={handlePlayerSelect} />} />
@@ -748,7 +878,21 @@ const App = () => {
                 <Route path="/clubs/:clubId" element={<ClubDetailPage players={players} onPlayerSelect={handlePlayerSelect} />} />
                 <Route path="/tickets" element={<TicketsPage />} />
                 <Route path="/tickets/:matchId" element={<TicketsPage />} />
-                <Route path="/store" element={<StorePage />} />
+                <Route path="/store" element={<StorePage products={products} />} />
+                <Route path="/store/product/:id" element={
+                  <ProductDetailPage
+                    products={products}
+                    onAddToCart={handleAddToCart}
+                  />
+                } />
+                <Route path="/checkout" element={
+                  <CheckoutPage
+                    cart={cart}
+                    onUpdateQuantity={handleUpdateCartQuantity}
+                    onRemoveFromCart={handleRemoveFromCart}
+                    onClearCart={handleClearCart}
+                  />
+                } />
                 <Route path="/media" element={<MediaPage />} />
                 <Route path="/news/:id" element={<NewsDetailPage />} />
                 <Route path="/login" element={<LoginPage />} />
@@ -769,6 +913,10 @@ const App = () => {
                       onAddClub={handleAddClub}
                       onUpdateClub={handleUpdateClub}
                       onDeleteClub={handleDeleteClub}
+                      products={products}
+                      onAddProduct={handleAddProduct}
+                      onUpdateProduct={handleUpdateProduct}
+                      onDeleteProduct={handleDeleteProduct}
                     />
                   } />
                 )}

@@ -175,3 +175,21 @@ export interface ClubVideo {
   thumbnail: string;
 }
 
+export interface Product {
+  _id?: string;
+  id: string | number;
+  name: string;
+  price: number;
+  imageUrl: string;
+  category: string;
+  description?: string;
+  gender?: 'Men' | 'Women' | 'Kids' | 'Unisex';
+  sizes?: string[];
+  images?: string[];
+  tags?: string[];
+}
+
+export interface CartItem extends Product {
+  quantity: number;
+  selectedSize?: string;
+}
