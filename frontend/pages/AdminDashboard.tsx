@@ -2857,16 +2857,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                             <div className="bg-theme-secondary-bg p-6 rounded-lg">
                                 <h3 className="text-xl font-semibold mb-4 text-theme-dark border-b-2 border-theme-primary pb-2">Create Club Manager</h3>
 
-                                <div className="mb-4 bg-blue-50 border-l-4 border-blue-400 text-blue-700 p-3 rounded-lg text-sm">
-                                    <p className="font-semibold mb-1">🔐 Real-Time Security Features:</p>
-                                    <ul className="list-disc list-inside space-y-1 text-xs">
-                                        <li>✅ <strong>Auto-generated secure password</strong> (12+ characters with mixed case, numbers, symbols)</li>
-                                        <li>✅ <strong>Real email delivery</strong> via Brevo (primary) or Gmail (fallback)</li>
-                                        <li>✅ <strong>MongoDB database storage</strong> with Firebase authentication</li>
-                                        <li>✅ <strong>Admin cannot see passwords</strong> - sent directly to manager's email</li>
-                                        <li>✅ <strong>No demo accounts</strong> - all accounts are real and functional</li>
-                                    </ul>
-                                </div>
+
                                 
                                 {errorMessage && (
                                     <div className="mb-4 bg-red-50 border-l-4 border-red-400 text-red-700 p-4 rounded-lg">

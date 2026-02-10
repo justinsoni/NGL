@@ -2,9 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useForm, Controller } from 'react-hook-form';
 import { yupResolver } from '@hookform/resolvers/yup';
-import { PlayerRegistration, Position, Club } from '../types';
+import { PlayerRegistration, Position } from '../types';
 import { POSITIONS, LEAGUES } from '../constants';
-import { clubService } from '@/services/clubService';
 import { countryService, CountryOption } from '@/services/countryService';
 import { playerRegistrationSchema, PlayerRegistrationFormData, validateFileUpload } from '@/utils/validationSchemas';
 
@@ -15,8 +14,6 @@ interface PlayerRegistrationPageProps {
 const PlayerRegistrationPage: React.FC<PlayerRegistrationPageProps> = ({ onSubmitRegistration }) => {
     const navigate = useNavigate();
 
-    const [clubs, setClubs] = useState<Club[]>([]);
-    const [clubsLoading, setClubsLoading] = useState(true);
     const [countries, setCountries] = useState<CountryOption[]>([]);
     const [countriesLoading, setCountriesLoading] = useState(true);
     const [error, setError] = useState('');
@@ -52,7 +49,7 @@ const PlayerRegistrationPage: React.FC<PlayerRegistrationPageProps> = ({ onSubmi
         watch,
         setValue,
         formState: { errors, isValid, isDirty }
-    } = useForm<PlayerRegistrationFormData>({
+    } = useForm({
         resolver: yupResolver(playerRegistrationSchema),
         mode: 'onChange',
         defaultValues: {
@@ -66,9 +63,13 @@ const PlayerRegistrationPage: React.FC<PlayerRegistrationPageProps> = ({ onSubmi
             previousClub: '',
             leaguesPlayed: [],
             bio: '',
-            clubId: '',
             profilePhoto: null,
-            identityCard: null
+            identityCard: null,
+            // Medical & Fitness defaults
+            hasInjuryHistory: false,
+            // injuryNature and lastInjuryDate are optional/conditional so undefined by default is fine 
+            fitnessStatus: '',
+            minimumSalary: 0
         }
     });
 
@@ -90,29 +91,6 @@ const PlayerRegistrationPage: React.FC<PlayerRegistrationPageProps> = ({ onSubmi
     // Fetch clubs and countries on component mount
     useEffect(() => {
         const fetchData = async () => {
-            // Fetch clubs
-            setClubsLoading(true);
-            try {
-                console.log('Fetching clubs from API...');
-                const res = await clubService.getClubs();
-                const clubsWithId = res.data.map((club: any) => ({
-                    ...club,
-                    id: club._id || club.id
-                }));
-
-                console.log('Fetched clubs:', clubsWithId);
-                setClubs(clubsWithId);
-
-                // Set default club if available
-                if (clubsWithId.length > 0) {
-                    setValue('clubId', String(clubsWithId[0].id));
-                }
-            } catch (err) {
-                console.error('Error fetching clubs:', err);
-            } finally {
-                setClubsLoading(false);
-            }
-
             // Fetch countries
             setCountriesLoading(true);
             try {
@@ -135,7 +113,7 @@ const PlayerRegistrationPage: React.FC<PlayerRegistrationPageProps> = ({ onSubmi
         const raw = e.target.value;
         // Remove invalid characters and multiple consecutive spaces
         let sanitized = raw.replace(/[^A-Za-z\s'\-]/g, '').replace(/\s{2,}/g, ' ');
-        
+
         // Capitalize the first letter of each word
         if (sanitized.length > 0) {
             sanitized = sanitized.split(/[\s\-]/).map(word => {
@@ -145,7 +123,7 @@ const PlayerRegistrationPage: React.FC<PlayerRegistrationPageProps> = ({ onSubmi
                 return word;
             }).join(' ');
         }
-        
+
         setValue('name', sanitized, { shouldValidate: true });
     };
 
@@ -169,7 +147,7 @@ const PlayerRegistrationPage: React.FC<PlayerRegistrationPageProps> = ({ onSubmi
 
     const handleLeagueChange = (league: string, checked: boolean) => {
         const currentLeagues = watchedValues.leaguesPlayed || [];
-        const updatedLeagues = checked 
+        const updatedLeagues = checked
             ? [...currentLeagues, league]
             : currentLeagues.filter(l => l !== league);
         setValue('leaguesPlayed', updatedLeagues, { shouldValidate: true });
@@ -178,7 +156,7 @@ const PlayerRegistrationPage: React.FC<PlayerRegistrationPageProps> = ({ onSubmi
     const handleFileUpload = (field: 'profilePhoto' | 'identityCard', file: File) => {
         // Validate file using our validation schema
         const validationErrors = validateFileUpload(file, field);
-        
+
         if (validationErrors.length > 0) {
             setError(validationErrors.join(', '));
             return;
@@ -213,7 +191,7 @@ const PlayerRegistrationPage: React.FC<PlayerRegistrationPageProps> = ({ onSubmi
     };
 
     const uploadToCloudinary = async (file: File, uploadPreset: string): Promise<string> => {
-        const url = `${import.meta.env.VITE_CLOUDINARY_URL || 'https://api.cloudinary.com/v1_1/dmuilu78u/auto/upload'}`; 
+        const url = `${(import.meta as any).env.VITE_CLOUDINARY_URL || 'https://api.cloudinary.com/v1_1/dmuilu78u/auto/upload'}`;
 
         const formData = new FormData();
         formData.append("file", file);
@@ -221,18 +199,18 @@ const PlayerRegistrationPage: React.FC<PlayerRegistrationPageProps> = ({ onSubmi
 
         try {
             const res = await fetch(url, {
-            method: "POST",
-            body: formData,
+                method: "POST",
+                body: formData,
             });
 
             if (!res.ok) {
-            const errorText = await res.text();
-            throw new Error(`Failed to upload file: ${res.status} ${errorText}`);
+                const errorText = await res.text();
+                throw new Error(`Failed to upload file: ${res.status} ${errorText}`);
             }
 
             const data = await res.json();
             if (!data.secure_url) {
-            throw new Error("No secure_url returned from Cloudinary");
+                throw new Error("No secure_url returned from Cloudinary");
             }
 
             return data.secure_url;
@@ -240,7 +218,7 @@ const PlayerRegistrationPage: React.FC<PlayerRegistrationPageProps> = ({ onSubmi
             console.error("Cloudinary upload error:", err);
             throw err;
         }
-        };
+    };
 
     const onSubmit = async (data: PlayerRegistrationFormData) => {
         setError('');
@@ -258,20 +236,19 @@ const PlayerRegistrationPage: React.FC<PlayerRegistrationPageProps> = ({ onSubmi
                 identityCardUrl = await uploadToCloudinary(uploadedFiles.identityCard, 'ml_default');
             }
 
-            const selectedClub = clubs.find(c => String(c.id) === String(data.clubId));
             const registration = {
                 ...data,
                 phone: data.phone.replace(/\D/g, ''), // Ensure only digits
                 imageUrl,
                 identityCardUrl,
                 age: Number(data.age),
-                clubName: selectedClub?.name || undefined,
+                // clubId removed - player enters as general pool/free agent
                 reviewedAt: undefined,
                 reviewedBy: undefined,
                 rejectionReason: undefined
             };
 
-            const baseURL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api';
+            const baseURL = (import.meta as any).env.VITE_API_BASE_URL || 'http://localhost:5000/api';
             const response = await fetch(`${baseURL}/players/register`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -323,7 +300,7 @@ const PlayerRegistrationPage: React.FC<PlayerRegistrationPageProps> = ({ onSubmi
                                 Please fix the highlighted errors before submitting.
                             </div>
                         )}
-                        
+
                         <form onSubmit={handleSubmit(onSubmit)} className="space-y-8">
                             {/* Personal Information */}
                             <div className="bg-gray-50 rounded-xl p-8 border border-gray-200">
@@ -348,11 +325,10 @@ const PlayerRegistrationPage: React.FC<PlayerRegistrationPageProps> = ({ onSubmi
                                             title="Each word in the name must start with a capital letter. Letters, spaces, apostrophes and hyphens only. Multiple consecutive spaces are not allowed."
                                             aria-invalid={errors.name ? 'true' : 'false'}
                                             aria-describedby={errors.name ? 'name-error' : undefined}
-                                            className={`w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:border-transparent transition-all duration-200 ${
-                                                errors.name 
-                                                    ? 'border-red-300 focus:ring-red-500 bg-red-50' 
-                                                    : 'border-gray-300 focus:ring-blue-500'
-                                            }`}
+                                            className={`w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:border-transparent transition-all duration-200 ${errors.name
+                                                ? 'border-red-300 focus:ring-red-500 bg-red-50'
+                                                : 'border-gray-300 focus:ring-blue-500'
+                                                }`}
                                             placeholder="Enter your full name"
                                         />
                                         {errors.name && (
@@ -375,11 +351,10 @@ const PlayerRegistrationPage: React.FC<PlayerRegistrationPageProps> = ({ onSubmi
                                             max={45}
                                             aria-invalid={errors.age ? 'true' : 'false'}
                                             aria-describedby={errors.age ? 'age-error' : undefined}
-                                            className={`w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:border-transparent transition-all duration-200 ${
-                                                errors.age 
-                                                    ? 'border-red-300 focus:ring-red-500 bg-red-50' 
-                                                    : 'border-gray-300 focus:ring-blue-500'
-                                            }`}
+                                            className={`w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:border-transparent transition-all duration-200 ${errors.age
+                                                ? 'border-red-300 focus:ring-red-500 bg-red-50'
+                                                : 'border-gray-300 focus:ring-blue-500'
+                                                }`}
                                             placeholder="15"
                                         />
                                         {errors.age && (
@@ -400,11 +375,10 @@ const PlayerRegistrationPage: React.FC<PlayerRegistrationPageProps> = ({ onSubmi
                                             type="email"
                                             aria-invalid={errors.email ? 'true' : 'false'}
                                             aria-describedby={errors.email ? 'email-error' : undefined}
-                                            className={`w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:border-transparent transition-all duration-200 ${
-                                                errors.email 
-                                                    ? 'border-red-300 focus:ring-red-500 bg-red-50' 
-                                                    : 'border-gray-300 focus:ring-blue-500'
-                                            }`}
+                                            className={`w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:border-transparent transition-all duration-200 ${errors.email
+                                                ? 'border-red-300 focus:ring-red-500 bg-red-50'
+                                                : 'border-gray-300 focus:ring-blue-500'
+                                                }`}
                                             placeholder="your.email@example.com"
                                         />
                                         {errors.email && (
@@ -428,11 +402,10 @@ const PlayerRegistrationPage: React.FC<PlayerRegistrationPageProps> = ({ onSubmi
                                             title="Digits only, 7 to 15 numbers"
                                             aria-invalid={errors.phone ? 'true' : 'false'}
                                             aria-describedby={errors.phone ? 'phone-error' : undefined}
-                                            className={`w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:border-transparent transition-all duration-200 ${
-                                                errors.phone 
-                                                    ? 'border-red-300 focus:ring-red-500 bg-red-50' 
-                                                    : 'border-gray-300 focus:ring-blue-500'
-                                            }`}
+                                            className={`w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:border-transparent transition-all duration-200 ${errors.phone
+                                                ? 'border-red-300 focus:ring-red-500 bg-red-50'
+                                                : 'border-gray-300 focus:ring-blue-500'
+                                                }`}
                                             placeholder="+1 (555) 123-4567"
                                         />
                                         {errors.phone && (
@@ -455,11 +428,10 @@ const PlayerRegistrationPage: React.FC<PlayerRegistrationPageProps> = ({ onSubmi
                                             max={maxDobStr}
                                             aria-invalid={errors.dob ? 'true' : 'false'}
                                             aria-describedby={errors.dob ? 'dob-error' : undefined}
-                                            className={`w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:border-transparent transition-all duration-200 ${
-                                                errors.dob 
-                                                    ? 'border-red-300 focus:ring-red-500 bg-red-50' 
-                                                    : 'border-gray-300 focus:ring-blue-500'
-                                            }`}
+                                            className={`w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:border-transparent transition-all duration-200 ${errors.dob
+                                                ? 'border-red-300 focus:ring-red-500 bg-red-50'
+                                                : 'border-gray-300 focus:ring-blue-500'
+                                                }`}
                                         />
                                         {errors.dob && (
                                             <div id="dob-error" className="mt-2 flex items-center text-sm text-red-600">
@@ -483,11 +455,10 @@ const PlayerRegistrationPage: React.FC<PlayerRegistrationPageProps> = ({ onSubmi
                                                         {...field}
                                                         aria-invalid={errors.nationality ? 'true' : 'false'}
                                                         aria-describedby={errors.nationality ? 'nationality-error' : undefined}
-                                                        className={`w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:border-transparent transition-all duration-200 bg-white text-black ${
-                                                            errors.nationality 
-                                                                ? 'border-red-300 focus:ring-red-500 bg-red-50' 
-                                                                : 'border-gray-300 focus:ring-blue-500'
-                                                        }`}
+                                                        className={`w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:border-transparent transition-all duration-200 bg-white text-black ${errors.nationality
+                                                            ? 'border-red-300 focus:ring-red-500 bg-red-50'
+                                                            : 'border-gray-300 focus:ring-blue-500'
+                                                            }`}
                                                         disabled={countriesLoading}
                                                     >
                                                         <option value="">Select your nationality</option>
@@ -536,11 +507,10 @@ const PlayerRegistrationPage: React.FC<PlayerRegistrationPageProps> = ({ onSubmi
                                                         {...field}
                                                         aria-invalid={errors.position ? 'true' : 'false'}
                                                         aria-describedby={errors.position ? 'position-error' : undefined}
-                                                        className={`w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:border-transparent transition-all duration-200 bg-white text-black ${
-                                                            errors.position 
-                                                                ? 'border-red-300 focus:ring-red-500 bg-red-50' 
-                                                                : 'border-gray-300 focus:ring-blue-500'
-                                                        }`}
+                                                        className={`w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:border-transparent transition-all duration-200 bg-white text-black ${errors.position
+                                                            ? 'border-red-300 focus:ring-red-500 bg-red-50'
+                                                            : 'border-gray-300 focus:ring-blue-500'
+                                                            }`}
                                                     >
                                                         {POSITIONS.map(position => (
                                                             <option key={position} value={position} className="text-black">{position}</option>
@@ -558,43 +528,7 @@ const PlayerRegistrationPage: React.FC<PlayerRegistrationPageProps> = ({ onSubmi
                                             )}
                                         />
                                     </div>
-                                    <div>
-                                        <label className="block text-sm font-semibold text-gray-700 mb-2">
-                                            Preferred Club *
-                                        </label>
-                                        <Controller
-                                            name="clubId"
-                                            control={control}
-                                            render={({ field }) => (
-                                                <>
-                                                    <select
-                                                        {...field}
-                                                        aria-invalid={errors.clubId ? 'true' : 'false'}
-                                                        aria-describedby={errors.clubId ? 'clubId-error' : undefined}
-                                                        className={`w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:border-transparent transition-all duration-200 bg-white text-black ${
-                                                            errors.clubId 
-                                                                ? 'border-red-300 focus:ring-red-500 bg-red-50' 
-                                                                : 'border-gray-300 focus:ring-blue-500'
-                                                        }`}
-                                                        disabled={clubsLoading || clubs.length === 0}
-                                                    >
-                                                        <option value="">Select your preferred club</option>
-                                                        {clubs.map(club => (
-                                                            <option key={club.id} value={club.id} className="text-black">{club.name}</option>
-                                                        ))}
-                                                    </select>
-                                                    {errors.clubId && (
-                                                        <div id="clubId-error" className="mt-2 flex items-center text-sm text-red-600">
-                                                            <svg className="w-4 h-4 mr-2 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
-                                                                <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
-                                                            </svg>
-                                                            {errors.clubId.message}
-                                                        </div>
-                                                    )}
-                                                </>
-                                            )}
-                                        />
-                                    </div>
+
                                     <div className="md:col-span-2">
                                         <label className="block text-sm font-semibold text-gray-700 mb-2">
                                             Previous Club
@@ -607,11 +541,10 @@ const PlayerRegistrationPage: React.FC<PlayerRegistrationPageProps> = ({ onSubmi
                                             title="Letters, spaces, apostrophes and hyphens only"
                                             aria-invalid={errors.previousClub ? 'true' : 'false'}
                                             aria-describedby={errors.previousClub ? 'previousClub-error' : undefined}
-                                            className={`w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:border-transparent transition-all duration-200 ${
-                                                errors.previousClub 
-                                                    ? 'border-red-300 focus:ring-red-500 bg-red-50' 
-                                                    : 'border-gray-300 focus:ring-blue-500'
-                                            }`}
+                                            className={`w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:border-transparent transition-all duration-200 ${errors.previousClub
+                                                ? 'border-red-300 focus:ring-red-500 bg-red-50'
+                                                : 'border-gray-300 focus:ring-blue-500'
+                                                }`}
                                             placeholder="Enter your previous club (if any)"
                                         />
                                         {errors.previousClub && (
@@ -620,6 +553,27 @@ const PlayerRegistrationPage: React.FC<PlayerRegistrationPageProps> = ({ onSubmi
                                                     <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
                                                 </svg>
                                                 {errors.previousClub.message}
+                                            </div>
+                                        )}
+                                    </div>
+                                    <div className="md:col-span-2">
+                                        <label className="block text-sm font-semibold text-gray-700 mb-2">
+                                            Minimum Salary Expectation ($) *
+                                        </label>
+                                        <input
+                                            {...register('minimumSalary')}
+                                            type="number"
+                                            min="0"
+                                            step="100"
+                                            className={`w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:border-transparent transition-all duration-200 ${errors.minimumSalary
+                                                ? 'border-red-300 focus:ring-red-500 bg-red-50'
+                                                : 'border-gray-300 focus:ring-blue-500'
+                                                }`}
+                                            placeholder="Enter annual salary expectation"
+                                        />
+                                        {errors.minimumSalary && (
+                                            <div className="mt-2 text-sm text-red-600">
+                                                {errors.minimumSalary.message}
                                             </div>
                                         )}
                                     </div>
@@ -656,6 +610,130 @@ const PlayerRegistrationPage: React.FC<PlayerRegistrationPageProps> = ({ onSubmi
                                             {errors.leaguesPlayed.message}
                                         </div>
                                     )}
+                                </div>
+                            </div>
+
+                            {/* Medical and Fitness History */}
+                            <div className="bg-gray-50 rounded-xl p-8 border border-gray-200">
+                                <div className="flex items-center mb-6">
+                                    <div className="w-10 h-10 bg-red-600 rounded-full flex items-center justify-center mr-4">
+                                        <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
+                                        </svg>
+                                    </div>
+                                    <h2 className="text-2xl font-bold text-gray-800">Medical and Fitness History</h2>
+                                    <p className="ml-4 text-sm text-gray-500 hidden md:block">
+                                        Collected to support injury management and future predictive analytics.
+                                    </p>
+                                </div>
+                                <p className="text-sm text-gray-500 mb-6 md:hidden">
+                                    Collected to support injury management and future predictive analytics.
+                                </p>
+
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                    <div className="md:col-span-2">
+                                        <label className="block text-sm font-semibold text-gray-700 mb-2">
+                                            Injury History (Yes / No) *
+                                        </label>
+                                        <div className="flex space-x-6">
+                                            <label className="inline-flex items-center">
+                                                <input
+                                                    type="radio"
+                                                    value="true"
+                                                    {...register("hasInjuryHistory")}
+                                                    // Convert string value to boolean for the form
+                                                    onChange={() => setValue("hasInjuryHistory", true, { shouldValidate: true })}
+                                                    checked={watch("hasInjuryHistory") === true}
+                                                    className="form-radio h-5 w-5 text-red-600 focus:ring-red-500"
+                                                />
+                                                <span className="ml-2 text-gray-700">Yes</span>
+                                            </label>
+                                            <label className="inline-flex items-center">
+                                                <input
+                                                    type="radio"
+                                                    value="false"
+                                                    {...register("hasInjuryHistory")}
+                                                    onChange={() => setValue("hasInjuryHistory", false, { shouldValidate: true })}
+                                                    checked={watch("hasInjuryHistory") === false}
+                                                    className="form-radio h-5 w-5 text-green-600 focus:ring-green-500"
+                                                />
+                                                <span className="ml-2 text-gray-700">No</span>
+                                            </label>
+                                        </div>
+                                        {errors.hasInjuryHistory && (
+                                            <div className="mt-2 text-sm text-red-600">
+                                                {errors.hasInjuryHistory.message}
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    {watch("hasInjuryHistory") && (
+                                        <>
+                                            <div className="md:col-span-2">
+                                                <label className="block text-sm font-semibold text-gray-700 mb-2">
+                                                    Nature of Previous Injuries *
+                                                </label>
+                                                <textarea
+                                                    {...register('injuryNature')}
+                                                    rows={3}
+                                                    className={`w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:border-transparent transition-all duration-200 ${errors.injuryNature
+                                                        ? 'border-red-300 focus:ring-red-500 bg-red-50'
+                                                        : 'border-gray-300 focus:ring-blue-500'
+                                                        }`}
+                                                    placeholder="Describe your previous injuries..."
+                                                />
+                                                {errors.injuryNature && (
+                                                    <div className="mt-2 text-sm text-red-600">
+                                                        {errors.injuryNature.message}
+                                                    </div>
+                                                )}
+                                            </div>
+
+                                            <div>
+                                                <label className="block text-sm font-semibold text-gray-700 mb-2">
+                                                    Date of Last Injury *
+                                                </label>
+                                                <input
+                                                    {...register('lastInjuryDate')}
+                                                    type="date"
+                                                    className={`w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:border-transparent transition-all duration-200 ${errors.lastInjuryDate
+                                                        ? 'border-red-300 focus:ring-red-500 bg-red-50'
+                                                        : 'border-gray-300 focus:ring-blue-500'
+                                                        }`}
+                                                />
+                                                {errors.lastInjuryDate && (
+                                                    <div className="mt-2 text-sm text-red-600">
+                                                        {errors.lastInjuryDate.message}
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </>
+                                    )}
+
+                                    <div className={watch("hasInjuryHistory") ? "" : "md:col-span-2"}>
+                                        <label className="block text-sm font-semibold text-gray-700 mb-2">
+                                            Current Fitness Status *
+                                        </label>
+                                        <select
+                                            {...register('fitnessStatus')}
+                                            className={`w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:border-transparent transition-all duration-200 bg-white text-black ${errors.fitnessStatus
+                                                ? 'border-red-300 focus:ring-red-500 bg-red-50'
+                                                : 'border-gray-300 focus:ring-blue-500'
+                                                }`}
+                                        >
+                                            <option value="">Select status</option> // Fixed empty option
+                                            <option value="Fully Fit">Fully Fit</option>
+                                            <option value="Match Fit">Match Fit</option>
+                                            <option value="Returning from Injury">Returning from Injury</option>
+                                            <option value="Injured">Injured</option>
+                                            <option value="Recovering">Recovering</option>
+                                        </select>
+                                        {errors.fitnessStatus && (
+                                            <div className="mt-2 text-sm text-red-600">
+                                                {errors.fitnessStatus.message}
+                                            </div>
+                                        )}
+                                    </div>
                                 </div>
                             </div>
 
@@ -830,11 +908,10 @@ const PlayerRegistrationPage: React.FC<PlayerRegistrationPageProps> = ({ onSubmi
                                         rows={6}
                                         aria-invalid={errors.bio ? 'true' : 'false'}
                                         aria-describedby={errors.bio ? 'bio-error' : undefined}
-                                        className={`w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:border-transparent transition-all duration-200 resize-none ${
-                                            errors.bio 
-                                                ? 'border-red-300 focus:ring-red-500 bg-red-50' 
-                                                : 'border-gray-300 focus:ring-blue-500'
-                                        }`}
+                                        className={`w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:border-transparent transition-all duration-200 resize-none ${errors.bio
+                                            ? 'border-red-300 focus:ring-red-500 bg-red-50'
+                                            : 'border-gray-300 focus:ring-blue-500'
+                                            }`}
                                         placeholder="Tell us about your gaming experience, achievements, and why you want to join this club... (minimum 10 characters)"
                                     />
                                     {errors.bio && (

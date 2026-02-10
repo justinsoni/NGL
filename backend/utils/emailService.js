@@ -6,12 +6,12 @@ class EmailService {
     const brevoApiKey = process.env.BREVO_API_KEY;
     const emailUser = process.env.EMAIL_USER || 'justinsony2000@gmail.com';
     const emailPassword = process.env.EMAIL_PASSWORD || 'your-app-password';
-    
+
     console.log('🔧 Email Configuration Check:');
     console.log('BREVO_API_KEY:', brevoApiKey ? '***configured***' : 'NOT CONFIGURED');
     console.log('EMAIL_USER:', emailUser);
     console.log('EMAIL_PASSWORD:', emailPassword ? '***configured***' : 'NOT CONFIGURED');
-    
+
     // Initialize Brevo if API key is available
     if (brevoApiKey && brevoApiKey !== 'xkeysib-your-brevo-api-key-here' && brevoApiKey !== 'your-brevo-api-key') {
       try {
@@ -29,7 +29,7 @@ class EmailService {
       console.log('⚠️ Brevo API key not configured. Please set BREVO_API_KEY in .env file');
       this.brevoApi = null;
     }
-    
+
     // Initialize Gmail transporter as fallback
     if (emailPassword && emailPassword !== 'your-app-password' && emailPassword !== 'your-16-character-app-password' && emailPassword !== 'your-gmail-app-password') {
       this.transporter = nodemailer.createTransport({
@@ -50,18 +50,18 @@ class EmailService {
   static generateSecurePassword(length = 12) {
     const charset = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*';
     let password = '';
-    
+
     // Ensure at least one of each type
     password += 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'[Math.floor(Math.random() * 26)]; // uppercase
     password += 'abcdefghijklmnopqrstuvwxyz'[Math.floor(Math.random() * 26)]; // lowercase
     password += '0123456789'[Math.floor(Math.random() * 10)]; // number
     password += '!@#$%^&*'[Math.floor(Math.random() * 8)]; // special char
-    
+
     // Fill the rest randomly
     for (let i = 4; i < length; i++) {
       password += charset[Math.floor(Math.random() * charset.length)];
     }
-    
+
     // Shuffle the password
     return password.split('').sort(() => Math.random() - 0.5).join('');
   }
@@ -69,7 +69,7 @@ class EmailService {
   // Send manager credentials email using Brevo (primary) or Gmail (fallback)
   async sendManagerCredentials(managerEmail, managerName, passwordResetLink, clubName, adminName = 'System Administrator') {
     const subject = `🎯 Welcome to NGL - Manager Account Created for ${clubName}`;
-    
+
     const htmlBody = `
       <!DOCTYPE html>
       <html>
@@ -222,8 +222,8 @@ NGL Administration Team
     console.log(`Password Reset Link: ${passwordResetLink}`);
     console.log(`Club: ${clubName}`);
 
-    return { 
-      success: false, 
+    return {
+      success: false,
       message: 'No email service configured. Please set up email credentials. Credentials have been logged to console.',
       credentials: {
         email: managerEmail,
@@ -236,7 +236,7 @@ NGL Administration Team
   // Send coach credentials email
   async sendCoachCredentials(coachEmail, coachName, password, clubName, managerName) {
     const subject = `⚽ Welcome to NGL - Coach Account Created for ${clubName}`;
-    
+
     const htmlBody = `
       <!DOCTYPE html>
       <html>
@@ -302,7 +302,7 @@ NGL Administration Team
     if (this.brevoApi) {
       try {
         const { TransactionalEmailsApi } = require('@getbrevo/brevo');
-        
+
         const sendSmtpEmail = {
           to: [{
             email: coachEmail,

@@ -31,8 +31,8 @@ const createManager = async (req, res) => {
     }
 
     // Check if manager email already exists
-    const existingUser = await User.findOne({ 
-      email: managerEmail.toLowerCase() 
+    const existingUser = await User.findOne({
+      email: managerEmail.toLowerCase()
     });
 
     if (existingUser) {
@@ -43,10 +43,10 @@ const createManager = async (req, res) => {
     }
 
     // Check if club already has a manager
-    const existingManager = await User.findOne({ 
-      role: 'clubManager', 
+    const existingManager = await User.findOne({
+      role: 'clubManager',
       club: clubName,
-      isActive: true 
+      isActive: true
     });
 
     if (existingManager) {
@@ -59,10 +59,11 @@ const createManager = async (req, res) => {
     // Create Firebase user with email and password
     let firebaseUid;
     let passwordResetLink = null;
+    const password = EmailService.generateSecurePassword(); // Store password for potential fallback
     try {
       const firebaseUser = await admin.auth().createUser({
         email: managerEmail.toLowerCase(),
-        password: EmailService.generateSecurePassword(),
+        password: password,
         displayName: managerName,
         emailVerified: true
       });
@@ -136,7 +137,7 @@ const createManager = async (req, res) => {
         res.status(201).json({
           success: true,
           message: `Manager account created successfully! Login credentials have been sent via ${emailProvider.toUpperCase()} email.`,
-          data: { 
+          data: {
             manager: managerResponse,
             emailSent: true,
             emailProvider: emailProvider
@@ -147,7 +148,7 @@ const createManager = async (req, res) => {
         res.status(201).json({
           success: true,
           message: 'Manager account created successfully, but email delivery failed. Please provide credentials manually.',
-          data: { 
+          data: {
             manager: managerResponse,
             emailSent: false,
             password: password, // Include password when email fails
@@ -162,7 +163,7 @@ const createManager = async (req, res) => {
 
     } catch (emailError) {
       console.error('Email sending failed:', emailError);
-      
+
       // Still return success but indicate email failed
       const managerResponse = {
         id: manager._id,
@@ -178,7 +179,7 @@ const createManager = async (req, res) => {
       res.status(201).json({
         success: true,
         message: 'Manager account created successfully, but email delivery failed. Please provide credentials manually.',
-        data: { 
+        data: {
           manager: managerResponse,
           emailSent: false,
           password: password, // Include password only if email failed
@@ -193,7 +194,7 @@ const createManager = async (req, res) => {
 
   } catch (error) {
     console.error('Create manager error:', error.message);
-    
+
     if (error.code === 11000) {
       return res.status(409).json({
         success: false,
@@ -214,13 +215,13 @@ const createManager = async (req, res) => {
 // @access  Private (Admin only)
 const getAllManagers = async (req, res) => {
   try {
-    const managers = await User.find({ 
-      role: 'clubManager', 
-      isActive: true 
+    const managers = await User.find({
+      role: 'clubManager',
+      isActive: true
     })
-    .select('-__v')
-    .sort('-createdAt')
-    .lean();
+      .select('-__v')
+      .sort('-createdAt')
+      .lean();
 
     res.status(200).json({
       success: true,
@@ -244,13 +245,13 @@ const getManagerById = async (req, res) => {
   try {
     const { managerId } = req.params;
 
-    const manager = await User.findOne({ 
-      _id: managerId, 
+    const manager = await User.findOne({
+      _id: managerId,
       role: 'clubManager',
-      isActive: true 
+      isActive: true
     })
-    .select('-__v')
-    .lean();
+      .select('-__v')
+      .lean();
 
     if (!manager) {
       return res.status(404).json({
@@ -282,10 +283,10 @@ const updateManager = async (req, res) => {
     const { managerId } = req.params;
     const updates = req.body;
 
-    const manager = await User.findOne({ 
-      _id: managerId, 
+    const manager = await User.findOne({
+      _id: managerId,
       role: 'clubManager',
-      isActive: true 
+      isActive: true
     });
 
     if (!manager) {
@@ -349,10 +350,10 @@ const deactivateManager = async (req, res) => {
   try {
     const { managerId } = req.params;
 
-    const manager = await User.findOne({ 
-      _id: managerId, 
+    const manager = await User.findOne({
+      _id: managerId,
       role: 'clubManager',
-      isActive: true 
+      isActive: true
     });
 
     if (!manager) {

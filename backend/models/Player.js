@@ -97,8 +97,7 @@ const playerSchema = new mongoose.Schema({
   },
   clubId: {
     type: mongoose.Schema.Types.ObjectId,
-    ref: 'Club',
-    required: true
+    ref: 'Club'
   },
   status: {
     type: String,

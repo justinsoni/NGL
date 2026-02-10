@@ -27,15 +27,12 @@ const registerPlayer = async (req, res) => {
       });
     }
 
-    // Resolve preferred club to a valid ObjectId
+    // Resolve preferred club if provided, otherwise null (Free Agent/General Pool)
     const submittedClubId = req.body.clubId;
     const submittedClubName = req.body.clubName || req.body.preferredClub || req.body.club;
 
-    if (!submittedClubId && !submittedClubName) {
-      return res.status(400).json({ success: false, message: 'Preferred club is required' });
-    }
-
     let resolvedClubId = null;
+
     if (submittedClubId && mongoose.Types.ObjectId.isValid(submittedClubId)) {
       const clubExists = await Club.exists({ _id: submittedClubId });
       if (!clubExists) {
@@ -48,9 +45,8 @@ const registerPlayer = async (req, res) => {
         return res.status(400).json({ success: false, message: 'Selected club not found' });
       }
       resolvedClubId = clubDoc._id;
-    } else {
-      return res.status(400).json({ success: false, message: 'Preferred club is invalid' });
     }
+    // If neither matching ID nor Name is provided, resolvedClubId remains null
 
     // Ensure we store normalized email and resolved club id
     req.body.email = email;
@@ -98,10 +94,16 @@ const getPendingPlayers = async (req, res) => {
         filter.clubId = club._id;
       }
     }
-    
+
     const players = await Player.find(filter).populate('clubId', 'name city logo');
-    // Filter out orphaned players where the club no longer exists
-    const filtered = players.filter(p => !!p.clubId);
+
+    // If checking for a specific club, strictly filter. 
+    // If general view (no club params), show all including those with null clubId.
+    let filtered = players;
+    if (clubId || clubName) {
+      filtered = players.filter(p => !!p.clubId);
+    }
+
     res.json({
       success: true,
       data: filtered
@@ -120,8 +122,8 @@ const approvePlayer = async (req, res) => {
     const { registrationId } = req.params;
     const player = await Player.findByIdAndUpdate(
       registrationId,
-      { 
-        status: 'approved', 
+      {
+        status: 'approved',
         isVerified: true,
         documentVerification: {
           status: 'verified',
@@ -137,6 +139,15 @@ const approvePlayer = async (req, res) => {
     if (!player) {
       return res.status(404).json({ success: false, message: 'Player not found' });
     }
+
+    // If player has no clubId and approver is a club manager, assign to their club
+    if (!player.clubId && req.user && (req.user.role === 'clubManager' || req.user.role === 'coach') && req.user.club) {
+      const club = await Club.findOne({ name: req.user.club }).select('_id');
+      if (club) {
+        player.clubId = club._id;
+        await player.save();
+      }
+    }
     res.json({ success: true, message: 'Player approved', data: player });
   } catch (error) {
     console.error('Error approving player:', error);
@@ -150,8 +161,8 @@ const rejectPlayer = async (req, res) => {
     const { reason } = req.body;
     const player = await Player.findByIdAndUpdate(
       registrationId,
-      { 
-        status: 'rejected', 
+      {
+        status: 'rejected',
         rejectionReason: reason,
         documentVerification: {
           status: 'rejected',
@@ -176,7 +187,7 @@ const rejectPlayer = async (req, res) => {
 };
 
 const getApprovedPlayers = async (req, res) => {
-  console.log('Fetching approved players with query:', req.query);  
+  console.log('Fetching approved players with query:', req.query);
   try {
     const { clubId, clubName } = req.query;
     const filter = { status: 'approved' };
@@ -189,11 +200,10 @@ const getApprovedPlayers = async (req, res) => {
       }
     }
     const players = await Player.find(filter).populate('clubId', 'name city logo');
-    const filtered = players.filter(p => !!p.clubId);
-    console.log('Approved players fetched:', filtered);
+    console.log('Approved players fetched:', players.length);
     res.json({
       success: true,
-      data: filtered
+      data: players
     });
   } catch (error) {
     console.error('Error fetching approved players:', error);

@@ -6,6 +6,7 @@ import { LeagueLogoIcon } from '../components/icons';
 import { useAuth } from '../contexts/AuthContext';
 import api from '../services/api';
 import toast from 'react-hot-toast';
+import PlayerRegistrationCard from '../components/PlayerRegistrationCard';
 
 const LoginPage: React.FC = () => {
     const [isLogin, setIsLogin] = useState(true);
@@ -31,7 +32,7 @@ const LoginPage: React.FC = () => {
         if (user) {
             // Check if current user signed up with Google
             const checkCurrentUserAuthMethod = async () => {
-                
+
                 try {
                     const response = await api.post('/auth/check-auth-method', { email: user.email });
                     setIsGoogleUser((response.data as any).isGoogleUser);
@@ -93,18 +94,18 @@ const LoginPage: React.FC = () => {
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         setError('');
-        
+
         // Basic validation
         if (!email) {
             setError('Please enter your email address to continue.');
             return;
         }
-        
+
         if (!isForgotPassword && !password) {
             setError('Please enter your password to continue.');
             return;
         }
-        
+
         if (!isLogin && !isForgotPassword && !confirmPassword) {
             setError('Please confirm your password to continue.');
             return;
@@ -114,19 +115,19 @@ const LoginPage: React.FC = () => {
             setError('Please enter your full name to continue.');
             return;
         }
-        
+
         // Email validation
         const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
         if (!emailRegex.test(email)) {
             setError('Please enter a valid email address (e.g., user@example.com).');
             return;
         }
-        
+
         // Prevent multiple submissions
         if (loading) {
             return;
         }
-        
+
         setLoading(true);
 
         const maxRetries = 2;
@@ -151,14 +152,14 @@ const LoginPage: React.FC = () => {
                     // Handle forgot password for email/password users
                     try {
                         setLoading(true); // Add loading state
-                        
+
                         // Additional security check: Try to get user from Firebase
                         // If user exists in Firebase but not in backend, they're likely a Google user
                         try {
                             const { getAuth, fetchSignInMethodsForEmail } = await import('firebase/auth');
                             const auth = getAuth();
                             const methods = await fetchSignInMethodsForEmail(auth, email);
-                            
+
                             // If user has Google sign-in method, prevent password reset
                             if (methods.includes('google.com')) {
                                 setError('This account was created with Google. Please use "Continue with Google" to access your account, or contact support if you need assistance.');
@@ -168,7 +169,7 @@ const LoginPage: React.FC = () => {
                             // If Firebase check fails, proceed with backend check result
                             console.warn('Firebase auth method check failed:', firebaseCheckError);
                         }
-                        
+
                         await resetPassword(email);
                         toast.success('Password reset email sent! Please check your inbox and follow the instructions.');
                         setResetEmailSent(true);
@@ -208,7 +209,7 @@ const LoginPage: React.FC = () => {
                         return;
                     } catch (firebaseError: any) {
                         console.error('Login error:', firebaseError);
-                        
+
                         // Handle specific validation errors from MongoDB
                         if (firebaseError.message.includes('No account found with this email address')) {
                             setError('No account found with this email address. Please check your email or create a new account.');
@@ -271,7 +272,7 @@ const LoginPage: React.FC = () => {
                         }
                     } catch (firebaseError: any) {
                         console.error('Registration error:', firebaseError);
-                        
+
                         // Show specific Firebase error messages
                         if (firebaseError.message.includes('email-already-in-use')) {
                             setError('An account with this email already exists. Please use the "Sign in" option instead.');
@@ -337,7 +338,7 @@ const LoginPage: React.FC = () => {
             navigate('/');
         } catch (error: any) {
             console.error('Complete registration error:', error);
-            
+
             if (error.message.includes('verify your email')) {
                 setError('Please verify your email address before completing registration. Check your inbox and click the verification link.');
             } else if (error.message.includes('network') || error.message.includes('timeout')) {
@@ -353,16 +354,16 @@ const LoginPage: React.FC = () => {
     // Helper function to get navigation path based on role
     const getNavigationPath = (role: string): string => {
         switch (role) {
-            case 'admin': 
+            case 'admin':
                 return '/admin';
             case 'clubManager':
                 return '/club-manager';
-            case 'coach': 
+            case 'coach':
                 return '/coach';
-            case 'registeredUser': 
-            case 'user': 
+            case 'registeredUser':
+            case 'user':
                 return '/'; // users go home
-            default: 
+            default:
                 console.warn(`Unknown role: ${role}, navigating to home`);
                 return '/';
         }
@@ -371,21 +372,21 @@ const LoginPage: React.FC = () => {
     const handleGoogleAuth = async () => {
         setLoading(true);
         setError('');
-        
+
         const maxRetries = 2;
         let retryCount = 0;
-        
+
         const attemptGoogleAuth = async (): Promise<any> => {
             try {
                 let user;
-                
+
                 // Try to sign in with Google
                 try {
                     user = await loginWithGoogle();
                     toast.success('Welcome back! You\'re now signed in successfully.');
                 } catch (loginError: any) {
                     console.error('Google login error:', loginError);
-                    
+
                     // The loginWithGoogle method will handle the logic internally
                     // If it fails, it means we need to register
                     try {
@@ -393,7 +394,7 @@ const LoginPage: React.FC = () => {
                         toast.success('Welcome to Football League Hub! Your account has been created successfully.');
                     } catch (registerError: any) {
                         console.error('Google registration error:', registerError);
-                        
+
                         // Handle specific registration errors
                         if (registerError.message.includes('already exists')) {
                             setError('An account with this email already exists. Please use the "Sign in" option instead.');
@@ -407,10 +408,10 @@ const LoginPage: React.FC = () => {
                 }
 
                 return user;
-                
+
             } catch (error: any) {
                 console.error('Google auth error:', error);
-                
+
                 // Handle specific error types
                 if (error.message.includes('popup') || error.message.includes('cancelled')) {
                     setError('Google sign-in was cancelled. Please try again when you\'re ready.');
@@ -434,15 +435,15 @@ const LoginPage: React.FC = () => {
                 }
             }
         };
-        
+
         try {
             const user = await attemptGoogleAuth();
-            
+
             if (user) {
                 // Navigate based on user role
                 console.log('Google auth user:', user);
                 console.log('User role:', user.role);
-                
+
                 if (user.role) {
                     const navigationPath = getNavigationPath(user.role);
                     console.log('Navigation path:', navigationPath);
@@ -453,7 +454,7 @@ const LoginPage: React.FC = () => {
                     navigate('/');
                 }
             }
-            
+
         } catch (error: any) {
             console.error('Final Google auth error:', error);
             setError('We\'re experiencing technical difficulties. Please try again or contact support if the issue persists.');
@@ -468,7 +469,7 @@ const LoginPage: React.FC = () => {
             setError('Please wait while we check your account type...');
             return;
         }
-        
+
         if (isGoogleUser) {
             setError('This account was created with Google. Please use "Continue with Google" to access your account, or contact support if you need assistance.');
             return;
@@ -487,35 +488,35 @@ const LoginPage: React.FC = () => {
         setPendingRegistration(null);
         // Don't clear email to preserve user input
     };
-    
+
     const commonInputClasses = "appearance-none relative block w-full px-3 py-3 bg-theme-secondary-bg border border-theme-border placeholder-theme-text-secondary text-theme-dark rounded-md focus:outline-none focus:ring-theme-primary focus:border-theme-primary sm:text-sm";
-    
+
     return (
-        <div className="min-h-screen flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
+        <div className="min-h-screen flex flex-col items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
             <div className="max-w-md w-full space-y-8 bg-theme-page-bg p-10 rounded-xl shadow-2xl">
                 <div>
                     <LeagueLogoIcon className="mx-auto h-16 w-auto text-theme-primary" />
                     <h2 className="mt-6 text-center text-3xl font-extrabold text-theme-dark">
                         {isForgotPassword ? (resetEmailSent ? 'Check Your Email' : 'Reset Password') : isLogin ? 'Sign in to your account' : 'Join as a User'}
                     </h2>
-                     {!isLogin && !isForgotPassword && (
+                    {!isLogin && !isForgotPassword && (
                         <p className="mt-2 text-center text-sm text-theme-text-secondary">
-                           Create your user account to follow teams, view matches, and stay updated with the league.
+                            Create your user account to follow teams, view matches, and stay updated with the league.
                         </p>
                     )}
                     {isLogin && !isForgotPassword && (
                         <p className="mt-2 text-center text-sm text-theme-text-secondary">
-                           Welcome back! Sign in to access your account.
+                            Welcome back! Sign in to access your account.
                         </p>
                     )}
                     {isForgotPassword && !resetEmailSent && (
                         <p className="mt-2 text-center text-sm text-theme-text-secondary">
-                           Enter your email address and we'll send you a password reset link.
+                            Enter your email address and we'll send you a password reset link.
                         </p>
                     )}
                     {isForgotPassword && resetEmailSent && (
                         <p className="mt-2 text-center text-sm text-theme-text-secondary">
-                           We've sent a password reset link to your email address. Please check your inbox and follow the instructions.
+                            We've sent a password reset link to your email address. Please check your inbox and follow the instructions.
                         </p>
                     )}
                 </div>
@@ -594,7 +595,7 @@ const LoginPage: React.FC = () => {
                         {isGoogleUser && isLogin && !isForgotPassword && (
                             <div className="p-3 bg-blue-50 border border-blue-200 rounded-md">
                                 <p className="text-sm text-blue-700 text-center">
-                                    <strong>Google Account Detected:</strong> This email is associated with a Google account. 
+                                    <strong>Google Account Detected:</strong> This email is associated with a Google account.
                                     Please use "Continue with Google" for a seamless sign-in experience.
                                 </p>
                             </div>
@@ -631,7 +632,7 @@ const LoginPage: React.FC = () => {
                                 We've sent a password reset link to <strong>{email}</strong>. Please check your inbox and follow the instructions to reset your password.
                             </p>
                         </div>
-                        
+
                         <div className="space-y-3">
                             <button
                                 onClick={handleBackToLogin}
@@ -639,7 +640,7 @@ const LoginPage: React.FC = () => {
                             >
                                 Back to Sign In
                             </button>
-                            
+
                             <button
                                 onClick={() => {
                                     setResetEmailSent(false);
@@ -667,7 +668,7 @@ const LoginPage: React.FC = () => {
                                 We've sent a verification email to <strong>{email}</strong>. Please check your inbox and click the verification link to complete your registration.
                             </p>
                         </div>
-                        
+
                         <div className="space-y-3">
                             <button
                                 onClick={handleCompleteRegistration}
@@ -683,7 +684,7 @@ const LoginPage: React.FC = () => {
                                     'Complete Registration'
                                 )}
                             </button>
-                            
+
                             <button
                                 onClick={handleBackToLogin}
                                 className="w-full flex justify-center py-3 px-4 border border-theme-border rounded-md shadow-sm text-sm font-medium text-theme-dark bg-theme-secondary-bg hover:bg-theme-border focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-theme-primary"
@@ -697,7 +698,7 @@ const LoginPage: React.FC = () => {
                 <div className="text-sm text-center space-y-2">
                     {!isForgotPassword ? (
                         <>
-                            <button onClick={() => {setIsLogin(!isLogin); setError(''); setIsForgotPassword(false); setResetEmailSent(false);}} className="font-medium text-theme-primary hover:text-theme-primary-dark block w-full">
+                            <button onClick={() => { setIsLogin(!isLogin); setError(''); setIsForgotPassword(false); setResetEmailSent(false); }} className="font-medium text-theme-primary hover:text-theme-primary-dark block w-full">
                                 {isLogin ? 'Don\'t have an account? Sign up as a user' : 'Already have an account? Sign in'}
                             </button>
                             {isLogin && !isGoogleUser && (
@@ -714,12 +715,13 @@ const LoginPage: React.FC = () => {
                                 </div>
                             )}
                             {isLogin && (
-                                <button
-                                    onClick={handlePlayerRegistrationClick}
-                                    className="font-medium text-theme-primary hover:text-theme-primary-dark block w-full"
-                                >
-                                    Are you a player? Register here
-                                </button>
+                                <div className="hidden">
+                                    {/* Hiding old link in favor of new card, keeping logic if needed later or removing entirely if requested. 
+                                        User asked for "clean separation", so likely don't want the text link AND the card. 
+                                        I'll comment it out or remove it to avoid clutter. 
+                                        Actually, let's keep the file clean. I will remove the old text link to avoid duplication.
+                                    */}
+                                </div>
                             )}
                         </>
                     ) : !resetEmailSent && (
@@ -732,8 +734,14 @@ const LoginPage: React.FC = () => {
                     )}
                 </div>
             </div>
+
+            {/* Player Registration Card - Only show on Login view */}
+            {isLogin && !isForgotPassword && (
+                <PlayerRegistrationCard />
+            )}
         </div>
     );
+
 };
 
 export default LoginPage;

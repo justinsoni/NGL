@@ -3,7 +3,10 @@ import { Player, Club } from '../types';
 import { useAuth } from '../contexts/AuthContext';
 import toast from 'react-hot-toast';
 
-type CoachSection = 'Players' | 'Player Performance' | 'Training Materials' | 'AI Tools' | 'Account Settings';
+import { playerService } from '../services/playerService';
+import PlayerProfileModal from '../components/PlayerProfileModal';
+
+type CoachSection = 'Players' | 'Player Performance' | 'Training Materials' | 'AI Tools' | 'Player Scouting' | 'Account Settings';
 
 interface CoachDashboardProps {
     club: Club;
@@ -17,6 +20,24 @@ const CoachDashboard: React.FC<CoachDashboardProps> = ({ club, players }) => {
 
     const [playerToCompareA, setPlayerToCompareA] = useState<number | null>(clubPlayers.length > 0 ? clubPlayers[0].id : null);
     const [playerToCompareB, setPlayerToCompareB] = useState<number | null>(clubPlayers.length > 1 ? clubPlayers[1].id : null);
+    const [scoutingCandidates, setScoutingCandidates] = useState<Player[]>([]);
+    const [viewingCandidate, setViewingCandidate] = useState<Player | null>(null);
+
+    React.useEffect(() => {
+        if (activeSection === 'Player Scouting') {
+            const fetchScoutingCandidates = async () => {
+                try {
+                    const response = await playerService.getPendingPlayers(undefined, undefined);
+                    if (response.success) {
+                        setScoutingCandidates(response.data);
+                    }
+                } catch (error) {
+                    console.error('Failed to fetch scouting candidates:', error);
+                }
+            };
+            fetchScoutingCandidates();
+        }
+    }, [activeSection]);
 
     // Password change state
     const [showPasswordChange, setShowPasswordChange] = useState(false);
@@ -81,8 +102,8 @@ const CoachDashboard: React.FC<CoachDashboardProps> = ({ club, players }) => {
                 </div>
             )
         }
-        
-        switch(activeSection) {
+
+        switch (activeSection) {
             case 'Players':
                 return (
                     <div>
@@ -155,7 +176,7 @@ const CoachDashboard: React.FC<CoachDashboardProps> = ({ club, players }) => {
                                             <td className="py-2 px-4 text-theme-dark">{p.name}</td>
                                             <td className="py-2 px-4 text-theme-text-secondary">{p.position}</td>
                                             <td className="py-2 px-4 text-center">
-                                                <input type="number" min="1" max="10" defaultValue={Math.floor(Math.random() * 3) + 7} className="w-16 text-center border rounded bg-theme-secondary-bg text-theme-dark border-theme-border"/>
+                                                <input type="number" min="1" max="10" defaultValue={Math.floor(Math.random() * 3) + 7} className="w-16 text-center border rounded bg-theme-secondary-bg text-theme-dark border-theme-border" />
                                             </td>
                                         </tr>
                                     ))}
@@ -176,11 +197,11 @@ const CoachDashboard: React.FC<CoachDashboardProps> = ({ club, players }) => {
                     </div>
                 );
             case 'AI Tools':
-                 return (
+                return (
                     <div>
                         <h2 className="text-2xl font-bold mb-4 text-theme-dark">AI-Powered Tools (Phase 2)</h2>
                         <p className="mb-6 text-theme-text-secondary">Leverage machine learning to gain a competitive edge. These features will be powered by our custom Flask API.</p>
-                        
+
                         {/* Player Comparison */}
                         <div className="bg-blue-900/30 border border-blue-500/50 p-6 rounded-lg">
                             <h3 className="text-xl font-bold text-blue-300 mb-2">Player Comparison</h3>
@@ -201,6 +222,80 @@ const CoachDashboard: React.FC<CoachDashboardProps> = ({ club, players }) => {
                             </div>
                         </div>
 
+                    </div>
+                );
+            case 'Player Scouting':
+                return (
+                    <div>
+                        <h2 className="text-2xl font-bold mb-4 text-theme-dark">Player Scouting</h2>
+                        <p className="mb-6 text-theme-text-secondary">View and scout new talent for your squad. These players are pending approval.</p>
+
+                        {scoutingCandidates.length === 0 ? (
+                            <div className="text-center py-10 bg-theme-secondary-bg rounded-lg border border-theme-border">
+                                <p className="text-theme-text-secondary">No potential candidates found at the moment.</p>
+                            </div>
+                        ) : (
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                                {scoutingCandidates.map(player => (
+                                    <div key={player.id} className="bg-theme-secondary-bg rounded-lg border border-theme-border overflow-hidden hover:shadow-lg transition-shadow duration-200">
+                                        <div className="p-6">
+                                            <div className="flex items-start justify-between mb-4">
+                                                <div className="flex items-center gap-3">
+                                                    <img
+                                                        src={player.imageUrl || 'https://via.placeholder.com/150'}
+                                                        alt={player.name}
+                                                        className="h-12 w-12 rounded-full object-cover border-2 border-theme-border"
+                                                    />
+                                                    <div>
+                                                        <h3 className="font-bold text-theme-dark text-lg">{player.name}</h3>
+                                                        <p className="text-sm text-theme-text-secondary">{player.position}</p>
+                                                    </div>
+                                                </div>
+                                                <span className="px-2 py-1 bg-yellow-100 text-yellow-800 text-xs font-semibold rounded-full">
+                                                    Pending
+                                                </span>
+                                            </div>
+
+                                            <div className="space-y-2 mb-4">
+                                                <div className="flex justify-between text-sm">
+                                                    <span className="text-theme-text-secondary">Age:</span>
+                                                    <span className="text-theme-dark font-medium">{player.dob ? new Date().getFullYear() - new Date(player.dob).getFullYear() : 'N/A'}</span>
+                                                </div>
+                                                <div className="flex justify-between text-sm">
+                                                    <span className="text-theme-text-secondary">Nationality:</span>
+                                                    <span className="text-theme-dark font-medium">{player.nationality}</span>
+                                                </div>
+                                                <div className="flex justify-between text-sm">
+                                                    <span className="text-theme-text-secondary">Fitness:</span>
+                                                    <span className="text-theme-dark font-medium">{player.fitnessStatus || 'Unknown'}</span>
+                                                </div>
+                                            </div>
+
+                                            <div className="pt-4 border-t border-theme-border">
+                                                <button
+                                                    className="w-full bg-theme-primary hover:bg-theme-primary/80 text-theme-dark py-2 rounded-md font-medium transition-colors text-sm"
+                                                    onClick={() => setViewingCandidate(player)}
+                                                >
+                                                    View Profile
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                        {viewingCandidate && (
+                            <PlayerProfileModal
+                                player={{
+                                    ...viewingCandidate,
+                                    // Ensure fallback for stats if missing from backend response
+                                    stats: viewingCandidate.stats || { matches: 0, goals: 0, assists: 0, yellowCards: 0, redCards: 0 },
+                                    clubLogo: club.logo // Use current club logo as they are applying to it
+                                }}
+                                leaderStats={[]} // No leader stats needed for scouting view
+                                onClose={() => setViewingCandidate(null)}
+                            />
+                        )}
                     </div>
                 );
             case 'Account Settings':
@@ -330,14 +425,14 @@ const CoachDashboard: React.FC<CoachDashboardProps> = ({ club, players }) => {
         }
     };
 
-    const sections: CoachSection[] = ['Players', 'Player Performance', 'Training Materials', 'AI Tools', 'Account Settings'];
+    const sections: CoachSection[] = ['Players', 'Player Performance', 'Training Materials', 'AI Tools', 'Player Scouting', 'Account Settings'];
 
     return (
         <div className="flex min-h-screen bg-theme-light">
             {/* Sidebar */}
             <aside className="w-72 bg-theme-light text-theme-dark flex-col hidden lg:flex">
                 <div className="h-20 flex items-center gap-4 px-6 border-b border-theme-border">
-                    <img src={club.logo} alt={club.name} className="h-10 w-10"/>
+                    <img src={club.logo} alt={club.name} className="h-10 w-10" />
                     <div>
                         <p className="font-bold text-xl">{club.name}</p>
                         <p className="text-sm text-theme-text-secondary">Coach's Corner</p>
@@ -345,8 +440,8 @@ const CoachDashboard: React.FC<CoachDashboardProps> = ({ club, players }) => {
                 </div>
                 <nav className="flex-grow">
                     <ul className="space-y-2 p-4">
-                       {sections.map(section => (
-                             <li key={section}>
+                        {sections.map(section => (
+                            <li key={section}>
                                 <button
                                     onClick={() => setActiveSection(section)}
                                     className={`w-full text-left px-4 py-3 rounded-md transition-colors text-lg ${activeSection === section ? 'bg-theme-primary text-theme-dark' : 'hover:bg-theme-secondary-bg'}`}

@@ -6,6 +6,7 @@ export type RegistrationStatus = 'pending' | 'approved' | 'rejected';
 export type NotificationType = 'account_created' | 'registration_approved' | 'registration_rejected';
 
 export interface Player {
+  _id?: string;
   id: number;
   name: string;
   email: string;
@@ -30,6 +31,13 @@ export interface Player {
     yellowCards: number;
     redCards: number;
   };
+  submittedAt?: string;
+  reviewedAt?: string;
+  fitnessStatus?: string;
+  hasInjuryHistory?: boolean;
+  injuryNature?: string;
+  lastInjuryDate?: string;
+  minimumSalary?: number;
 }
 
 export interface CreatedUser {
@@ -58,8 +66,14 @@ export interface PlayerRegistration {
   imageUrl: string;
   identityCardUrl: string;
   bio: string;
+  // Medical & Fitness
+  hasInjuryHistory: boolean;
+  injuryNature?: string;
+  lastInjuryDate?: string;
+  fitnessStatus: string;
+  minimumSalary: number;
   status: RegistrationStatus;
-  clubId: number;
+  clubId?: number; // Made optional as we are removing the field
   submittedAt: string;
   reviewedAt?: string;
   reviewedBy?: number;

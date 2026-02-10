@@ -24,6 +24,8 @@ interface ClubManagerDashboardProps {
     coaches: CreatedUser[];
     onCreateCoach: (coach: Omit<CreatedUser, 'password' | 'id'>) => CreatedUser;
     playerRegistrations: PlayerRegistration[];
+    onApprovePlayerRegistration: (registrationId: number) => void;
+    onRejectPlayerRegistration: (registrationId: number, reason: string) => void;
 }
 
 type ManagerSection = 'Dashboard' | 'Manage Players' | 'Manage Coaches' | 'Manage Transfers' | 'Manage Best Goals' | 'Manage News' | 'Profile';
@@ -39,11 +41,13 @@ const ClubManagerDashboard: React.FC<ClubManagerDashboardProps> = ({
     coaches,
     onCreateCoach,
     playerRegistrations,
+    onApprovePlayerRegistration,
+    onRejectPlayerRegistration,
 }) => {
     const { user } = useAuth();
     const navigate = useNavigate();
     const [activeSection, setActiveSection] = useState<ManagerSection>('Manage Players');
-    
+
     // Professional Coach Form State
     const [professionalCoachData, setProfessionalCoachData] = useState({
         name: '',
@@ -66,7 +70,7 @@ const ClubManagerDashboard: React.FC<ClubManagerDashboardProps> = ({
         trophies: [{ name: '', year: '', club: '', level: '' }],
         documents: [{ type: '', name: '', url: '' }]
     });
-    
+
     // Player form with identity card
     const initialFormState = {
         name: '', email: '', phone: '', dob: '',
@@ -77,19 +81,19 @@ const ClubManagerDashboard: React.FC<ClubManagerDashboardProps> = ({
     const [formData, setFormData] = useState(initialFormState);
     const [editingPlayer, setEditingPlayer] = useState<Player | null>(null);
     const [clubVideos, setClubVideos] = useState<ClubVideo[]>([]);
-    const [uploadedDocuments, setUploadedDocuments] = useState<{[key: number]: File}>({});
-    const [documentPreviews, setDocumentPreviews] = useState<{[key: number]: string}>({});
+    const [uploadedDocuments, setUploadedDocuments] = useState<{ [key: number]: File }>({});
+    const [documentPreviews, setDocumentPreviews] = useState<{ [key: number]: string }>({});
     const [uploadedCoachPhoto, setUploadedCoachPhoto] = useState<File | null>(null);
     const [coachPhotoPreview, setCoachPhotoPreview] = useState<string>('');
     const [pendingPlayers, setPendingPlayers] = useState<Player[]>([]);
     const [approvedPlayers, setApprovedPlayers] = useState<Player[]>([]);
-    
+
     // News management state
     const [showNewsForm, setShowNewsForm] = useState(false);
     const [isSubmittingNews, setIsSubmittingNews] = useState(false);
     const [newsArticles, setNewsArticles] = useState<Array<{ _id: string; title: string; imageUrl: string, summary: string, content: string, createdAt: string, category: string, author: string, club: string }>>([]);
     const [editingNews, setEditingNews] = useState<any>(null);
-    
+
     // News form state
     const [newsForm, setNewsForm] = useState({
         title: '',
@@ -98,7 +102,7 @@ const ClubManagerDashboard: React.FC<ClubManagerDashboardProps> = ({
         category: 'Features',
         content: ''
     });
-    
+
     // News image upload state
     const [newsImageFile, setNewsImageFile] = useState<File | null>(null);
     const [newsImagePreview, setNewsImagePreview] = useState<string>('');
@@ -125,7 +129,7 @@ const ClubManagerDashboard: React.FC<ClubManagerDashboardProps> = ({
     const [isEditingProfile, setIsEditingProfile] = useState(false);
     const [profileData, setProfileData] = useState({
         name: user?.name || 'Club Manager',
-        profilePicture: import.meta.env.VITE_PLACEHOLDER_IMAGE_URL || 'https://via.placeholder.com/150'
+        profilePicture: (import.meta as any).env.VITE_PLACEHOLDER_IMAGE_URL || 'https://via.placeholder.com/150'
     });
     const [uploadedProfilePic, setUploadedProfilePic] = useState<File | null>(null);
     const [profilePicPreview, setProfilePicPreview] = useState<string>('');
@@ -142,8 +146,8 @@ const ClubManagerDashboard: React.FC<ClubManagerDashboardProps> = ({
 
     const fetchPendingPlayers = async () => {
         try {
-            // Prefer club name to avoid ObjectId casting issues in backend
-            const response = await playerService.getPendingPlayers(undefined, club.name);
+            // Fetch all pending players (General Pool/Free Agents) by passing undefined
+            const response = await playerService.getPendingPlayers(undefined, undefined);
             if (response.success) {
                 setPendingPlayers(response.data);
             }
@@ -178,6 +182,7 @@ const ClubManagerDashboard: React.FC<ClubManagerDashboardProps> = ({
             const response = await playerService.getApprovedPlayers(undefined, club.name);
             if (response.success) {
                 const normalized = (response.data as any[]).map((p: any, index: number) => ({
+                    _id: p._id,
                     id: Number(p.id) || Number(p._id?.toString().slice(-6)) || Date.now() + index,
                     name: p.name,
                     email: p.email,
@@ -204,7 +209,7 @@ const ClubManagerDashboard: React.FC<ClubManagerDashboardProps> = ({
         }
     };
 
-    useEffect(() => {  
+    useEffect(() => {
         fetchApprovedPlayers();
     }, [club.id]);
 
@@ -214,8 +219,8 @@ const ClubManagerDashboard: React.FC<ClubManagerDashboardProps> = ({
             try {
                 const data = await fetchNews();
                 // Filter news articles to show only those from this club or all if admin
-                const filteredData = user?.role === 'admin' 
-                    ? data 
+                const filteredData = user?.role === 'admin'
+                    ? data
                     : data.filter((article: any) => article.club === club.name);
                 setNewsArticles(filteredData);
             } catch (err) {
@@ -472,7 +477,7 @@ const ClubManagerDashboard: React.FC<ClubManagerDashboardProps> = ({
         }));
 
         // Update the document URL in the form data (simulate upload)
-        const fakeUrl = `${import.meta.env.VITE_UPLOADS_BASE_URL || 'https://uploads.ngl.com'}/documents/${Date.now()}-${file.name}`;
+        const fakeUrl = `${(import.meta as any).env.VITE_UPLOADS_BASE_URL || 'https://uploads.ngl.com'}/documents/${Date.now()}-${file.name}`;
         updateDocument(index, 'url', fakeUrl);
     };
 
@@ -500,7 +505,7 @@ const ClubManagerDashboard: React.FC<ClubManagerDashboardProps> = ({
         setCoachPhotoPreview(previewUrl);
 
         // Update the imageUrl in the form data (simulate upload)
-        const fakeUrl = `${import.meta.env.VITE_UPLOADS_BASE_URL || 'https://uploads.ngl.com'}/photos/${Date.now()}-${file.name}`;
+        const fakeUrl = `${(import.meta as any).env.VITE_UPLOADS_BASE_URL || 'https://uploads.ngl.com'}/photos/${Date.now()}-${file.name}`;
         setProfessionalCoachData(prev => ({
             ...prev,
             imageUrl: fakeUrl
@@ -531,7 +536,7 @@ const ClubManagerDashboard: React.FC<ClubManagerDashboardProps> = ({
         setProfilePicPreview(previewUrl);
 
         // Update the profile picture in the form data (simulate upload)
-        const fakeUrl = `${import.meta.env.VITE_UPLOADS_BASE_URL || 'https://uploads.ngl.com'}/profiles/${Date.now()}-${file.name}`;
+        const fakeUrl = `${(import.meta as any).env.VITE_UPLOADS_BASE_URL || 'https://uploads.ngl.com'}/profiles/${Date.now()}-${file.name}`;
         setProfileData(prev => ({
             ...prev,
             profilePicture: fakeUrl
@@ -562,7 +567,7 @@ const ClubManagerDashboard: React.FC<ClubManagerDashboardProps> = ({
         setNewsImagePreview(previewUrl);
 
         // Update the imageUrl in the form data (simulate upload)
-        const fakeUrl = `${import.meta.env.VITE_UPLOADS_BASE_URL || 'https://uploads.ngl.com'}/news/${Date.now()}-${file.name}`;
+        const fakeUrl = `${(import.meta as any).env.VITE_UPLOADS_BASE_URL || 'https://uploads.ngl.com'}/news/${Date.now()}-${file.name}`;
         setNewsForm(prev => ({
             ...prev,
             imageUrl: fakeUrl
@@ -583,7 +588,7 @@ const ClubManagerDashboard: React.FC<ClubManagerDashboardProps> = ({
         // Reset profile data to original values
         setProfileData({
             name: user?.name || 'Club Manager',
-            profilePicture: import.meta.env.VITE_PLACEHOLDER_IMAGE_URL || 'https://via.placeholder.com/150'
+            profilePicture: (import.meta as any).env.VITE_PLACEHOLDER_IMAGE_URL || 'https://via.placeholder.com/150'
         });
     };
 
@@ -593,7 +598,7 @@ const ClubManagerDashboard: React.FC<ClubManagerDashboardProps> = ({
         console.log('🔍 [Club Manager] Starting news creation process...');
         console.log('🔍 [Club Manager] User:', user);
         console.log('🔍 [Club Manager] Firebase user:', user?.firebaseUser);
-        
+
         setIsSubmittingNews(true);
 
         try {
@@ -608,7 +613,7 @@ const ClubManagerDashboard: React.FC<ClubManagerDashboardProps> = ({
             }
 
             let imageUrl = newsForm.imageUrl;
-            
+
             // Handle file upload if a file was selected
             if (newsImageFile) {
                 try {
@@ -644,7 +649,7 @@ const ClubManagerDashboard: React.FC<ClubManagerDashboardProps> = ({
                 content: newsForm.content,
                 createdAt: new Date().toISOString()
             };
-            
+
             console.log('🔍 [Club Manager] Article data:', newArticle);
             const created = await createNews(newArticle, idToken);
             console.log('🔍 [Club Manager] Created article:', created);
@@ -680,10 +685,10 @@ const ClubManagerDashboard: React.FC<ClubManagerDashboardProps> = ({
     const handleUpdateNews = async (e: React.FormEvent) => {
         e.preventDefault();
         setIsSubmittingNews(true);
-        
+
         try {
             let imageUrl = newsForm.imageUrl;
-            
+
             // Handle file upload if a new file was selected
             if (newsImageFile) {
                 try {
@@ -728,7 +733,7 @@ const ClubManagerDashboard: React.FC<ClubManagerDashboardProps> = ({
             const updated = await updateNewsById(editingNews._id, updatedArticle, idToken);
 
             setNewsArticles(prev => prev.map(article => article._id === updated._id ? updated : article));
-            
+
             setNewsForm({ title: '', summary: '', imageUrl: '', category: 'Features', content: '' });
             setNewsImageFile(null);
             setNewsImagePreview('');
@@ -966,45 +971,135 @@ const ClubManagerDashboard: React.FC<ClubManagerDashboardProps> = ({
         }
     };
 
-    const handlePlayerFormSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+    const handlePlayerFormSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
         e.preventDefault();
-        
-        if (!formData.identityCardUrl) {
-            alert('Player identity card/document is required for verification.');
-            return;
-        }
 
-        if (editingPlayer) {
-            const updatedPlayer: Player = {
-                ...editingPlayer,
-                ...formData,
-                imageUrl: formData.imageUrl || `${import.meta.env.VITE_PLACEHOLDER_IMAGE_URL || 'https://picsum.photos'}/seed/${formData.name}/400/400`,
-            };
-            onEditPlayer(updatedPlayer);
-        } else {
-            const newPlayer = {
-                ...formData,
-                flag: '🏳️',
-                club: club.name,
-                clubLogo: club.logo,
-                imageUrl: formData.imageUrl || `${import.meta.env.VITE_PLACEHOLDER_IMAGE_URL || 'https://picsum.photos'}/seed/${formData.name}/400/400`,
-                bio: formData.bio || 'A promising new signing.',
-                stats: { matches: 0, goals: 0, assists: 0, yellowCards: 0, redCards: 0 }
-            };
-            onAddPlayer(newPlayer);
+        try {
+            if (editingPlayer) {
+                const updatedData = {
+                    ...formData,
+                    imageUrl: formData.imageUrl || editingPlayer.imageUrl,
+                    identityCardUrl: formData.identityCardUrl || editingPlayer.identityCardUrl
+                };
+
+                const response = await playerService.update(editingPlayer._id || editingPlayer.id, updatedData as any);
+                if (response.success) {
+                    toast.success('Player updated successfully');
+                    await fetchApprovedPlayers();
+                    setEditingPlayer(null);
+                } else {
+                    toast.error(response.message || 'Failed to update player');
+                }
+            } else {
+                // Add new player logic (if needed here, though usually separate)
+                toast.error('Add functionality not fully implemented in this context');
+            }
+        } catch (error) {
+            console.error('Error updating player:', error);
+            toast.error('Failed to update player');
         }
-        setEditingPlayer(null);
     };
 
-    const handleEditClick = (player: Player) => setEditingPlayer(player);
-    const handleCancelEdit = () => setEditingPlayer(null);
+    const handleEditClick = (player: Player) => {
+        setFormData({
+            name: player.name,
+            email: player.email,
+            phone: player.phone,
+            dob: player.dob ? new Date(player.dob).toISOString().split('T')[0] : '',
+            position: player.position,
+            nationality: player.nationality,
+            previousClub: player.previousClub,
+            leaguesPlayed: player.leaguesPlayed,
+            imageUrl: player.imageUrl,
+            identityCardUrl: player.identityCardUrl,
+            bio: player.bio
+        });
+        setEditingPlayer(player);
+    };
+
+    const handleCancelEdit = () => {
+        setEditingPlayer(null);
+        setFormData(initialFormState);
+    };
+
+    const renderEditPlayerModal = () => {
+        if (!editingPlayer) return null;
+
+        return (
+            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+                <div className="bg-white rounded-xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+                    <div className="p-6 border-b border-gray-100 flex justify-between items-center sticky top-0 bg-white z-10">
+                        <h2 className="text-2xl font-bold text-gray-800">Edit Player: {editingPlayer.name}</h2>
+                        <button onClick={handleCancelEdit} className="text-gray-500 hover:text-gray-700">
+                            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" /></svg>
+                        </button>
+                    </div>
+
+                    <form onSubmit={handlePlayerFormSubmit} className="p-6 space-y-6">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            {/* Basic Info */}
+                            <div className="space-y-4">
+                                <h3 className="text-lg font-semibold text-gray-700 border-b pb-2">Basic Information</h3>
+                                <InputField label="Full Name" name="name" value={formData.name} onChange={handleInputChange} required />
+                                <InputField label="Email" name="email" type="email" value={formData.email} onChange={handleInputChange} required />
+                                <InputField label="Phone" name="phone" type="tel" value={formData.phone} onChange={handleInputChange} required />
+                                <InputField label="Date of Birth" name="dob" type="date" value={formData.dob} onChange={handleInputChange} required />
+
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">Position</label>
+                                    <select name="position" value={formData.position} onChange={handleInputChange} className="w-full bg-gray-50 border border-gray-300 rounded-lg py-2 px-3 focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                                        {POSITIONS.map(p => <option key={p} value={p}>{p}</option>)}
+                                    </select>
+                                </div>
+                                <InputField label="Nationality" name="nationality" value={formData.nationality} onChange={handleInputChange} required />
+                            </div>
+
+                            {/* Football Info */}
+                            <div className="space-y-4">
+                                <h3 className="text-lg font-semibold text-gray-700 border-b pb-2">Football Details</h3>
+                                <InputField label="Previous Club" name="previousClub" value={formData.previousClub} onChange={handleInputChange} />
+
+                                <div className="space-y-2">
+                                    <label className="block text-sm font-medium text-gray-700">Images & Documents</label>
+                                    <InputField label="Profile Image URL" name="imageUrl" value={formData.imageUrl} onChange={handleInputChange} />
+                                    {formData.imageUrl && <img src={formData.imageUrl} alt="Preview" className="h-20 w-20 object-cover rounded-full border" />}
+
+                                    <InputField label="Identity Document URL" name="identityCardUrl" value={formData.identityCardUrl} onChange={handleInputChange} />
+                                </div>
+
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">Biography</label>
+                                    <textarea
+                                        name="bio"
+                                        value={formData.bio}
+                                        onChange={handleInputChange}
+                                        rows={4}
+                                        className="w-full bg-gray-50 border border-gray-300 rounded-lg py-2 px-3 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                    />
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="flex gap-4 pt-4 border-t border-gray-100">
+                            <button type="submit" className="flex-1 bg-blue-600 text-white font-semibold py-3 px-6 rounded-lg hover:bg-blue-700 transition-colors shadow-lg">
+                                Save Changes
+                            </button>
+                            <button type="button" onClick={handleCancelEdit} className="px-6 py-3 bg-gray-100 text-gray-700 font-semibold rounded-lg hover:bg-gray-200 transition-colors">
+                                Cancel
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        );
+    };
 
     const handleDeleteClick = (playerId: number) => {
         if (window.confirm('Are you sure you want to remove this player? This action is permanent.')) {
             onDeletePlayer(playerId);
         }
     };
-    
+
     const handleAddVideo = (e: React.FormEvent<HTMLFormElement>) => {
         e.preventDefault();
         const formData = new FormData(e.currentTarget);
@@ -1012,14 +1107,14 @@ const ClubManagerDashboard: React.FC<ClubManagerDashboardProps> = ({
             id: clubVideos.length + 1 + Math.random(),
             title: formData.get('title') as string,
             url: formData.get('url') as string,
-            thumbnail: formData.get('thumbnail') as string || `${import.meta.env.VITE_PLACEHOLDER_IMAGE_URL || 'https://picsum.photos'}/seed/${formData.get('title')}/400`,
+            thumbnail: formData.get('thumbnail') as string || `${(import.meta as any).env.VITE_PLACEHOLDER_IMAGE_URL || 'https://picsum.photos'}/seed/${formData.get('title')}/400`,
         };
         setClubVideos(prev => [...prev, newVideo]);
         e.currentTarget.reset();
     };
 
 
-    const handleApprovePlayer = async (playerId: number) => {
+    const handleApprovePlayer = async (playerId: string | number) => {
         try {
             const response = await playerService.approve(playerId);
             if (response.success) {
@@ -1036,7 +1131,7 @@ const ClubManagerDashboard: React.FC<ClubManagerDashboardProps> = ({
         }
     };
 
-    const handleRejectPlayer = async (playerId: number, reason: string) => {
+    const handleRejectPlayer = async (playerId: string | number, reason: string) => {
         try {
             const response = await playerService.reject(playerId, reason);
             if (response.success) {
@@ -1064,513 +1159,513 @@ const ClubManagerDashboard: React.FC<ClubManagerDashboardProps> = ({
                     <h3 className="text-2xl font-semibold text-theme-dark">Add Professional Coach</h3>
                     <p className="text-theme-text-secondary mt-2">Create a comprehensive professional coach profile with qualifications, experience, and achievements</p>
                 </div>
-                    <form onSubmit={handleProfessionalCoachSubmit} className="bg-theme-secondary-bg p-8 rounded-xl shadow-xl">
+                <form onSubmit={handleProfessionalCoachSubmit} className="bg-theme-secondary-bg p-8 rounded-xl shadow-xl">
 
-                        {/* Basic Information Section */}
-                        <div className="mb-8 p-6 bg-theme-page-bg rounded-lg border-l-4 border-blue-500">
-                            <h4 className="text-xl font-semibold mb-6 text-theme-dark flex items-center">
-                                <span className="text-2xl mr-3">👤</span>
-                                Basic Information
+                    {/* Basic Information Section */}
+                    <div className="mb-8 p-6 bg-theme-page-bg rounded-lg border-l-4 border-blue-500">
+                        <h4 className="text-xl font-semibold mb-6 text-theme-dark flex items-center">
+                            <span className="text-2xl mr-3">👤</span>
+                            Basic Information
+                        </h4>
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                            <div>
+                                <label className="block text-sm font-medium text-theme-text-secondary mb-2">Full Name *</label>
+                                <input
+                                    type="text"
+                                    name="name"
+                                    value={professionalCoachData.name}
+                                    onChange={handleProfessionalCoachInputChange}
+                                    onBlur={(e) => {
+                                        const formatted = formatName(e.target.value);
+                                        setProfessionalCoachData(prev => ({ ...prev, name: formatted }));
+                                    }}
+                                    title="Enter first name, last name, and middle name (if applicable). Each name will be properly capitalized when you finish typing."
+                                    required
+                                    className="w-full bg-theme-secondary-bg border-2 border-theme-border rounded-lg py-3 px-4 text-theme-dark focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
+                                    placeholder="John Doe"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-theme-text-secondary mb-2">Email *</label>
+                                <input
+                                    type="email"
+                                    name="email"
+                                    value={professionalCoachData.email}
+                                    onChange={handleProfessionalCoachInputChange}
+                                    required
+                                    className="w-full bg-theme-secondary-bg border-2 border-theme-border rounded-lg py-3 px-4 text-theme-dark focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
+                                    placeholder="john.doe@example.com"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-theme-text-secondary mb-2">Phone Number *</label>
+                                <input
+                                    type="tel"
+                                    name="phone"
+                                    value={professionalCoachData.phone}
+                                    onChange={handleProfessionalCoachInputChange}
+                                    pattern="[0-9]{7,15}"
+                                    title="Digits only, 7 to 15 numbers"
+                                    required
+                                    className="w-full bg-theme-secondary-bg border-2 border-theme-border rounded-lg py-3 px-4 text-theme-dark focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
+                                    placeholder="+1 (555) 123-4567"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-theme-text-secondary mb-2">Date of Birth</label>
+                                <input
+                                    type="date"
+                                    name="dateOfBirth"
+                                    value={professionalCoachData.dateOfBirth}
+                                    onChange={handleProfessionalCoachInputChange}
+                                    min={(d => { const t = new Date(); const m = new Date(t.getFullYear() - 75, t.getMonth(), t.getDate()); return new Date(m.getTime() - m.getTimezoneOffset() * 60000).toISOString().split('T')[0]; })()}
+                                    max={(d => { const t = new Date(); const m = new Date(t.getFullYear() - 18, t.getMonth(), t.getDate()); return new Date(m.getTime() - m.getTimezoneOffset() * 60000).toISOString().split('T')[0]; })()}
+                                    className="w-full bg-theme-secondary-bg border-2 border-theme-border rounded-lg py-3 px-4 text-theme-dark focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-theme-text-secondary mb-2">Nationality</label>
+                                <select
+                                    name="nationality"
+                                    value={professionalCoachData.nationality}
+                                    onChange={handleProfessionalCoachInputChange}
+                                    className="w-full bg-theme-secondary-bg border-2 border-theme-border rounded-lg py-3 px-4 text-theme-dark focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
+                                >
+                                    <option value="">{isLoadingCountries ? 'Loading countries...' : 'Select nationality'}</option>
+                                    {countries.map((c) => (
+                                        <option key={c.code} value={c.name}>
+                                            {c.flag} {c.name}
+                                        </option>
+                                    ))}
+                                </select>
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-theme-text-secondary mb-2">Profile Photo</label>
+                                <div className="relative">
+                                    <input
+                                        type="file"
+                                        accept=".jpg,.jpeg,.png,.webp"
+                                        onChange={(e) => {
+                                            const file = e.target.files?.[0];
+                                            if (file) {
+                                                handleCoachPhotoUpload(file);
+                                            }
+                                        }}
+                                        className="hidden"
+                                        id="coach-photo-upload"
+                                    />
+                                    <label
+                                        htmlFor="coach-photo-upload"
+                                        className="w-full bg-theme-secondary-bg border-2 border-theme-border rounded-lg py-3 px-4 text-theme-dark focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all cursor-pointer flex items-center justify-center hover:bg-theme-page-bg"
+                                    >
+                                        {coachPhotoPreview ? (
+                                            <div className="flex items-center gap-2">
+                                                <img src={coachPhotoPreview} alt="Preview" className="w-8 h-8 rounded-full object-cover" />
+                                                <span className="text-sm text-green-600">Photo uploaded</span>
+                                            </div>
+                                        ) : (
+                                            <span className="text-sm text-gray-500">
+                                                📷 Upload Profile Photo
+                                            </span>
+                                        )}
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+                        <div className="mt-6">
+                            <label className="block text-sm font-medium text-theme-text-secondary mb-2">Professional Biography</label>
+                            <textarea
+                                name="bio"
+                                value={professionalCoachData.bio}
+                                onChange={handleProfessionalCoachInputChange}
+                                rows={4}
+                                className="w-full bg-theme-secondary-bg border-2 border-theme-border rounded-lg py-3 px-4 text-theme-dark focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
+                                placeholder="Brief professional biography highlighting coaching philosophy, experience, and achievements..."
+                            />
+                        </div>
+                    </div>
+
+                    {/* Professional Qualifications Section */}
+                    <div className="mb-8 p-6 bg-theme-page-bg rounded-lg border-l-4 border-green-500">
+                        <h4 className="text-xl font-semibold mb-6 text-theme-dark flex items-center">
+                            <span className="text-2xl mr-3">🏆</span>
+                            Professional Qualifications
+                        </h4>
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                            <div>
+                                <label className="block text-sm font-medium text-theme-text-secondary mb-2">Coaching License</label>
+                                <select
+                                    name="coachingLicense"
+                                    value={professionalCoachData.coachingLicense}
+                                    onChange={handleProfessionalCoachInputChange}
+                                    className="w-full bg-theme-secondary-bg border-2 border-theme-border rounded-lg py-3 px-4 text-theme-dark focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-all"
+                                >
+                                    <option value="">Select License</option>
+                                    <option value="UEFA Pro">UEFA Pro License</option>
+                                    <option value="UEFA A">UEFA A License</option>
+                                    <option value="UEFA B">UEFA B License</option>
+                                    <option value="UEFA C">UEFA C License</option>
+                                    <option value="CAF A">CAF A License</option>
+                                    <option value="CAF B">CAF B License</option>
+                                    <option value="CAF C">CAF C License</option>
+                                    <option value="USSF A">USSF A License</option>
+                                    <option value="USSF B">USSF B License</option>
+                                    <option value="Other">Other</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-theme-text-secondary mb-2">License Expiry Date</label>
+                                <input
+                                    type="date"
+                                    name="licenseExpiryDate"
+                                    value={professionalCoachData.licenseExpiryDate}
+                                    onChange={handleProfessionalCoachInputChange}
+                                    className="w-full bg-theme-secondary-bg border-2 border-theme-border rounded-lg py-3 px-4 text-theme-dark focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-all"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-theme-text-secondary mb-2">Years of Experience</label>
+                                <input
+                                    type="number"
+                                    name="yearsOfExperience"
+                                    value={professionalCoachData.yearsOfExperience}
+                                    onChange={handleProfessionalCoachInputChange}
+                                    min="0"
+                                    max="50"
+                                    className="w-full bg-theme-secondary-bg border-2 border-theme-border rounded-lg py-3 px-4 text-theme-dark focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-all"
+                                    placeholder="10"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-theme-text-secondary mb-2">Current Position</label>
+                                <select
+                                    name="position"
+                                    value={professionalCoachData.position}
+                                    onChange={handleProfessionalCoachInputChange}
+                                    className="w-full bg-theme-secondary-bg border-2 border-theme-border rounded-lg py-3 px-4 text-theme-dark focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-all"
+                                >
+                                    <option value="">Select Position</option>
+                                    <option value="Head Coach">Head Coach</option>
+                                    <option value="Assistant Coach">Assistant Coach</option>
+                                    <option value="Youth Coach">Youth Coach</option>
+                                    <option value="Goalkeeping Coach">Goalkeeping Coach</option>
+                                    <option value="Fitness Coach">Fitness Coach</option>
+                                    <option value="Technical Director">Technical Director</option>
+                                    <option value="Scout">Scout</option>
+                                    <option value="Academy Director">Academy Director</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-theme-text-secondary mb-2">Specializations</label>
+                                <input
+                                    type="text"
+                                    name="specializations"
+                                    value={professionalCoachData.specializations}
+                                    onChange={handleProfessionalCoachInputChange}
+                                    className="w-full bg-theme-secondary-bg border-2 border-theme-border rounded-lg py-3 px-4 text-theme-dark focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-all"
+                                    placeholder="Youth Development, Tactics, Set Pieces"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-theme-text-secondary mb-2">Languages</label>
+                                <input
+                                    type="text"
+                                    name="languages"
+                                    value={professionalCoachData.languages}
+                                    onChange={handleProfessionalCoachInputChange}
+                                    pattern="[A-Za-z,\s\-]+"
+                                    title="Letters, spaces, commas and hyphens only"
+                                    className="w-full bg-theme-secondary-bg border-2 border-theme-border rounded-lg py-3 px-4 text-theme-dark focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-all"
+                                    placeholder="English, Spanish, French"
+                                />
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Previous Clubs Experience */}
+                    <div className="mb-8 p-6 bg-theme-page-bg rounded-lg border-l-4 border-purple-500">
+                        <div className="flex justify-between items-center mb-6">
+                            <h4 className="text-xl font-semibold text-theme-dark flex items-center">
+                                <span className="text-2xl mr-3">🏟️</span>
+                                Previous Clubs Experience
                             </h4>
-                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                                <div>
-                                    <label className="block text-sm font-medium text-theme-text-secondary mb-2">Full Name *</label>
+                            <button
+                                type="button"
+                                onClick={addPreviousClub}
+                                className="bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700 transition-colors font-medium"
+                            >
+                                + Add Club
+                            </button>
+                        </div>
+                        {professionalCoachData.previousClubs.map((club, index) => (
+                            <div key={index} className="bg-theme-secondary-bg p-4 rounded-lg mb-4 border border-theme-border">
+                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                                     <input
                                         type="text"
-                                        name="name"
-                                        value={professionalCoachData.name}
-                                        onChange={handleProfessionalCoachInputChange}
-                                        onBlur={(e) => {
-                                            const formatted = formatName(e.target.value);
-                                            setProfessionalCoachData(prev => ({ ...prev, name: formatted }));
-                                        }}
-                                        title="Enter first name, last name, and middle name (if applicable). Each name will be properly capitalized when you finish typing."
-                                        required
-                                        className="w-full bg-theme-secondary-bg border-2 border-theme-border rounded-lg py-3 px-4 text-theme-dark focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
-                                        placeholder="John Doe"
+                                        placeholder="Club Name"
+                                        value={club.clubName}
+                                        onChange={(e) => updatePreviousClub(index, 'clubName', e.target.value)}
+                                        pattern="[A-Za-z\s'\-]*"
+                                        title="Letters, spaces, apostrophes and hyphens only"
+                                        className="bg-theme-page-bg border border-theme-border rounded-lg py-2 px-3 text-theme-dark focus:outline-none focus:ring-2 focus:ring-purple-500"
                                     />
-                                </div>
-                                <div>
-                                    <label className="block text-sm font-medium text-theme-text-secondary mb-2">Email *</label>
-                                    <input
-                                        type="email"
-                                        name="email"
-                                        value={professionalCoachData.email}
-                                        onChange={handleProfessionalCoachInputChange}
-                                        required
-                                        className="w-full bg-theme-secondary-bg border-2 border-theme-border rounded-lg py-3 px-4 text-theme-dark focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
-                                        placeholder="john.doe@example.com"
-                                    />
-                                </div>
-                                <div>
-                                    <label className="block text-sm font-medium text-theme-text-secondary mb-2">Phone Number *</label>
-                                    <input
-                                        type="tel"
-                                        name="phone"
-                                        value={professionalCoachData.phone}
-                                        onChange={handleProfessionalCoachInputChange}
-                                        pattern="[0-9]{7,15}"
-                                        title="Digits only, 7 to 15 numbers"
-                                        required
-                                        className="w-full bg-theme-secondary-bg border-2 border-theme-border rounded-lg py-3 px-4 text-theme-dark focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
-                                        placeholder="+1 (555) 123-4567"
-                                    />
-                                </div>
-                                <div>
-                                    <label className="block text-sm font-medium text-theme-text-secondary mb-2">Date of Birth</label>
                                     <input
                                         type="date"
-                                        name="dateOfBirth"
-                                        value={professionalCoachData.dateOfBirth}
-                                        onChange={handleProfessionalCoachInputChange}
-                                        min={(d => { const t=new Date(); const m=new Date(t.getFullYear()-75,t.getMonth(),t.getDate()); return new Date(m.getTime()-m.getTimezoneOffset()*60000).toISOString().split('T')[0]; })()}
-                                        max={(d => { const t=new Date(); const m=new Date(t.getFullYear()-18,t.getMonth(),t.getDate()); return new Date(m.getTime()-m.getTimezoneOffset()*60000).toISOString().split('T')[0]; })()}
-                                        className="w-full bg-theme-secondary-bg border-2 border-theme-border rounded-lg py-3 px-4 text-theme-dark focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
+                                        placeholder="Start Date"
+                                        value={club.startDate}
+                                        onChange={(e) => updatePreviousClub(index, 'startDate', e.target.value)}
+                                        className="bg-theme-page-bg border border-theme-border rounded-lg py-2 px-3 text-theme-dark focus:outline-none focus:ring-2 focus:ring-purple-500"
+                                    />
+                                    <input
+                                        type="date"
+                                        placeholder="End Date"
+                                        value={club.endDate}
+                                        onChange={(e) => updatePreviousClub(index, 'endDate', e.target.value)}
+                                        className="bg-theme-page-bg border border-theme-border rounded-lg py-2 px-3 text-theme-dark focus:outline-none focus:ring-2 focus:ring-purple-500"
                                     />
                                 </div>
-                                <div>
-                                    <label className="block text-sm font-medium text-theme-text-secondary mb-2">Nationality</label>
-                                    <select
-                                        name="nationality"
-                                        value={professionalCoachData.nationality}
-                                        onChange={handleProfessionalCoachInputChange}
-                                        className="w-full bg-theme-secondary-bg border-2 border-theme-border rounded-lg py-3 px-4 text-theme-dark focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
+                                <div className="mt-3">
+                                    <input
+                                        type="text"
+                                        placeholder="Key Achievements (optional)"
+                                        value={club.achievements}
+                                        onChange={(e) => updatePreviousClub(index, 'achievements', e.target.value)}
+                                        pattern="[^0-9]*"
+                                        title="Numbers are not allowed"
+                                        className="w-full bg-theme-page-bg border border-theme-border rounded-lg py-2 px-3 text-theme-dark focus:outline-none focus:ring-2 focus:ring-purple-500"
+                                    />
+                                </div>
+                                {professionalCoachData.previousClubs.length > 1 && (
+                                    <button
+                                        type="button"
+                                        onClick={() => removePreviousClub(index)}
+                                        className="mt-2 text-red-600 hover:text-red-800 text-sm font-medium"
                                     >
-                                        <option value="">{isLoadingCountries ? 'Loading countries...' : 'Select nationality'}</option>
-                                        {countries.map((c) => (
-                                            <option key={c.code} value={c.name}>
-                                                {c.flag} {c.name}
-                                            </option>
-                                        ))}
+                                        Remove Club
+                                    </button>
+                                )}
+                            </div>
+                        ))}
+                    </div>
+
+                    {/* Trophies & Achievements */}
+                    <div className="mb-8 p-6 bg-theme-page-bg rounded-lg border-l-4 border-yellow-500">
+                        <div className="flex justify-between items-center mb-6">
+                            <h4 className="text-xl font-semibold text-theme-dark flex items-center">
+                                <span className="text-2xl mr-3">🏆</span>
+                                Trophies & Achievements
+                            </h4>
+                            <button
+                                type="button"
+                                onClick={addTrophy}
+                                className="bg-yellow-600 text-white px-4 py-2 rounded-lg hover:bg-yellow-700 transition-colors font-medium"
+                            >
+                                + Add Trophy
+                            </button>
+                        </div>
+                        {professionalCoachData.trophies.map((trophy, index) => (
+                            <div key={index} className="bg-theme-secondary-bg p-4 rounded-lg mb-4 border border-theme-border">
+                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                                    <input
+                                        type="text"
+                                        placeholder="Trophy Name"
+                                        value={trophy.name}
+                                        onChange={(e) => updateTrophy(index, 'name', e.target.value)}
+                                        pattern="[A-Za-z\s'\-]+"
+                                        title="Letters, spaces, apostrophes and hyphens only"
+                                        className="bg-theme-page-bg border border-theme-border rounded-lg py-2 px-3 text-theme-dark focus:outline-none focus:ring-2 focus:ring-yellow-500"
+                                    />
+                                    <input
+                                        type="number"
+                                        placeholder="Year"
+                                        value={trophy.year}
+                                        onChange={(e) => updateTrophy(index, 'year', e.target.value)}
+                                        min="1950"
+                                        max="2030"
+                                        className="bg-theme-page-bg border border-theme-border rounded-lg py-2 px-3 text-theme-dark focus:outline-none focus:ring-2 focus:ring-yellow-500"
+                                    />
+                                    <input
+                                        type="text"
+                                        placeholder="Club"
+                                        value={trophy.club}
+                                        onChange={(e) => updateTrophy(index, 'club', e.target.value)}
+                                        pattern="[A-Za-z\s'\-]+"
+                                        title="Letters, spaces, apostrophes and hyphens only"
+                                        className="bg-theme-page-bg border border-theme-border rounded-lg py-2 px-3 text-theme-dark focus:outline-none focus:ring-2 focus:ring-yellow-500"
+                                    />
+                                    <select
+                                        value={trophy.level}
+                                        onChange={(e) => updateTrophy(index, 'level', e.target.value)}
+                                        className="bg-theme-page-bg border border-theme-border rounded-lg py-2 px-3 text-theme-dark focus:outline-none focus:ring-2 focus:ring-yellow-500"
+                                    >
+                                        <option value="">Select Level</option>
+                                        <option value="Professional">Professional</option>
+                                        <option value="Youth">Youth</option>
+                                        <option value="Amateur">Amateur</option>
+                                        <option value="International">International</option>
+                                        <option value="National">National</option>
+                                        <option value="Regional">Regional</option>
                                     </select>
                                 </div>
-                                <div>
-                                    <label className="block text-sm font-medium text-theme-text-secondary mb-2">Profile Photo</label>
+                                {professionalCoachData.trophies.length > 1 && (
+                                    <button
+                                        type="button"
+                                        onClick={() => removeTrophy(index)}
+                                        className="mt-2 text-red-600 hover:text-red-800 text-sm font-medium"
+                                    >
+                                        Remove Trophy
+                                    </button>
+                                )}
+                            </div>
+                        ))}
+                    </div>
+
+
+
+                    {/* Documents */}
+                    <div className="mb-8 p-6 bg-theme-page-bg rounded-lg border-l-4 border-pink-500">
+                        <div className="flex justify-between items-center mb-6">
+                            <h4 className="text-xl font-semibold text-theme-dark flex items-center">
+                                <span className="text-2xl mr-3">📄</span>
+                                Documents
+                            </h4>
+                            <button
+                                type="button"
+                                onClick={addDocument}
+                                className="bg-pink-600 text-white px-4 py-2 rounded-lg hover:bg-pink-700 transition-colors font-medium"
+                            >
+                                + Add Document
+                            </button>
+                        </div>
+                        {professionalCoachData.documents.map((doc, index) => (
+                            <div key={index} className="bg-theme-secondary-bg p-4 rounded-lg mb-4 border border-theme-border">
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                    <select
+                                        value={doc.type}
+                                        onChange={(e) => updateDocument(index, 'type', e.target.value)}
+                                        className="bg-theme-page-bg border border-theme-border rounded-lg py-2 px-3 text-theme-dark focus:outline-none focus:ring-2 focus:ring-pink-500"
+                                    >
+                                        <option value="">Document Type</option>
+                                        <option value="CV">CV/Resume</option>
+                                        <option value="License">Coaching License</option>
+                                        <option value="Certificate">Certificate</option>
+                                        <option value="ID">ID Document</option>
+                                        <option value="Contract">Contract</option>
+                                        <option value="Reference">Reference Letter</option>
+                                        <option value="Medical">Medical Certificate</option>
+                                        <option value="Background Check">Background Check</option>
+                                    </select>
+                                    <input
+                                        type="text"
+                                        placeholder="Document Name"
+                                        value={doc.name}
+                                        onChange={(e) => updateDocument(index, 'name', e.target.value)}
+                                        pattern="[A-Za-z\s'\-]+"
+                                        title="Letters, spaces, apostrophes and hyphens only"
+                                        className="bg-theme-page-bg border border-theme-border rounded-lg py-2 px-3 text-theme-dark focus:outline-none focus:ring-2 focus:ring-pink-500"
+                                    />
                                     <div className="relative">
                                         <input
                                             type="file"
-                                            accept=".jpg,.jpeg,.png,.webp"
+                                            accept=".pdf,.doc,.docx,.jpg,.jpeg,.png,.webp"
                                             onChange={(e) => {
                                                 const file = e.target.files?.[0];
                                                 if (file) {
-                                                    handleCoachPhotoUpload(file);
+                                                    handleDocumentUpload(index, file);
                                                 }
                                             }}
                                             className="hidden"
-                                            id="coach-photo-upload"
+                                            id={`document-upload-${index}`}
                                         />
                                         <label
-                                            htmlFor="coach-photo-upload"
-                                            className="w-full bg-theme-secondary-bg border-2 border-theme-border rounded-lg py-3 px-4 text-theme-dark focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all cursor-pointer flex items-center justify-center hover:bg-theme-page-bg"
+                                            htmlFor={`document-upload-${index}`}
+                                            className="w-full bg-theme-page-bg border border-theme-border rounded-lg py-2 px-3 text-theme-dark focus:outline-none focus:ring-2 focus:ring-pink-500 cursor-pointer flex items-center justify-center hover:bg-theme-secondary-bg transition-colors"
                                         >
-                                            {coachPhotoPreview ? (
-                                                <div className="flex items-center gap-2">
-                                                    <img src={coachPhotoPreview} alt="Preview" className="w-8 h-8 rounded-full object-cover" />
-                                                    <span className="text-sm text-green-600">Photo uploaded</span>
-                                                </div>
+                                            {documentPreviews[index] ? (
+                                                <span className="text-sm text-green-600">
+                                                    📄 {documentPreviews[index].length > 30 ? documentPreviews[index].substring(0, 30) + '...' : documentPreviews[index]}
+                                                </span>
                                             ) : (
                                                 <span className="text-sm text-gray-500">
-                                                    📷 Upload Profile Photo
+                                                    📁 Upload Document
                                                 </span>
                                             )}
                                         </label>
                                     </div>
                                 </div>
+                                {professionalCoachData.documents.length > 1 && (
+                                    <button
+                                        type="button"
+                                        onClick={() => removeDocument(index)}
+                                        className="mt-2 text-red-600 hover:text-red-800 text-sm font-medium"
+                                    >
+                                        Remove Document
+                                    </button>
+                                )}
                             </div>
-                            <div className="mt-6">
-                                <label className="block text-sm font-medium text-theme-text-secondary mb-2">Professional Biography</label>
-                                <textarea
-                                    name="bio"
-                                    value={professionalCoachData.bio}
+                        ))}
+                    </div>
+
+                    {/* Contract Information */}
+                    <div className="mb-8 p-6 bg-theme-page-bg rounded-lg border-l-4 border-teal-500">
+                        <h4 className="text-xl font-semibold mb-6 text-theme-dark flex items-center">
+                            <span className="text-2xl mr-3">📋</span>
+                            Contract Information
+                        </h4>
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                            <div>
+                                <label className="block text-sm font-medium text-theme-text-secondary mb-2">Contract Start Date</label>
+                                <input
+                                    type="date"
+                                    name="contractStartDate"
+                                    value={professionalCoachData.contractStartDate}
                                     onChange={handleProfessionalCoachInputChange}
-                                    rows={4}
-                                    className="w-full bg-theme-secondary-bg border-2 border-theme-border rounded-lg py-3 px-4 text-theme-dark focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
-                                    placeholder="Brief professional biography highlighting coaching philosophy, experience, and achievements..."
+                                    className="w-full bg-theme-secondary-bg border-2 border-theme-border rounded-lg py-3 px-4 text-theme-dark focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-teal-500 transition-all"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-theme-text-secondary mb-2">Contract End Date</label>
+                                <input
+                                    type="date"
+                                    name="contractEndDate"
+                                    value={professionalCoachData.contractEndDate}
+                                    onChange={handleProfessionalCoachInputChange}
+                                    className="w-full bg-theme-secondary-bg border-2 border-theme-border rounded-lg py-3 px-4 text-theme-dark focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-teal-500 transition-all"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-theme-text-secondary mb-2">Annual Salary (Optional)</label>
+                                <input
+                                    type="number"
+                                    name="salary"
+                                    value={professionalCoachData.salary}
+                                    onChange={handleProfessionalCoachInputChange}
+                                    min="0"
+                                    step="1"
+                                    className="w-full bg-theme-secondary-bg border-2 border-theme-border rounded-lg py-3 px-4 text-theme-dark focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-teal-500 transition-all"
+                                    placeholder="50000"
                                 />
                             </div>
                         </div>
+                    </div>
 
-                        {/* Professional Qualifications Section */}
-                        <div className="mb-8 p-6 bg-theme-page-bg rounded-lg border-l-4 border-green-500">
-                            <h4 className="text-xl font-semibold mb-6 text-theme-dark flex items-center">
-                                <span className="text-2xl mr-3">🏆</span>
-                                Professional Qualifications
-                            </h4>
-                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                                <div>
-                                    <label className="block text-sm font-medium text-theme-text-secondary mb-2">Coaching License</label>
-                                    <select
-                                        name="coachingLicense"
-                                        value={professionalCoachData.coachingLicense}
-                                        onChange={handleProfessionalCoachInputChange}
-                                        className="w-full bg-theme-secondary-bg border-2 border-theme-border rounded-lg py-3 px-4 text-theme-dark focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-all"
-                                    >
-                                        <option value="">Select License</option>
-                                        <option value="UEFA Pro">UEFA Pro License</option>
-                                        <option value="UEFA A">UEFA A License</option>
-                                        <option value="UEFA B">UEFA B License</option>
-                                        <option value="UEFA C">UEFA C License</option>
-                                        <option value="CAF A">CAF A License</option>
-                                        <option value="CAF B">CAF B License</option>
-                                        <option value="CAF C">CAF C License</option>
-                                        <option value="USSF A">USSF A License</option>
-                                        <option value="USSF B">USSF B License</option>
-                                        <option value="Other">Other</option>
-                                    </select>
-                                </div>
-                                <div>
-                                    <label className="block text-sm font-medium text-theme-text-secondary mb-2">License Expiry Date</label>
-                                    <input
-                                        type="date"
-                                        name="licenseExpiryDate"
-                                        value={professionalCoachData.licenseExpiryDate}
-                                        onChange={handleProfessionalCoachInputChange}
-                                        className="w-full bg-theme-secondary-bg border-2 border-theme-border rounded-lg py-3 px-4 text-theme-dark focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-all"
-                                    />
-                                </div>
-                                <div>
-                                    <label className="block text-sm font-medium text-theme-text-secondary mb-2">Years of Experience</label>
-                                    <input
-                                        type="number"
-                                        name="yearsOfExperience"
-                                        value={professionalCoachData.yearsOfExperience}
-                                        onChange={handleProfessionalCoachInputChange}
-                                        min="0"
-                                        max="50"
-                                        className="w-full bg-theme-secondary-bg border-2 border-theme-border rounded-lg py-3 px-4 text-theme-dark focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-all"
-                                        placeholder="10"
-                                    />
-                                </div>
-                                <div>
-                                    <label className="block text-sm font-medium text-theme-text-secondary mb-2">Current Position</label>
-                                    <select
-                                        name="position"
-                                        value={professionalCoachData.position}
-                                        onChange={handleProfessionalCoachInputChange}
-                                        className="w-full bg-theme-secondary-bg border-2 border-theme-border rounded-lg py-3 px-4 text-theme-dark focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-all"
-                                    >
-                                        <option value="">Select Position</option>
-                                        <option value="Head Coach">Head Coach</option>
-                                        <option value="Assistant Coach">Assistant Coach</option>
-                                        <option value="Youth Coach">Youth Coach</option>
-                                        <option value="Goalkeeping Coach">Goalkeeping Coach</option>
-                                        <option value="Fitness Coach">Fitness Coach</option>
-                                        <option value="Technical Director">Technical Director</option>
-                                        <option value="Scout">Scout</option>
-                                        <option value="Academy Director">Academy Director</option>
-                                    </select>
-                                </div>
-                                <div>
-                                    <label className="block text-sm font-medium text-theme-text-secondary mb-2">Specializations</label>
-                                    <input
-                                        type="text"
-                                        name="specializations"
-                                        value={professionalCoachData.specializations}
-                                        onChange={handleProfessionalCoachInputChange}
-                                        className="w-full bg-theme-secondary-bg border-2 border-theme-border rounded-lg py-3 px-4 text-theme-dark focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-all"
-                                        placeholder="Youth Development, Tactics, Set Pieces"
-                                    />
-                                </div>
-                                <div>
-                                    <label className="block text-sm font-medium text-theme-text-secondary mb-2">Languages</label>
-                                    <input
-                                        type="text"
-                                        name="languages"
-                                        value={professionalCoachData.languages}
-                                        onChange={handleProfessionalCoachInputChange}
-                                        pattern="[A-Za-z,\s\-]+"
-                                        title="Letters, spaces, commas and hyphens only"
-                                        className="w-full bg-theme-secondary-bg border-2 border-theme-border rounded-lg py-3 px-4 text-theme-dark focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-all"
-                                        placeholder="English, Spanish, French"
-                                    />
-                                </div>
-                            </div>
-                        </div>
-
-                        {/* Previous Clubs Experience */}
-                        <div className="mb-8 p-6 bg-theme-page-bg rounded-lg border-l-4 border-purple-500">
-                            <div className="flex justify-between items-center mb-6">
-                                <h4 className="text-xl font-semibold text-theme-dark flex items-center">
-                                    <span className="text-2xl mr-3">🏟️</span>
-                                    Previous Clubs Experience
-                                </h4>
-                                <button
-                                    type="button"
-                                    onClick={addPreviousClub}
-                                    className="bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700 transition-colors font-medium"
-                                >
-                                    + Add Club
-                                </button>
-                            </div>
-                            {professionalCoachData.previousClubs.map((club, index) => (
-                                <div key={index} className="bg-theme-secondary-bg p-4 rounded-lg mb-4 border border-theme-border">
-                                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                                        <input
-                                            type="text"
-                                            placeholder="Club Name"
-                                            value={club.clubName}
-                                            onChange={(e) => updatePreviousClub(index, 'clubName', e.target.value)}
-                                            pattern="[A-Za-z\s'\-]*"
-                                            title="Letters, spaces, apostrophes and hyphens only"
-                                            className="bg-theme-page-bg border border-theme-border rounded-lg py-2 px-3 text-theme-dark focus:outline-none focus:ring-2 focus:ring-purple-500"
-                                        />
-                                        <input
-                                            type="date"
-                                            placeholder="Start Date"
-                                            value={club.startDate}
-                                            onChange={(e) => updatePreviousClub(index, 'startDate', e.target.value)}
-                                            className="bg-theme-page-bg border border-theme-border rounded-lg py-2 px-3 text-theme-dark focus:outline-none focus:ring-2 focus:ring-purple-500"
-                                        />
-                                        <input
-                                            type="date"
-                                            placeholder="End Date"
-                                            value={club.endDate}
-                                            onChange={(e) => updatePreviousClub(index, 'endDate', e.target.value)}
-                                            className="bg-theme-page-bg border border-theme-border rounded-lg py-2 px-3 text-theme-dark focus:outline-none focus:ring-2 focus:ring-purple-500"
-                                        />
-                                    </div>
-                                    <div className="mt-3">
-                                        <input
-                                            type="text"
-                                            placeholder="Key Achievements (optional)"
-                                            value={club.achievements}
-                                            onChange={(e) => updatePreviousClub(index, 'achievements', e.target.value)}
-                                            pattern="[^0-9]*"
-                                            title="Numbers are not allowed"
-                                            className="w-full bg-theme-page-bg border border-theme-border rounded-lg py-2 px-3 text-theme-dark focus:outline-none focus:ring-2 focus:ring-purple-500"
-                                        />
-                                    </div>
-                                    {professionalCoachData.previousClubs.length > 1 && (
-                                        <button
-                                            type="button"
-                                            onClick={() => removePreviousClub(index)}
-                                            className="mt-2 text-red-600 hover:text-red-800 text-sm font-medium"
-                                        >
-                                            Remove Club
-                                        </button>
-                                    )}
-                                </div>
-                            ))}
-                        </div>
-
-                        {/* Trophies & Achievements */}
-                        <div className="mb-8 p-6 bg-theme-page-bg rounded-lg border-l-4 border-yellow-500">
-                            <div className="flex justify-between items-center mb-6">
-                                <h4 className="text-xl font-semibold text-theme-dark flex items-center">
-                                    <span className="text-2xl mr-3">🏆</span>
-                                    Trophies & Achievements
-                                </h4>
-                                <button
-                                    type="button"
-                                    onClick={addTrophy}
-                                    className="bg-yellow-600 text-white px-4 py-2 rounded-lg hover:bg-yellow-700 transition-colors font-medium"
-                                >
-                                    + Add Trophy
-                                </button>
-                            </div>
-                            {professionalCoachData.trophies.map((trophy, index) => (
-                                <div key={index} className="bg-theme-secondary-bg p-4 rounded-lg mb-4 border border-theme-border">
-                                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                                        <input
-                                            type="text"
-                                            placeholder="Trophy Name"
-                                            value={trophy.name}
-                                            onChange={(e) => updateTrophy(index, 'name', e.target.value)}
-                                            pattern="[A-Za-z\s'\-]+"
-                                            title="Letters, spaces, apostrophes and hyphens only"
-                                            className="bg-theme-page-bg border border-theme-border rounded-lg py-2 px-3 text-theme-dark focus:outline-none focus:ring-2 focus:ring-yellow-500"
-                                        />
-                                        <input
-                                            type="number"
-                                            placeholder="Year"
-                                            value={trophy.year}
-                                            onChange={(e) => updateTrophy(index, 'year', e.target.value)}
-                                            min="1950"
-                                            max="2030"
-                                            className="bg-theme-page-bg border border-theme-border rounded-lg py-2 px-3 text-theme-dark focus:outline-none focus:ring-2 focus:ring-yellow-500"
-                                        />
-                                        <input
-                                            type="text"
-                                            placeholder="Club"
-                                            value={trophy.club}
-                                            onChange={(e) => updateTrophy(index, 'club', e.target.value)}
-                                            pattern="[A-Za-z\s'\-]+"
-                                            title="Letters, spaces, apostrophes and hyphens only"
-                                            className="bg-theme-page-bg border border-theme-border rounded-lg py-2 px-3 text-theme-dark focus:outline-none focus:ring-2 focus:ring-yellow-500"
-                                        />
-                                        <select
-                                            value={trophy.level}
-                                            onChange={(e) => updateTrophy(index, 'level', e.target.value)}
-                                            className="bg-theme-page-bg border border-theme-border rounded-lg py-2 px-3 text-theme-dark focus:outline-none focus:ring-2 focus:ring-yellow-500"
-                                        >
-                                            <option value="">Select Level</option>
-                                            <option value="Professional">Professional</option>
-                                            <option value="Youth">Youth</option>
-                                            <option value="Amateur">Amateur</option>
-                                            <option value="International">International</option>
-                                            <option value="National">National</option>
-                                            <option value="Regional">Regional</option>
-                                        </select>
-                                    </div>
-                                    {professionalCoachData.trophies.length > 1 && (
-                                        <button
-                                            type="button"
-                                            onClick={() => removeTrophy(index)}
-                                            className="mt-2 text-red-600 hover:text-red-800 text-sm font-medium"
-                                        >
-                                            Remove Trophy
-                                        </button>
-                                    )}
-                                </div>
-                            ))}
-                        </div>
-
-
-
-                        {/* Documents */}
-                        <div className="mb-8 p-6 bg-theme-page-bg rounded-lg border-l-4 border-pink-500">
-                            <div className="flex justify-between items-center mb-6">
-                                <h4 className="text-xl font-semibold text-theme-dark flex items-center">
-                                    <span className="text-2xl mr-3">📄</span>
-                                    Documents
-                                </h4>
-                                <button
-                                    type="button"
-                                    onClick={addDocument}
-                                    className="bg-pink-600 text-white px-4 py-2 rounded-lg hover:bg-pink-700 transition-colors font-medium"
-                                >
-                                    + Add Document
-                                </button>
-                            </div>
-                            {professionalCoachData.documents.map((doc, index) => (
-                                <div key={index} className="bg-theme-secondary-bg p-4 rounded-lg mb-4 border border-theme-border">
-                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                                        <select
-                                            value={doc.type}
-                                            onChange={(e) => updateDocument(index, 'type', e.target.value)}
-                                            className="bg-theme-page-bg border border-theme-border rounded-lg py-2 px-3 text-theme-dark focus:outline-none focus:ring-2 focus:ring-pink-500"
-                                        >
-                                            <option value="">Document Type</option>
-                                            <option value="CV">CV/Resume</option>
-                                            <option value="License">Coaching License</option>
-                                            <option value="Certificate">Certificate</option>
-                                            <option value="ID">ID Document</option>
-                                            <option value="Contract">Contract</option>
-                                            <option value="Reference">Reference Letter</option>
-                                            <option value="Medical">Medical Certificate</option>
-                                            <option value="Background Check">Background Check</option>
-                                        </select>
-                                        <input
-                                            type="text"
-                                            placeholder="Document Name"
-                                            value={doc.name}
-                                            onChange={(e) => updateDocument(index, 'name', e.target.value)}
-                                            pattern="[A-Za-z\s'\-]+"
-                                            title="Letters, spaces, apostrophes and hyphens only"
-                                            className="bg-theme-page-bg border border-theme-border rounded-lg py-2 px-3 text-theme-dark focus:outline-none focus:ring-2 focus:ring-pink-500"
-                                        />
-                                        <div className="relative">
-                                            <input
-                                                type="file"
-                                                accept=".pdf,.doc,.docx,.jpg,.jpeg,.png,.webp"
-                                                onChange={(e) => {
-                                                    const file = e.target.files?.[0];
-                                                    if (file) {
-                                                        handleDocumentUpload(index, file);
-                                                    }
-                                                }}
-                                                className="hidden"
-                                                id={`document-upload-${index}`}
-                                            />
-                                            <label
-                                                htmlFor={`document-upload-${index}`}
-                                                className="w-full bg-theme-page-bg border border-theme-border rounded-lg py-2 px-3 text-theme-dark focus:outline-none focus:ring-2 focus:ring-pink-500 cursor-pointer flex items-center justify-center hover:bg-theme-secondary-bg transition-colors"
-                                            >
-                                                {documentPreviews[index] ? (
-                                                    <span className="text-sm text-green-600">
-                                                        📄 {documentPreviews[index].length > 30 ? documentPreviews[index].substring(0, 30) + '...' : documentPreviews[index]}
-                                                    </span>
-                                                ) : (
-                                                    <span className="text-sm text-gray-500">
-                                                        📁 Upload Document
-                                                    </span>
-                                                )}
-                                            </label>
-                                        </div>
-                                    </div>
-                                    {professionalCoachData.documents.length > 1 && (
-                                        <button
-                                            type="button"
-                                            onClick={() => removeDocument(index)}
-                                            className="mt-2 text-red-600 hover:text-red-800 text-sm font-medium"
-                                        >
-                                            Remove Document
-                                        </button>
-                                    )}
-                                </div>
-                            ))}
-                        </div>
-
-                        {/* Contract Information */}
-                        <div className="mb-8 p-6 bg-theme-page-bg rounded-lg border-l-4 border-teal-500">
-                            <h4 className="text-xl font-semibold mb-6 text-theme-dark flex items-center">
-                                <span className="text-2xl mr-3">📋</span>
-                                Contract Information
-                            </h4>
-                            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                                <div>
-                                    <label className="block text-sm font-medium text-theme-text-secondary mb-2">Contract Start Date</label>
-                                    <input
-                                        type="date"
-                                        name="contractStartDate"
-                                        value={professionalCoachData.contractStartDate}
-                                        onChange={handleProfessionalCoachInputChange}
-                                        className="w-full bg-theme-secondary-bg border-2 border-theme-border rounded-lg py-3 px-4 text-theme-dark focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-teal-500 transition-all"
-                                    />
-                                </div>
-                                <div>
-                                    <label className="block text-sm font-medium text-theme-text-secondary mb-2">Contract End Date</label>
-                                    <input
-                                        type="date"
-                                        name="contractEndDate"
-                                        value={professionalCoachData.contractEndDate}
-                                        onChange={handleProfessionalCoachInputChange}
-                                        className="w-full bg-theme-secondary-bg border-2 border-theme-border rounded-lg py-3 px-4 text-theme-dark focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-teal-500 transition-all"
-                                    />
-                                </div>
-                                <div>
-                                    <label className="block text-sm font-medium text-theme-text-secondary mb-2">Annual Salary (Optional)</label>
-                                    <input
-                                        type="number"
-                                        name="salary"
-                                        value={professionalCoachData.salary}
-                                        onChange={handleProfessionalCoachInputChange}
-                                        min="0"
-                                        step="1"
-                                        className="w-full bg-theme-secondary-bg border-2 border-theme-border rounded-lg py-3 px-4 text-theme-dark focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-teal-500 transition-all"
-                                        placeholder="50000"
-                                    />
-                                </div>
-                            </div>
-                        </div>
-
-                        {/* Form Actions */}
-                        <div className="flex justify-center">
-                            <button
-                                type="submit"
-                                className="bg-gradient-to-r from-theme-primary to-theme-primary-dark text-theme-dark font-bold py-4 px-12 rounded-lg hover:shadow-xl transition-all transform hover:scale-105 flex items-center text-lg"
-                            >
-                                <span className="text-2xl mr-3">✨</span>
-                                Create Professional Coach Profile
-                            </button>
-                        </div>
-                    </form>
-                </div>
+                    {/* Form Actions */}
+                    <div className="flex justify-center">
+                        <button
+                            type="submit"
+                            className="bg-gradient-to-r from-theme-primary to-theme-primary-dark text-theme-dark font-bold py-4 px-12 rounded-lg hover:shadow-xl transition-all transform hover:scale-105 flex items-center text-lg"
+                        >
+                            <span className="text-2xl mr-3">✨</span>
+                            Create Professional Coach Profile
+                        </button>
+                    </div>
+                </form>
+            </div>
         </div>
     );
 
     const uploadToCloudinary = async (file: File, uploadPreset: string): Promise<string> => {
-        const url = `${import.meta.env.VITE_CLOUDINARY_URL || 'https://api.cloudinary.com/v1_1/dmuilu78u/auto/upload'}`;
+        const url = `${(import.meta as any).env.VITE_CLOUDINARY_URL || 'https://api.cloudinary.com/v1_1/dmuilu78u/auto/upload'}`;
         const formData = new FormData();
         formData.append('file', file);
         formData.append('upload_preset', uploadPreset);
@@ -1588,7 +1683,7 @@ const ClubManagerDashboard: React.FC<ClubManagerDashboardProps> = ({
         const title = transferForm.title.trim();
         let imageUrl = transferForm.imageUrl.trim();
         if (!title) { toast.error('Please enter a transfer headline'); return; }
-        
+
         try {
             if (transferImageFile) {
                 const allowed = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
@@ -1602,7 +1697,7 @@ const ClubManagerDashboard: React.FC<ClubManagerDashboardProps> = ({
             toast.error(e.message || 'Upload failed');
             return;
         }
-        
+
         // Save to MongoDB instead of localStorage
         try {
             const idToken = await user?.firebaseUser?.getIdToken();
@@ -1610,7 +1705,7 @@ const ClubManagerDashboard: React.FC<ClubManagerDashboardProps> = ({
                 toast.error('Authentication required');
                 return;
             }
-            
+
             const transferData = {
                 title,
                 imageUrl,
@@ -1620,7 +1715,7 @@ const ClubManagerDashboard: React.FC<ClubManagerDashboardProps> = ({
                 summary: title,
                 createdAt: new Date().toISOString()
             };
-            
+
             const created = await createNews(transferData, idToken);
             setTransfers(prev => [{ id: created._id, title: created.title, imageUrl: created.imageUrl, clubName: club.name, createdAt: created.createdAt }, ...prev]);
             setTransferForm({ title: '', imageUrl: '' });
@@ -1641,7 +1736,7 @@ const ClubManagerDashboard: React.FC<ClubManagerDashboardProps> = ({
                 toast.error('Authentication required');
                 return;
             }
-            
+
             await deleteNewsById(id, idToken);
             setTransfers(prev => prev.filter(t => t.id !== id));
             toast.success('Transfer removed successfully');
@@ -1662,7 +1757,7 @@ const ClubManagerDashboard: React.FC<ClubManagerDashboardProps> = ({
                         <input
                             type="text"
                             value={transferForm.title}
-                            onChange={e=>setTransferForm(prev=>({ ...prev, title: e.target.value }))}
+                            onChange={e => setTransferForm(prev => ({ ...prev, title: e.target.value }))}
                             placeholder="e.g., Club signs Striker from XYZ"
                             className="w-full bg-theme-page-bg border border-theme-border rounded-md py-2 px-3"
                         />
@@ -1672,7 +1767,7 @@ const ClubManagerDashboard: React.FC<ClubManagerDashboardProps> = ({
                         <input
                             type="file"
                             accept="image/jpeg,image/jpg,image/png,image/webp"
-                            onChange={(e)=>{
+                            onChange={(e) => {
                                 const f = e.target.files?.[0] || null;
                                 setTransferImageFile(f);
                                 if (f && f.type.startsWith('image/')) setTransferImagePreview(URL.createObjectURL(f)); else setTransferImagePreview('');
@@ -1683,13 +1778,13 @@ const ClubManagerDashboard: React.FC<ClubManagerDashboardProps> = ({
                             <input
                                 type="url"
                                 value={transferForm.imageUrl}
-                                onChange={e=>setTransferForm(prev=>({ ...prev, imageUrl: e.target.value }))}
+                                onChange={e => setTransferForm(prev => ({ ...prev, imageUrl: e.target.value }))}
                                 placeholder="or paste an image URL"
                                 className="mt-2 w-full bg-theme-page-bg border border-theme-border rounded-md py-2 px-3"
                             />
                         )}
                         {transferImagePreview && (
-                            <img src={transferImagePreview} alt="Preview" className="mt-2 h-16 w-full object-cover rounded"/>
+                            <img src={transferImagePreview} alt="Preview" className="mt-2 h-16 w-full object-cover rounded" />
                         )}
                     </div>
                 </div>
@@ -1711,7 +1806,7 @@ const ClubManagerDashboard: React.FC<ClubManagerDashboardProps> = ({
                                     <h4 className="font-semibold text-theme-dark mb-1 line-clamp-2">{t.title}</h4>
                                     <p className="text-xs text-theme-text-secondary">{new Date(t.createdAt).toLocaleDateString()} • {t.clubName}</p>
                                     <div className="mt-3 flex justify-end">
-                                        <button onClick={()=>removeTransfer(t.id)} className="text-red-600 hover:text-red-800 text-sm">Remove</button>
+                                        <button onClick={() => removeTransfer(t.id)} className="text-red-600 hover:text-red-800 text-sm">Remove</button>
                                     </div>
                                 </div>
                             </div>
@@ -1726,7 +1821,7 @@ const ClubManagerDashboard: React.FC<ClubManagerDashboardProps> = ({
         const title = bestGoalForm.title.trim();
         let imageUrl = bestGoalForm.imageUrl.trim();
         if (!title) { toast.error('Please enter a goal highlight title'); return; }
-        
+
         try {
             if (bestGoalImageFile) {
                 const allowed = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
@@ -1740,7 +1835,7 @@ const ClubManagerDashboard: React.FC<ClubManagerDashboardProps> = ({
             toast.error(e.message || 'Upload failed');
             return;
         }
-        
+
         // Save to MongoDB instead of localStorage
         try {
             const idToken = await user?.firebaseUser?.getIdToken();
@@ -1748,7 +1843,7 @@ const ClubManagerDashboard: React.FC<ClubManagerDashboardProps> = ({
                 toast.error('Authentication required');
                 return;
             }
-            
+
             const bestGoalData = {
                 title,
                 imageUrl,
@@ -1758,7 +1853,7 @@ const ClubManagerDashboard: React.FC<ClubManagerDashboardProps> = ({
                 summary: title,
                 createdAt: new Date().toISOString()
             };
-            
+
             const created = await createNews(bestGoalData, idToken);
             setBestGoals(prev => [{ id: created._id, title: created.title, imageUrl: created.imageUrl, clubName: club.name, createdAt: created.createdAt }, ...prev]);
             setBestGoalForm({ title: '', imageUrl: '' });
@@ -1779,7 +1874,7 @@ const ClubManagerDashboard: React.FC<ClubManagerDashboardProps> = ({
                 toast.error('Authentication required');
                 return;
             }
-            
+
             await deleteNewsById(id, idToken);
             setBestGoals(prev => prev.filter(g => g.id !== id));
             toast.success('Best goal removed successfully');
@@ -1800,7 +1895,7 @@ const ClubManagerDashboard: React.FC<ClubManagerDashboardProps> = ({
                         <input
                             type="text"
                             value={bestGoalForm.title}
-                            onChange={e=>setBestGoalForm(prev=>({ ...prev, title: e.target.value }))}
+                            onChange={e => setBestGoalForm(prev => ({ ...prev, title: e.target.value }))}
                             placeholder="e.g., Player v Opponent"
                             className="w-full bg-theme-page-bg border border-theme-border rounded-md py-2 px-3"
                         />
@@ -1810,7 +1905,7 @@ const ClubManagerDashboard: React.FC<ClubManagerDashboardProps> = ({
                         <input
                             type="file"
                             accept="image/jpeg,image/jpg,image/png,image/webp"
-                            onChange={(e)=>{
+                            onChange={(e) => {
                                 const f = e.target.files?.[0] || null;
                                 setBestGoalImageFile(f);
                                 if (f && f.type.startsWith('image/')) setBestGoalImagePreview(URL.createObjectURL(f)); else setBestGoalImagePreview('');
@@ -1821,13 +1916,13 @@ const ClubManagerDashboard: React.FC<ClubManagerDashboardProps> = ({
                             <input
                                 type="url"
                                 value={bestGoalForm.imageUrl}
-                                onChange={e=>setBestGoalForm(prev=>({ ...prev, imageUrl: e.target.value }))}
+                                onChange={e => setBestGoalForm(prev => ({ ...prev, imageUrl: e.target.value }))}
                                 placeholder="or paste an image URL"
                                 className="mt-2 w-full bg-theme-page-bg border border-theme-border rounded-md py-2 px-3"
                             />
                         )}
                         {bestGoalImagePreview && (
-                            <img src={bestGoalImagePreview} alt="Preview" className="mt-2 h-16 w-full object-cover rounded"/>
+                            <img src={bestGoalImagePreview} alt="Preview" className="mt-2 h-16 w-full object-cover rounded" />
                         )}
                     </div>
                 </div>
@@ -1853,7 +1948,7 @@ const ClubManagerDashboard: React.FC<ClubManagerDashboardProps> = ({
                                     <h4 className="font-semibold text-theme-dark mb-1 line-clamp-2">{g.title}</h4>
                                     <p className="text-xs text-theme-text-secondary">{new Date(g.createdAt).toLocaleDateString()} • {g.clubName}</p>
                                     <div className="mt-3 flex justify-end">
-                                        <button onClick={()=>removeBestGoal(g.id)} className="text-red-600 hover:text-red-800 text-sm">Remove</button>
+                                        <button onClick={() => removeBestGoal(g.id)} className="text-red-600 hover:text-red-800 text-sm">Remove</button>
                                     </div>
                                 </div>
                             </div>
@@ -1881,25 +1976,25 @@ const ClubManagerDashboard: React.FC<ClubManagerDashboardProps> = ({
                     <h3 className="text-xl font-semibold mb-4 text-theme-dark border-b-2 border-theme-primary pb-2">
                         {editingNews ? 'Edit News Article' : 'Create New News Article'}
                     </h3>
-                    
+
                     <form onSubmit={editingNews ? handleUpdateNews : handleCreateNews} className="space-y-4">
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <div>
                                 <label htmlFor="newsTitle" className="block text-sm font-medium text-theme-text-secondary mb-1">Article Title *</label>
-                                <input 
-                                    type="text" 
-                                    id="newsTitle" 
-                                    value={newsForm.title} 
-                                    onChange={e => setNewsForm(prev => ({ ...prev, title: e.target.value }))} 
-                                    required 
-                                    className="w-full bg-theme-page-bg border border-theme-border rounded-md shadow-sm py-2 px-3 text-theme-dark focus:outline-none focus:ring-theme-primary focus:border-theme-primary" 
+                                <input
+                                    type="text"
+                                    id="newsTitle"
+                                    value={newsForm.title}
+                                    onChange={e => setNewsForm(prev => ({ ...prev, title: e.target.value }))}
+                                    required
+                                    className="w-full bg-theme-page-bg border border-theme-border rounded-md shadow-sm py-2 px-3 text-theme-dark focus:outline-none focus:ring-theme-primary focus:border-theme-primary"
                                     placeholder="Enter article title"
                                 />
                             </div>
                             <div>
                                 <label htmlFor="newsCategory" className="block text-sm font-medium text-theme-text-secondary mb-1">Category *</label>
-                                <select 
-                                    id="newsCategory" 
+                                <select
+                                    id="newsCategory"
                                     value={newsForm.category}
                                     onChange={e => setNewsForm(prev => ({ ...prev, category: e.target.value }))}
                                     className="w-full bg-theme-page-bg border border-theme-border rounded-md shadow-sm py-2 px-3 text-theme-dark focus:outline-none focus:ring-theme-primary focus:border-theme-primary"
@@ -1912,7 +2007,7 @@ const ClubManagerDashboard: React.FC<ClubManagerDashboardProps> = ({
                                 </select>
                             </div>
                         </div>
-                        
+
                         <div>
                             <label htmlFor="newsImageUpload" className="block text-sm font-medium text-theme-text-secondary mb-1">Article Image *</label>
                             <div className="space-y-3">
@@ -1948,49 +2043,49 @@ const ClubManagerDashboard: React.FC<ClubManagerDashboardProps> = ({
                                         </div>
                                     )}
                                 </label>
-                                
+
                                 {/* Fallback URL input */}
                                 {!newsImageFile && (
                                     <div>
                                         <label htmlFor="newsImageUrl" className="block text-xs font-medium text-theme-text-secondary mb-1">Or paste image URL:</label>
-                                        <input 
-                                            type="url" 
-                                            id="newsImageUrl" 
-                                            value={newsForm.imageUrl} 
-                                            onChange={e => setNewsForm(prev => ({ ...prev, imageUrl: e.target.value }))} 
-                                            className="w-full bg-theme-page-bg border border-theme-border rounded-md shadow-sm py-2 px-3 text-theme-dark focus:outline-none focus:ring-theme-primary focus:border-theme-primary text-sm" 
+                                        <input
+                                            type="url"
+                                            id="newsImageUrl"
+                                            value={newsForm.imageUrl}
+                                            onChange={e => setNewsForm(prev => ({ ...prev, imageUrl: e.target.value }))}
+                                            className="w-full bg-theme-page-bg border border-theme-border rounded-md shadow-sm py-2 px-3 text-theme-dark focus:outline-none focus:ring-theme-primary focus:border-theme-primary text-sm"
                                             placeholder="https://example.com/image.jpg"
                                         />
                                     </div>
                                 )}
                             </div>
                         </div>
-                        
+
                         <div>
                             <label htmlFor="newsSummary" className="block text-sm font-medium text-theme-text-secondary mb-1">Summary *</label>
-                            <textarea 
-                                id="newsSummary" 
-                                value={newsForm.summary} 
-                                onChange={e => setNewsForm(prev => ({ ...prev, summary: e.target.value }))} 
-                                required 
+                            <textarea
+                                id="newsSummary"
+                                value={newsForm.summary}
+                                onChange={e => setNewsForm(prev => ({ ...prev, summary: e.target.value }))}
+                                required
                                 rows={3}
-                                className="w-full bg-theme-page-bg border border-theme-border rounded-md shadow-sm py-2 px-3 text-theme-dark focus:outline-none focus:ring-theme-primary focus:border-theme-primary" 
+                                className="w-full bg-theme-page-bg border border-theme-border rounded-md shadow-sm py-2 px-3 text-theme-dark focus:outline-none focus:ring-theme-primary focus:border-theme-primary"
                                 placeholder="Brief summary of the article"
                             />
                         </div>
-                        
+
                         <div>
                             <label htmlFor="newsContent" className="block text-sm font-medium text-theme-text-secondary mb-1">Full Content</label>
-                            <textarea 
-                                id="newsContent" 
-                                value={newsForm.content} 
-                                onChange={e => setNewsForm(prev => ({ ...prev, content: e.target.value }))} 
+                            <textarea
+                                id="newsContent"
+                                value={newsForm.content}
+                                onChange={e => setNewsForm(prev => ({ ...prev, content: e.target.value }))}
                                 rows={6}
-                                className="w-full bg-theme-page-bg border border-theme-border rounded-md shadow-sm py-2 px-3 text-theme-dark focus:outline-none focus:ring-theme-primary focus:border-theme-primary" 
+                                className="w-full bg-theme-page-bg border border-theme-border rounded-md shadow-sm py-2 px-3 text-theme-dark focus:outline-none focus:ring-theme-primary focus:border-theme-primary"
                                 placeholder="Full article content (optional)"
                             />
                         </div>
-                        
+
                         <div className="flex gap-3">
                             <button
                                 type="submit"
@@ -2029,9 +2124,9 @@ const ClubManagerDashboard: React.FC<ClubManagerDashboardProps> = ({
                         {newsArticles.map(article => (
                             <div key={article._id} className="bg-theme-secondary-bg rounded-lg overflow-hidden shadow-lg">
                                 <div className="relative h-48">
-                                    <img 
-                                        src={article.imageUrl} 
-                                        alt={article.title} 
+                                    <img
+                                        src={article.imageUrl}
+                                        alt={article.title}
                                         className="w-full h-full object-cover"
                                     />
                                     <div className="absolute top-2 left-2">
@@ -2234,7 +2329,7 @@ const ClubManagerDashboard: React.FC<ClubManagerDashboardProps> = ({
                                 </div>
                                 <div className="text-right">
                                     <span className={`inline-block px-3 py-1 rounded-full text-xs font-medium ${player.isVerified ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'}`}>
-                                         Verified
+                                        Verified
                                     </span>
                                 </div>
                             </div>
@@ -2272,22 +2367,7 @@ const ClubManagerDashboard: React.FC<ClubManagerDashboardProps> = ({
 
                             <div className="flex gap-2">
                                 <button
-                                    onClick={async () => {
-                                        // Simple inline edit: toggle name/position prompt; in real UI use the existing edit form
-                                        const newName = prompt('Update player name:', player.name);
-                                        if (!newName || newName.trim() === player.name) return;
-                                        try {
-                                            const response = await playerService.update(player.id, { name: newName.trim() } as any);
-                                            if (response.success) {
-                                                await fetchApprovedPlayers();
-                                                alert('Player updated');
-                                            } else {
-                                                alert(response.message || 'Failed to update player');
-                                            }
-                                        } catch (e) {
-                                            alert('Error updating player');
-                                        }
-                                    }}
+                                    onClick={() => handleEditClick(player)}
                                     className="flex-1 bg-blue-600 text-white px-3 py-2 rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium"
                                 >
                                     Edit
@@ -2296,7 +2376,7 @@ const ClubManagerDashboard: React.FC<ClubManagerDashboardProps> = ({
                                     onClick={async () => {
                                         if (!window.confirm('Remove this player from the squad?')) return;
                                         try {
-                                            const response = await playerService.remove(player.id);
+                                            const response = await playerService.remove(player._id || player.id);
                                             if (response.success) {
                                                 await fetchApprovedPlayers();
                                                 alert('Player removed');
@@ -2328,7 +2408,7 @@ const ClubManagerDashboard: React.FC<ClubManagerDashboardProps> = ({
     );
 
     const renderSection = () => {
-        switch(activeSection) {
+        switch (activeSection) {
             case 'Dashboard':
                 return <>
                     <h2 className="text-3xl font-bold mb-6 text-theme-dark">Club Dashboard</h2>
@@ -2450,14 +2530,14 @@ const ClubManagerDashboard: React.FC<ClubManagerDashboardProps> = ({
                 return null;
         }
     };
-    
+
     const InputField = ({ label, name, type = 'text', value, onChange, required = false }) => (
         <div>
             <label htmlFor={name} className="block text-sm font-medium text-theme-text-secondary">{label}</label>
             <input type={type} name={name} id={name} value={value} onChange={onChange} required={required} className="mt-1 block w-full bg-theme-page-bg border-theme-border rounded-md shadow-sm py-2 px-3 text-theme-dark focus:outline-none focus:ring-theme-primary focus:border-theme-primary" />
         </div>
     );
-    
+
     const InputFieldUncontrolled = ({ label, name, type = 'text', placeholder = '', required = false }) => (
         <div>
             <label htmlFor={name} className="block text-sm font-medium text-theme-text-secondary">{label}</label>
@@ -2471,13 +2551,13 @@ const ClubManagerDashboard: React.FC<ClubManagerDashboardProps> = ({
         <div className="flex min-h-screen bg-theme-light">
             <aside className="w-72 bg-theme-light text-theme-dark flex-col hidden lg:flex">
                 <div className="h-20 flex items-center gap-4 px-6 border-b border-theme-border">
-                    <img src={club.logo} alt={club.name} className="h-10 w-10"/>
+                    <img src={club.logo} alt={club.name} className="h-10 w-10" />
                     <span className="font-bold text-xl">{club.name}</span>
                 </div>
                 <nav className="flex-grow">
                     <ul className="space-y-2 p-4">
                         {sections.map(section => (
-                             <li key={section}>
+                            <li key={section}>
                                 <button
                                     onClick={() => setActiveSection(section)}
                                     className={`w-full text-left px-4 py-3 rounded-md transition-colors text-lg ${activeSection === section ? 'bg-theme-primary text-theme-dark' : 'hover:bg-theme-secondary-bg'}`}
@@ -2495,7 +2575,7 @@ const ClubManagerDashboard: React.FC<ClubManagerDashboardProps> = ({
                     <label className="block text-sm font-medium text-theme-text-secondary mb-1">Section</label>
                     <select
                         value={activeSection}
-                        onChange={e=>setActiveSection(e.target.value as any)}
+                        onChange={e => setActiveSection(e.target.value as any)}
                         className="w-full bg-theme-page-bg border border-theme-border rounded-md py-2 px-3"
                     >
                         {sections.map(s => (
@@ -2507,6 +2587,7 @@ const ClubManagerDashboard: React.FC<ClubManagerDashboardProps> = ({
                     {renderSection()}
                 </div>
             </main>
+            {renderEditPlayerModal()}
         </div>
     );
 };

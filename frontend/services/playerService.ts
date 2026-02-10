@@ -16,12 +16,12 @@ export const playerService = {
     return response.data;
   },
 
-  async approve(registrationId: number) {
+  async approve(registrationId: string | number) {
     const response = await api.post(`/players/${registrationId}/approve`);
     return response.data;
   },
 
-  async reject(registrationId: number, reason: string) {
+  async reject(registrationId: string | number, reason: string) {
     const response = await api.post(`/players/${registrationId}/reject`, { reason });
     return response.data;
   },
@@ -32,7 +32,7 @@ export const playerService = {
     if (clubName) params.clubName = clubName;
     const response = await api.get('/players/approved', { params });
     return response.data;
-},
+  },
 
   async update(playerId: string | number, updates: Partial<Player>) {
     const id = String(playerId);

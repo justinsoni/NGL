@@ -53,7 +53,7 @@ const App = () => {
   const [matchesData, setMatchesData] = useState<MatchType[]>(MATCHES);
   const [tableData, setTableData] = useState<Record<GroupName, TableEntry[]>>(TABLE_DATA);
   const [competitionStage, setCompetitionStage] = useState<'League Stage' | 'Semi-Finals' | 'Final' | 'Finished'>('League Stage');
-  
+
   const [players, setPlayers] = useState<Player[]>([]);
   const [leaderStats, setLeaderStats] = useState<LeaderStat[]>([]);
   const [viewingPlayer, setViewingPlayer] = useState<Player | null>(null);
@@ -73,7 +73,7 @@ const App = () => {
   // Fetch player registrations from API
   const fetchPlayerRegistrations = async () => {
     if (userRole !== 'admin') return;
-    
+
     setIsLoadingRegistrations(true);
     try {
       const response = await playerService.getPendingPlayers(); // No clubId = all registrations
@@ -97,7 +97,12 @@ const App = () => {
           submittedAt: player.submittedAt || new Date().toISOString(),
           reviewedAt: player.reviewedAt,
           reviewedBy: player.reviewedBy,
-          rejectionReason: player.rejectionReason
+          rejectionReason: player.rejectionReason,
+          hasInjuryHistory: player.hasInjuryHistory,
+          injuryNature: player.injuryNature,
+          lastInjuryDate: player.lastInjuryDate,
+          fitnessStatus: player.fitnessStatus,
+          minimumSalary: player.minimumSalary
         }));
         setPlayerRegistrations(registrations);
       }
@@ -274,9 +279,14 @@ const App = () => {
       clubLogo: club?.logo || '',
       previousClub: registration.previousClub,
       leaguesPlayed: registration.leaguesPlayed,
-      imageUrl: registration.imageUrl || `${import.meta.env.VITE_PLACEHOLDER_IMAGE_URL || 'https://picsum.photos'}/seed/${registration.name}/400/400`,
+      imageUrl: registration.imageUrl || `${(import.meta as any).env.VITE_PLACEHOLDER_IMAGE_URL || 'https://picsum.photos'}/seed/${registration.name}/400/400`,
       identityCardUrl: registration.identityCardUrl,
       bio: registration.bio,
+      hasInjuryHistory: registration.hasInjuryHistory,
+      injuryNature: registration.injuryNature,
+      lastInjuryDate: registration.lastInjuryDate,
+      fitnessStatus: registration.fitnessStatus,
+      minimumSalary: registration.minimumSalary,
       isVerified: false,
       addedBy: currentUserId || 0,
       stats: { matches: 0, goals: 0, assists: 0, yellowCards: 0, redCards: 0 }
@@ -315,7 +325,7 @@ const App = () => {
       clubLogo: clubsData.find(c => c.id === registration.clubId)?.logo || '',
       previousClub: registration.previousClub,
       leaguesPlayed: registration.leaguesPlayed,
-      imageUrl: registration.imageUrl || `${import.meta.env.VITE_PLACEHOLDER_IMAGE_URL || 'https://picsum.photos'}/seed/${registration.name}/400/400`,
+      imageUrl: registration.imageUrl || `${(import.meta as any).env.VITE_PLACEHOLDER_IMAGE_URL || 'https://picsum.photos'}/seed/${registration.name}/400/400`,
       identityCardUrl: registration.identityCardUrl,
       bio: registration.bio,
       isVerified: true,
@@ -354,12 +364,12 @@ const App = () => {
     setPlayerRegistrations(prev =>
       prev.map(r => r.id === registrationId
         ? {
-            ...r,
-            status: 'rejected' as const,
-            reviewedAt: new Date().toISOString(),
-            reviewedBy: currentUserId || undefined,
-            rejectionReason: reason
-          }
+          ...r,
+          status: 'rejected' as const,
+          reviewedAt: new Date().toISOString(),
+          reviewedBy: currentUserId || undefined,
+          rejectionReason: reason
+        }
         : r
       )
     );
@@ -412,164 +422,164 @@ const App = () => {
       )
     );
   };
-  
+
   const generateSemiFinals = (currentTables: Record<GroupName, TableEntry[]>) => {
-      if (matchesData.some(m => m.stage === 'Semi-Final')) return;
+    if (matchesData.some(m => m.stage === 'Semi-Final')) return;
 
-      const groupWinners = (Object.keys(currentTables) as GroupName[]).map(groupName => {
-        return currentTables[groupName].sort((a,b) => a.pos - b.pos)[0];
-      });
+    const groupWinners = (Object.keys(currentTables) as GroupName[]).map(groupName => {
+      return currentTables[groupName].sort((a, b) => a.pos - b.pos)[0];
+    });
 
-      if (groupWinners.length < 4) return;
-      
-      const [winnerA, winnerB, winnerC, winnerD] = groupWinners;
+    if (groupWinners.length < 4) return;
 
-      const semiFinal1: MatchType = {
-          id: matchesData.length + 1,
-          date: 'TBD',
-          kickoff: '20:00',
-          homeTeam: winnerA.club,
-          awayTeam: winnerC.club,
-          homeLogo: winnerA.logo,
-          awayLogo: winnerC.logo,
-          venue: 'Wembley Stadium',
-          status: 'upcoming',
-          homeScore: 0,
-          awayScore: 0,
-          stage: 'Semi-Final'
-      };
-      
-      const semiFinal2: MatchType = {
-          id: matchesData.length + 2,
-          date: 'TBD',
-          kickoff: '20:00',
-          homeTeam: winnerB.club,
-          awayTeam: winnerD.club,
-          homeLogo: winnerB.logo,
-          awayLogo: winnerD.logo,
-          venue: 'Wembley Stadium',
-          status: 'upcoming',
-          homeScore: 0,
-          awayScore: 0,
-          stage: 'Semi-Final'
-      };
+    const [winnerA, winnerB, winnerC, winnerD] = groupWinners;
 
-      setMatchesData(prev => [...prev, semiFinal1, semiFinal2]);
-      setCompetitionStage('Semi-Finals');
+    const semiFinal1: MatchType = {
+      id: matchesData.length + 1,
+      date: 'TBD',
+      kickoff: '20:00',
+      homeTeam: winnerA.club,
+      awayTeam: winnerC.club,
+      homeLogo: winnerA.logo,
+      awayLogo: winnerC.logo,
+      venue: 'Wembley Stadium',
+      status: 'upcoming',
+      homeScore: 0,
+      awayScore: 0,
+      stage: 'Semi-Final'
+    };
+
+    const semiFinal2: MatchType = {
+      id: matchesData.length + 2,
+      date: 'TBD',
+      kickoff: '20:00',
+      homeTeam: winnerB.club,
+      awayTeam: winnerD.club,
+      homeLogo: winnerB.logo,
+      awayLogo: winnerD.logo,
+      venue: 'Wembley Stadium',
+      status: 'upcoming',
+      homeScore: 0,
+      awayScore: 0,
+      stage: 'Semi-Final'
+    };
+
+    setMatchesData(prev => [...prev, semiFinal1, semiFinal2]);
+    setCompetitionStage('Semi-Finals');
   };
-  
+
   const generateFinal = (semiFinals: MatchType[]) => {
-      if (matchesData.some(m => m.stage === 'Final')) return;
+    if (matchesData.some(m => m.stage === 'Final')) return;
 
-      const getWinner = (match: MatchType) => match.homeScore > match.awayScore ? match.homeTeam : match.awayTeam;
-      
-      const winner1 = getWinner(semiFinals[0]);
-      const winner2 = getWinner(semiFinals[1]);
+    const getWinner = (match: MatchType) => match.homeScore > match.awayScore ? match.homeTeam : match.awayTeam;
 
-      const winner1Club = clubsData.find(c => c.name === winner1);
-      const winner2Club = clubsData.find(c => c.name === winner2);
-      
-      if(!winner1Club || !winner2Club) return;
+    const winner1 = getWinner(semiFinals[0]);
+    const winner2 = getWinner(semiFinals[1]);
 
-      const finalMatch: MatchType = {
-          id: matchesData.length + 1,
-          date: 'TBD',
-          kickoff: '19:00',
-          homeTeam: winner1Club.name,
-          awayTeam: winner2Club.name,
-          homeLogo: winner1Club.logo,
-          awayLogo: winner2Club.logo,
-          venue: 'National Stadium',
-          status: 'upcoming',
-          homeScore: 0,
-          awayScore: 0,
-          stage: 'Final'
-      };
-      
-      setMatchesData(prev => [...prev, finalMatch]);
-      setCompetitionStage('Final');
+    const winner1Club = clubsData.find(c => c.name === winner1);
+    const winner2Club = clubsData.find(c => c.name === winner2);
+
+    if (!winner1Club || !winner2Club) return;
+
+    const finalMatch: MatchType = {
+      id: matchesData.length + 1,
+      date: 'TBD',
+      kickoff: '19:00',
+      homeTeam: winner1Club.name,
+      awayTeam: winner2Club.name,
+      homeLogo: winner1Club.logo,
+      awayLogo: winner2Club.logo,
+      venue: 'National Stadium',
+      status: 'upcoming',
+      homeScore: 0,
+      awayScore: 0,
+      stage: 'Final'
+    };
+
+    setMatchesData(prev => [...prev, finalMatch]);
+    setCompetitionStage('Final');
   }
 
   const handleMatchFinish = (matchId: number) => {
     let finishedMatch = matchesData.find(m => m.id === matchId);
     if (!finishedMatch || finishedMatch.status === 'finished') return;
-    
+
     finishedMatch = { ...finishedMatch, status: 'finished' };
-    
-    let newTableData = {...tableData};
-    
+
+    let newTableData = { ...tableData };
+
     // Update table only for league stage matches
-    if(finishedMatch.stage === 'League Stage' && finishedMatch.group) {
+    if (finishedMatch.stage === 'League Stage' && finishedMatch.group) {
       const groupName = finishedMatch.group;
       const homeTeamName = finishedMatch.homeTeam;
       const awayTeamName = finishedMatch.awayTeam;
-      
+
       const groupTable = [...newTableData[groupName]];
       const homeTeamIndex = groupTable.findIndex(t => t.club === homeTeamName);
       const awayTeamIndex = groupTable.findIndex(t => t.club === awayTeamName);
-      
+
       if (homeTeamIndex !== -1 && awayTeamIndex !== -1) {
-          const homeTeam = { ...groupTable[homeTeamIndex] };
-          const awayTeam = { ...groupTable[awayTeamIndex] };
-          
-          let homeResult: 'W' | 'D' | 'L';
-          let awayResult: 'W' | 'D' | 'L';
+        const homeTeam = { ...groupTable[homeTeamIndex] };
+        const awayTeam = { ...groupTable[awayTeamIndex] };
 
-          homeTeam.p += 1;
-          awayTeam.p += 1;
-          
-          if (finishedMatch.homeScore > finishedMatch.awayScore) { // Home win
-              homeTeam.w += 1;
-              homeTeam.pts += 3;
-              awayTeam.l += 1;
-              homeResult = 'W';
-              awayResult = 'L';
-          } else if (finishedMatch.homeScore < finishedMatch.awayScore) { // Away win
-              awayTeam.w += 1;
-              awayTeam.pts += 3;
-              homeTeam.l += 1;
-              homeResult = 'L';
-              awayResult = 'W';
-          } else { // Draw
-              homeTeam.d += 1;
-              homeTeam.pts += 1;
-              awayTeam.d += 1;
-              awayTeam.pts += 1;
-              homeResult = 'D';
-              awayResult = 'D';
-          }
+        let homeResult: 'W' | 'D' | 'L';
+        let awayResult: 'W' | 'D' | 'L';
 
-          homeTeam.gf += finishedMatch.homeScore;
-          homeTeam.ga += finishedMatch.awayScore;
-          homeTeam.gd = homeTeam.gf - homeTeam.ga;
-          
-          awayTeam.gf += finishedMatch.awayScore;
-          awayTeam.ga += finishedMatch.homeScore;
-          awayTeam.gd = awayTeam.gf - awayTeam.ga;
-          
-          const newHomeHistory = [...homeTeam.matchHistory, { matchId: finishedMatch.id, result: homeResult }];
-          homeTeam.matchHistory = newHomeHistory;
-          homeTeam.form = newHomeHistory.slice(-5).map(h => h.result);
-          
-          const newAwayHistory = [...awayTeam.matchHistory, { matchId: finishedMatch.id, result: awayResult }];
-          awayTeam.matchHistory = newAwayHistory;
-          awayTeam.form = newAwayHistory.slice(-5).map(h => h.result);
-          
-          groupTable[homeTeamIndex] = homeTeam;
-          groupTable[awayTeamIndex] = awayTeam;
+        homeTeam.p += 1;
+        awayTeam.p += 1;
 
-          const sortedGroupTable = groupTable.sort((a, b) => {
-              if (b.pts !== a.pts) return b.pts - a.pts;
-              if (b.gd !== a.gd) return b.gd - a.gd;
-              if (b.gf !== a.gf) return b.gf - a.gf;
-              return a.club.localeCompare(b.club);
-          }).map((team, index) => ({ ...team, pos: index + 1 }));
-          
-          newTableData[groupName] = sortedGroupTable;
-          setTableData(newTableData);
+        if (finishedMatch.homeScore > finishedMatch.awayScore) { // Home win
+          homeTeam.w += 1;
+          homeTeam.pts += 3;
+          awayTeam.l += 1;
+          homeResult = 'W';
+          awayResult = 'L';
+        } else if (finishedMatch.homeScore < finishedMatch.awayScore) { // Away win
+          awayTeam.w += 1;
+          awayTeam.pts += 3;
+          homeTeam.l += 1;
+          homeResult = 'L';
+          awayResult = 'W';
+        } else { // Draw
+          homeTeam.d += 1;
+          homeTeam.pts += 1;
+          awayTeam.d += 1;
+          awayTeam.pts += 1;
+          homeResult = 'D';
+          awayResult = 'D';
+        }
+
+        homeTeam.gf += finishedMatch.homeScore;
+        homeTeam.ga += finishedMatch.awayScore;
+        homeTeam.gd = homeTeam.gf - homeTeam.ga;
+
+        awayTeam.gf += finishedMatch.awayScore;
+        awayTeam.ga += finishedMatch.homeScore;
+        awayTeam.gd = awayTeam.gf - awayTeam.ga;
+
+        const newHomeHistory = [...homeTeam.matchHistory, { matchId: finishedMatch.id, result: homeResult }];
+        homeTeam.matchHistory = newHomeHistory;
+        homeTeam.form = newHomeHistory.slice(-5).map(h => h.result);
+
+        const newAwayHistory = [...awayTeam.matchHistory, { matchId: finishedMatch.id, result: awayResult }];
+        awayTeam.matchHistory = newAwayHistory;
+        awayTeam.form = newAwayHistory.slice(-5).map(h => h.result);
+
+        groupTable[homeTeamIndex] = homeTeam;
+        groupTable[awayTeamIndex] = awayTeam;
+
+        const sortedGroupTable = groupTable.sort((a, b) => {
+          if (b.pts !== a.pts) return b.pts - a.pts;
+          if (b.gd !== a.gd) return b.gd - a.gd;
+          if (b.gf !== a.gf) return b.gf - a.gf;
+          return a.club.localeCompare(b.club);
+        }).map((team, index) => ({ ...team, pos: index + 1 }));
+
+        newTableData[groupName] = sortedGroupTable;
+        setTableData(newTableData);
       }
     }
-    
+
     const updatedMatches = matchesData.map(m => m.id === matchId ? finishedMatch! : m);
     setMatchesData(updatedMatches);
 
@@ -578,17 +588,17 @@ const App = () => {
     const allLeagueMatchesFinished = leagueStageMatches.every(m => m.status === 'finished');
 
     if (competitionStage === 'League Stage' && allLeagueMatchesFinished && leagueStageMatches.length > 0) {
-        generateSemiFinals(newTableData);
+      generateSemiFinals(newTableData);
     }
-    
+
     const semiFinalMatches = updatedMatches.filter(m => m.stage === 'Semi-Final');
     if (competitionStage === 'Semi-Finals' && semiFinalMatches.length > 0 && semiFinalMatches.every(m => m.status === 'finished')) {
-        generateFinal(semiFinalMatches);
+      generateFinal(semiFinalMatches);
     }
-    
+
     const finalMatch = updatedMatches.find(m => m.stage === 'Final');
     if (competitionStage === 'Final' && finalMatch?.status === 'finished') {
-        setCompetitionStage('Finished');
+      setCompetitionStage('Finished');
     }
   };
 
@@ -601,7 +611,7 @@ const App = () => {
     };
     setPlayers(prev => [...prev, playerWithId]);
   };
-  
+
   const handleEditPlayer = (updatedPlayer: Player) => {
     setPlayers(prevPlayers => prevPlayers.map(p => p.id === updatedPlayer.id ? updatedPlayer : p));
   };
@@ -621,10 +631,10 @@ const App = () => {
   const handleDeleteClub = (clubId: number | string) => {
     setClubsData(prev => prev.filter(club => club.id !== clubId));
   };
-  
+
   const handlePlayerSelect = (playerId: number) => {
     const player = players.find(p => p.id === playerId);
-    if(player) setViewingPlayer(player);
+    if (player) setViewingPlayer(player);
   };
 
   // Allow other components to request opening the player modal via a window event
@@ -638,79 +648,64 @@ const App = () => {
     window.addEventListener('player:select', handler as EventListener);
     return () => window.removeEventListener('player:select', handler as EventListener);
   }, [players]);
-  
+
   const handleClosePlayerModal = () => {
-      setViewingPlayer(null);
+    setViewingPlayer(null);
   }
 
 
   // --- Leader Stat Calculation ---
   useEffect(() => {
     const countryCodeMapping: { [key: string]: string } = {
-        'Brazil': 'br', 'Netherlands': 'nl', 'Egypt': 'eg', 'Norway': 'no',
-        'Belgium': 'be', 'England': 'gb-eng', 'South Korea': 'kr', 'Portugal': 'pt',
-        'Bosnia and Herzegovina': 'ba', 'Switzerland': 'ch',
+      'Brazil': 'br', 'Netherlands': 'nl', 'Egypt': 'eg', 'Norway': 'no',
+      'Belgium': 'be', 'England': 'gb-eng', 'South Korea': 'kr', 'Portugal': 'pt',
+      'Bosnia and Herzegovina': 'ba', 'Switzerland': 'ch',
     };
     const getCountryCode = (nationality: string): string => countryCodeMapping[nationality] || 'xx';
 
     const getPositionAbbreviation = (position: Position): string => {
-        switch (position) {
-            case 'Goalkeeper': return 'GK';
-            case 'Defender': return 'DEF';
-            case 'Midfielder': return 'MID';
-            case 'Forward': return 'FWD';
-        }
+      switch (position) {
+        case 'Goalkeeper': return 'GK';
+        case 'Defender': return 'DEF';
+        case 'Midfielder': return 'MID';
+        case 'Forward': return 'FWD';
+      }
     }
 
     const getCardTier = (statKey: keyof Player['stats'], value: number): 'gold' | 'silver' => {
-        if (statKey === 'goals' && value >= 3) return 'gold';
-        if (statKey === 'assists' && value >= 2) return 'gold';
-        return 'silver';
+      if (statKey === 'goals' && value >= 3) return 'gold';
+      if (statKey === 'assists' && value >= 2) return 'gold';
+      return 'silver';
     }
 
     const createLeaderStat = (playersList: Player[], statKey: keyof Player['stats'], unit: string): LeaderStat | null => {
-        if (playersList.length === 0) return null;
-        const sortedPlayers = [...playersList].filter(p => p.stats[statKey] > 0).sort((a, b) => b.stats[statKey] - a.stats[statKey]);
-        if (sortedPlayers.length === 0) return null;
-        
-        const topPlayer = sortedPlayers[0];
-        
-        if (!topPlayer) return null;
+      if (playersList.length === 0) return null;
+      const sortedPlayers = [...playersList].filter(p => p.stats[statKey] > 0).sort((a, b) => b.stats[statKey] - a.stats[statKey]);
+      if (sortedPlayers.length === 0) return null;
 
-        const leaderboard = sortedPlayers.slice(0, 4).map((p, index) => ({
-            rank: index + 1,
-            id: p.id,
-            name: p.name.split(' ').pop()?.toUpperCase() ?? p.name.toUpperCase(),
-            clubLogo: p.clubLogo,
-            value: p.stats[statKey],
-        }));
+      const topPlayer = sortedPlayers[0];
 
-        return {
-            statUnit: unit,
-            topPlayer: {
-                id: topPlayer.id,
-                rank: 1,
-                name: topPlayer.name.split(' ').pop()?.toUpperCase() ?? topPlayer.name.toUpperCase(),
-                club: topPlayer.club.toUpperCase(),
-                clubLogo: topPlayer.clubLogo,
-                value: topPlayer.stats[statKey],
-                card: {
-                    rating: 80 + Math.floor(topPlayer.stats.goals * 2) + Math.floor(topPlayer.stats.assists),
-                    position: getPositionAbbreviation(topPlayer.position),
-                    imageUrl: topPlayer.imageUrl,
-                    nationalityFlagUrl: `https://flagcdn.com/w40/${getCountryCode(topPlayer.nationality)}.png`,
-                    cardTier: getCardTier(statKey, topPlayer.stats[statKey]),
-                }
-            },
-            leaderboard,
-        };
+      if (!topPlayer) return null;
+
+      const leaderboard = sortedPlayers.slice(0, 4).map((p, index) => ({
+        playerId: p.id,
+        playerName: p.name.split(' ').pop()?.toUpperCase() ?? p.name.toUpperCase(),
+        club: p.club.toUpperCase(),
+        clubLogo: p.clubLogo,
+        value: p.stats[statKey],
+      }));
+
+      return {
+        statUnit: unit,
+        leaderboard,
+      };
     };
 
     const newLeaderStats: LeaderStat[] = [
-        createLeaderStat(players, 'goals', 'GOALS'),
-        createLeaderStat(players, 'assists', 'ASSISTS'),
-        createLeaderStat(players, 'yellowCards', 'YELLOW CARDS'),
-        createLeaderStat(players, 'redCards', 'RED CARDS'),
+      createLeaderStat(players, 'goals', 'GOALS'),
+      createLeaderStat(players, 'assists', 'ASSISTS'),
+      createLeaderStat(players, 'yellowCards', 'YELLOW CARDS'),
+      createLeaderStat(players, 'redCards', 'RED CARDS'),
     ].filter((stat): stat is LeaderStat => stat !== null);
 
     setLeaderStats(newLeaderStats);
@@ -734,92 +729,92 @@ const App = () => {
           />
           {viewingPlayer && (
             <PlayerProfileModal
-                player={viewingPlayer}
-                leaderStats={leaderStats}
-                onClose={handleClosePlayerModal}
+              player={viewingPlayer}
+              leaderStats={leaderStats}
+              onClose={handleClosePlayerModal}
             />
           )}
           <div className="text-theme-dark font-sans flex flex-col min-h-screen bg-theme-light">
             <Navbar isLoggedIn={isLoggedIn} userRole={userRole} onLogout={handleLogout} />
             <main className="flex-grow">
-          <Routes>
-            <Route path="/" element={<HomePage matchesData={matchesData} tableData={tableData} competitionStage={competitionStage} leaderStats={leaderStats} onPlayerSelect={handlePlayerSelect} />} />
-            <Route path="/matches" element={<MatchesPage matchesData={matchesData} />} />
-            <Route path="/matches/:matchId" element={<MatchDetailPage matchesData={matchesData} />} />
-            <Route path="/match-report/:fixtureId" element={<MatchReportPage />} />
-            <Route path="/players" element={<PlayersPage onPlayerSelect={handlePlayerSelect} />} />
-            <Route path="/table" element={<TablePage tableData={tableData} />} />
-            <Route path="/clubs" element={<ClubsPage />} />
-            <Route path="/clubs/:clubId" element={<ClubDetailPage players={players} onPlayerSelect={handlePlayerSelect} />} />
-            <Route path="/tickets" element={<TicketsPage />} />
-            <Route path="/tickets/:matchId" element={<TicketsPage />} />
-            <Route path="/store" element={<StorePage />} />
-            <Route path="/media" element={<MediaPage />} />
-            <Route path="/news/:id" element={<NewsDetailPage />} />
-            <Route path="/login" element={<LoginPage onLogin={handleLogin} onRegister={handleRegister} createdUsers={createdUsers} />} />
-            <Route path="/player-registration" element={<PlayerRegistrationPage onSubmitRegistration={handleSubmitPlayerRegistration} />} />
+              <Routes>
+                <Route path="/" element={<HomePage matchesData={matchesData} tableData={tableData} competitionStage={competitionStage} leaderStats={leaderStats} onPlayerSelect={handlePlayerSelect} />} />
+                <Route path="/matches" element={<MatchesPage matchesData={matchesData} />} />
+                <Route path="/matches/:matchId" element={<MatchDetailPage matchesData={matchesData} />} />
+                <Route path="/match-report/:fixtureId" element={<MatchReportPage />} />
+                <Route path="/players" element={<PlayersPage onPlayerSelect={handlePlayerSelect} />} />
+                <Route path="/table" element={<TablePage tableData={tableData} />} />
+                <Route path="/clubs" element={<ClubsPage />} />
+                <Route path="/clubs/:clubId" element={<ClubDetailPage players={players} onPlayerSelect={handlePlayerSelect} />} />
+                <Route path="/tickets" element={<TicketsPage />} />
+                <Route path="/tickets/:matchId" element={<TicketsPage />} />
+                <Route path="/store" element={<StorePage />} />
+                <Route path="/media" element={<MediaPage />} />
+                <Route path="/news/:id" element={<NewsDetailPage />} />
+                <Route path="/login" element={<LoginPage />} />
+                <Route path="/player-registration" element={<PlayerRegistrationPage onSubmitRegistration={handleSubmitPlayerRegistration} />} />
 
-            {isLoggedIn && userRole === 'admin' && (
-              <Route path="/admin" element={
-                <AdminDashboard
-                  matches={matchesData}
-                  onMatchUpdate={handleMatchUpdate}
-                  onMatchFinish={handleMatchFinish}
-                  createdUsers={createdUsers}
-                  onCreateUser={handleCreateUser}
-                  playerRegistrations={playerRegistrations}
-                  onApprovePlayerRegistration={handleApprovePlayerRegistration}
-                  onRejectPlayerRegistration={handleRejectPlayerRegistration}
-                  clubs={clubsData}
-                  onAddClub={handleAddClub}
-                  onUpdateClub={handleUpdateClub}
-                  onDeleteClub={handleDeleteClub}
-                />
-              } />
-            )}
-            {isLoggedIn && userRole === 'coach' && managedClub && (
-              <Route path="/coach" element={<CoachDashboard club={managedClub} players={players} />} />
-            )}
-            {isLoggedIn && userRole === 'clubManager' && managedClub && (
-              <Route path="/club-manager" element={
-                <ClubManagerDashboard
-                    club={managedClub}
-                    players={players}
-                    onAddPlayer={handleAddPlayer}
-                    onEditPlayer={handleEditPlayer}
-                    onDeletePlayer={handleDeletePlayer}
-                    competitionStage={competitionStage}
-                    onPlayerSelect={handlePlayerSelect}
-                    coaches={createdUsers}
-                    onCreateCoach={handleCreateUser}
-                    playerRegistrations={playerRegistrations}
-                    onApprovePlayerRegistration={handleApprovePlayerRegistration}
-                    onRejectPlayerRegistration={handleRejectPlayerRegistration}
-                />
-              } />
-            )}
-            {isLoggedIn && userRole === 'player' && (
-              <Route path="/player" element={
-                <PlayerDashboard
-                  player={players.find(p => p.email === createdUsers.find(u => u.id === currentUserId)?.email) || players[0]}
-                  matches={matchesData}
-                  onUpdateProfile={handleEditPlayer}
-                />
-              } />
-            )}
+                {isLoggedIn && userRole === 'admin' && (
+                  <Route path="/admin" element={
+                    <AdminDashboard
+                      matches={matchesData}
+                      onMatchUpdate={handleMatchUpdate}
+                      onMatchFinish={handleMatchFinish}
+                      createdUsers={createdUsers}
+                      onCreateUser={handleCreateUser}
+                      playerRegistrations={playerRegistrations}
+                      onApprovePlayerRegistration={handleApprovePlayerRegistration}
+                      onRejectPlayerRegistration={handleRejectPlayerRegistration}
+                      clubs={clubsData}
+                      onAddClub={handleAddClub}
+                      onUpdateClub={handleUpdateClub}
+                      onDeleteClub={handleDeleteClub}
+                    />
+                  } />
+                )}
+                {isLoggedIn && userRole === 'coach' && managedClub && (
+                  <Route path="/coach" element={<CoachDashboard club={managedClub} players={players} />} />
+                )}
+                {isLoggedIn && userRole === 'clubManager' && managedClub && (
+                  <Route path="/club-manager" element={
+                    <ClubManagerDashboard
+                      club={managedClub}
+                      players={players}
+                      onAddPlayer={handleAddPlayer}
+                      onEditPlayer={handleEditPlayer}
+                      onDeletePlayer={handleDeletePlayer}
+                      competitionStage={competitionStage}
+                      onPlayerSelect={handlePlayerSelect}
+                      coaches={createdUsers}
+                      onCreateCoach={handleCreateUser}
+                      playerRegistrations={playerRegistrations}
+                      onApprovePlayerRegistration={handleApprovePlayerRegistration}
+                      onRejectPlayerRegistration={handleRejectPlayerRegistration}
+                    />
+                  } />
+                )}
+                {isLoggedIn && userRole === 'player' && (
+                  <Route path="/player" element={
+                    <PlayerDashboard
+                      player={players.find(p => p.email === createdUsers.find(u => u.id === currentUserId)?.email) || players[0]}
+                      matches={matchesData}
+                      onUpdateProfile={handleEditPlayer}
+                    />
+                  } />
+                )}
 
-            {/* Redirect protected routes to login when not authenticated */}
-            {!isLoggedIn && (
-              <>
-                <Route path="/admin" element={<Navigate to="/login" replace />} />
-                <Route path="/coach" element={<Navigate to="/login" replace />} />
-                <Route path="/club-manager" element={<Navigate to="/login" replace />} />
-                <Route path="/player" element={<Navigate to="/login" replace />} />
-              </>
-            )}
+                {/* Redirect protected routes to login when not authenticated */}
+                {!isLoggedIn && (
+                  <>
+                    <Route path="/admin" element={<Navigate to="/login" replace />} />
+                    <Route path="/coach" element={<Navigate to="/login" replace />} />
+                    <Route path="/club-manager" element={<Navigate to="/login" replace />} />
+                    <Route path="/player" element={<Navigate to="/login" replace />} />
+                  </>
+                )}
 
-            <Route path="*" element={<NotFoundPage />} />
-          </Routes>
+                <Route path="*" element={<NotFoundPage />} />
+              </Routes>
             </main>
             <Footer />
           </div>
