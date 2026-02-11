@@ -66,53 +66,56 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ cart, onUpdateQuantity, onR
     }
 
     return (
-        <div className="min-h-screen bg-gray-50 pt-12 pb-24 px-4">
-            <div className="container mx-auto max-w-6xl">
-                <h1 className="text-4xl font-black uppercase tracking-tighter mb-12 italic border-l-8 border-black pl-6">Checkout</h1>
+        <div className="min-h-screen bg-white pt-12 pb-24 px-4 font-sans uppercase">
+            <div className="container mx-auto max-w-7xl">
+                <h1 className="text-5xl font-black uppercase tracking-tighter mb-16 italic flex items-center gap-3">
+                    <div className="w-2 h-12 bg-black"></div>
+                    CHECKOUT
+                </h1>
 
-                <div className="grid grid-cols-1 lg:grid-cols-12 gap-12">
+                <div className="grid grid-cols-1 lg:grid-cols-12 gap-16">
                     {/* Order Summary */}
-                    <div className="lg:col-span-7 bg-white p-8 shadow-sm border border-gray-100 rounded-lg">
-                        <h2 className="text-xs font-black uppercase tracking-[0.2em] text-gray-400 mb-8 pb-4 border-b border-gray-100">Order Summary</h2>
-                        <div className="space-y-8">
+                    <div className="lg:col-span-7">
+                        <h2 className="text-[10px] font-black uppercase tracking-[0.3em] text-gray-400 mb-12">Order Summary</h2>
+                        <div className="space-y-12">
                             {cart.map((item, idx) => (
-                                <div key={`${item.id}-${item.selectedSize || idx}`} className="flex gap-6 group">
-                                    <div className="w-24 h-30 bg-gray-100 overflow-hidden flex-shrink-0 border border-gray-100 rounded">
+                                <div key={`${item.id}-${item.selectedSize || idx}`} className="flex gap-8 group pb-8 border-b border-gray-50 last:border-0">
+                                    <div className="w-32 h-40 bg-gray-50 overflow-hidden flex-shrink-0 border border-gray-100">
                                         {item.imageUrl ? (
-                                            <img src={item.imageUrl} alt={item.name} className="w-full h-full object-cover transform group-hover:scale-105 transition-transform duration-500" />
+                                            <img src={item.imageUrl} alt={item.name} className="w-full h-full object-cover transform group-hover:scale-105 transition-transform duration-700" />
                                         ) : (
                                             <div className="w-full h-full flex items-center justify-center text-4xl">👕</div>
                                         )}
                                     </div>
-                                    <div className="flex-grow">
+                                    <div className="flex-grow flex flex-col">
                                         <div className="flex justify-between items-start mb-2">
-                                            <h3 className="font-black uppercase text-sm tracking-tight text-gray-900">{item.name}</h3>
-                                            <span className="font-bold text-gray-900 italic">₹{(item.price * item.quantity).toFixed(0)}</span>
+                                            <h3 className="font-black text-lg tracking-tight text-gray-900 leading-none">{item.name}</h3>
+                                            <span className="font-black text-xl italic italic">₹{(item.price * item.quantity).toFixed(0)}</span>
                                         </div>
                                         {item.selectedSize && (
-                                            <p className="text-[10px] font-bold text-red-600 uppercase tracking-widest mb-4">Size: {item.selectedSize}</p>
+                                            <p className="text-[10px] font-black text-red-600 tracking-[0.2em] mb-6">SIZE: {item.selectedSize}</p>
                                         )}
-                                        <div className="flex justify-between items-center mt-4">
-                                            <div className="flex items-center border border-gray-200">
+                                        <div className="mt-auto flex justify-between items-center">
+                                            <div className="flex items-center border-[1.5px] border-gray-200">
                                                 <button
                                                     onClick={() => onUpdateQuantity(item.id, -1, item.selectedSize)}
-                                                    className="p-1 px-4 hover:bg-gray-50 text-xs font-black transition-colors"
+                                                    className="w-10 h-10 flex items-center justify-center hover:bg-gray-50 text-sm font-black transition-colors"
                                                 >
                                                     -
                                                 </button>
-                                                <span className="px-4 text-xs font-black border-x border-gray-200">{item.quantity}</span>
+                                                <span className="w-10 h-10 flex items-center justify-center text-sm font-black border-x-[1.5px] border-gray-200">{item.quantity}</span>
                                                 <button
                                                     onClick={() => onUpdateQuantity(item.id, 1, item.selectedSize)}
-                                                    className="p-1 px-4 hover:bg-gray-50 text-xs font-black transition-colors"
+                                                    className="w-10 h-10 flex items-center justify-center hover:bg-gray-50 text-sm font-black transition-colors"
                                                 >
                                                     +
                                                 </button>
                                             </div>
                                             <button
                                                 onClick={() => onRemoveFromCart(item.id, item.selectedSize)}
-                                                className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] hover:text-red-600 transition-colors flex items-center gap-1"
+                                                className="text-[10px] font-black text-gray-400 tracking-[0.3em] hover:text-red-600 transition-colors uppercase"
                                             >
-                                                <span>Remove</span>
+                                                REMOVE
                                             </button>
                                         </div>
                                     </div>
@@ -122,105 +125,118 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ cart, onUpdateQuantity, onR
                     </div>
 
                     {/* Shipping & Payment */}
-                    <div className="lg:col-span-5 flex flex-col gap-8">
-                        <div className="bg-black text-white p-8 shadow-xl rounded-lg overflow-hidden relative">
-                            <div className="absolute top-0 right-0 p-8 opacity-10 text-8xl pointer-events-none italic font-black">NGL</div>
-                            <h2 className="text-xs font-black uppercase tracking-[0.2em] text-gray-400 mb-8">Shipping Information</h2>
-                            <form onSubmit={handleSubmit} className="space-y-6 relative z-10">
-                                <div>
-                                    <label className="text-[10px] font-black uppercase tracking-widest text-gray-400 block mb-2">Full Name</label>
+                    <div className="lg:col-span-5 space-y-8">
+                        <div className="bg-black text-white p-12 shadow-2xl relative overflow-hidden">
+                            <div className="absolute top-4 right-8 text-7xl font-black italic opacity-10 select-none pointer-events-none">NGL</div>
+
+                            <h2 className="text-[10px] font-black uppercase tracking-[0.3em] text-gray-500 mb-10">Shipping Information</h2>
+
+                            <form onSubmit={handleSubmit} className="space-y-8">
+                                <div className="space-y-2">
+                                    <label className="text-[10px] font-black tracking-[0.2em] text-gray-500 block uppercase">Full Name</label>
                                     <input
                                         required
                                         type="text"
                                         name="name"
                                         value={formData.name}
                                         onChange={handleInputChange}
-                                        className="w-full bg-white/10 border-none px-4 py-3 text-sm focus:ring-2 focus:ring-red-600 placeholder-gray-600 text-white rounded transition-all"
                                         placeholder="John Doe"
+                                        className="w-full bg-[#111] border-none px-4 py-4 text-sm font-bold placeholder-gray-800 text-white focus:ring-1 focus:ring-gray-700 transition-all"
                                     />
                                 </div>
-                                <div>
-                                    <label className="text-[10px] font-black uppercase tracking-widest text-gray-400 block mb-2">Email Address</label>
+                                <div className="space-y-2">
+                                    <label className="text-[10px] font-black tracking-[0.2em] text-gray-500 block uppercase">Email Address</label>
                                     <input
                                         required
                                         type="email"
                                         name="email"
                                         value={formData.email}
                                         onChange={handleInputChange}
-                                        className="w-full bg-white/10 border-none px-4 py-3 text-sm focus:ring-2 focus:ring-red-600 placeholder-gray-600 text-white rounded transition-all"
                                         placeholder="john@example.com"
+                                        className="w-full bg-[#111] border-none px-4 py-4 text-sm font-bold placeholder-gray-800 text-white focus:ring-1 focus:ring-gray-700 transition-all"
                                     />
                                 </div>
-                                <div>
-                                    <label className="text-[10px] font-black uppercase tracking-widest text-gray-400 block mb-2">Shipping Address</label>
+                                <div className="space-y-2">
+                                    <label className="text-[10px] font-black tracking-[0.2em] text-gray-500 block uppercase">Shipping Address</label>
                                     <textarea
                                         required
                                         name="address"
                                         rows={3}
                                         value={formData.address}
                                         onChange={handleInputChange}
-                                        className="w-full bg-white/10 border-none px-4 py-3 text-sm focus:ring-2 focus:ring-red-600 placeholder-gray-600 text-white rounded transition-all resize-none"
                                         placeholder="123 Football St, League Town"
+                                        className="w-full bg-[#111] border-none px-4 py-4 text-sm font-bold placeholder-gray-800 text-white focus:ring-1 focus:ring-gray-700 transition-all resize-none"
                                     />
                                 </div>
-                                <div className="grid grid-cols-2 gap-4">
-                                    <div>
-                                        <label className="text-[10px] font-black uppercase tracking-widest text-gray-400 block mb-2">City</label>
+                                <div className="grid grid-cols-2 gap-6">
+                                    <div className="space-y-2">
+                                        <label className="text-[10px] font-black tracking-[0.2em] text-gray-500 block uppercase">City</label>
                                         <input
                                             required
                                             type="text"
                                             name="city"
                                             value={formData.city}
                                             onChange={handleInputChange}
-                                            className="w-full bg-white/10 border-none px-4 py-3 text-sm focus:ring-2 focus:ring-red-600 placeholder-gray-600 text-white rounded transition-all"
                                             placeholder="Barcelona"
+                                            className="w-full bg-[#111] border-none px-4 py-4 text-sm font-bold placeholder-gray-800 text-white focus:ring-1 focus:ring-gray-700 transition-all"
                                         />
                                     </div>
-                                    <div>
-                                        <label className="text-[10px] font-black uppercase tracking-widest text-gray-400 block mb-2">Zip Code</label>
+                                    <div className="space-y-2">
+                                        <label className="text-[10px] font-black tracking-[0.2em] text-gray-500 block uppercase">Zip Code</label>
                                         <input
                                             required
                                             type="text"
                                             name="zipCode"
                                             value={formData.zipCode}
                                             onChange={handleInputChange}
-                                            className="w-full bg-white/10 border-none px-4 py-3 text-sm focus:ring-2 focus:ring-red-600 placeholder-gray-600 text-white rounded transition-all"
                                             placeholder="08001"
+                                            className="w-full bg-[#111] border-none px-4 py-4 text-sm font-bold placeholder-gray-800 text-white focus:ring-1 focus:ring-gray-700 transition-all"
                                         />
                                     </div>
                                 </div>
 
-                                <div className="pt-8 mt-8 border-t border-white/10">
-                                    <div className="flex justify-between items-center mb-6">
-                                        <span className="text-xs font-black uppercase tracking-widest text-gray-400">Total Due</span>
-                                        <span className="text-2xl font-black italic">₹{total.toFixed(0)}</span>
+                                <div className="pt-12 mt-12 border-t border-gray-900">
+                                    <div className="flex justify-between items-center mb-10">
+                                        <span className="text-[10px] font-black tracking-[0.3em] text-gray-500 uppercase">Total Due</span>
+                                        <span className="text-3xl font-black italic italic">₹{total.toFixed(0)}</span>
                                     </div>
+
                                     <button
                                         disabled={isProcessing}
                                         type="submit"
-                                        className={`w-full py-5 font-black uppercase tracking-[0.2em] text-sm transition-all transform hover:-translate-y-1 shadow-2xl relative overflow-hidden ${isProcessing ? 'bg-gray-800 cursor-not-allowed' : 'bg-red-600 hover:bg-white hover:text-red-600'}`}
+                                        className={`w-full py-6 font-black uppercase tracking-[0.3em] text-sm transition-all relative overflow-hidden ${isProcessing ? 'bg-gray-800 cursor-not-allowed' : 'bg-[#e31e24] hover:bg-[#c4191f] text-white shadow-[0_20px_40px_rgba(227,30,36,0.15)]'}`}
                                     >
-                                        <span className={isProcessing ? 'opacity-0' : 'opacity-100'}>Complete Purchase</span>
-                                        {isProcessing && (
-                                            <div className="absolute inset-0 flex items-center justify-center">
-                                                <div className="w-6 h-6 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                                        {isProcessing ? (
+                                            <div className="flex items-center justify-center">
+                                                <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
                                             </div>
+                                        ) : (
+                                            'Complete Purchase'
                                         )}
                                     </button>
                                 </div>
                             </form>
                         </div>
 
-                        <div className="bg-gray-100 p-6 rounded-lg">
-                            <p className="text-[10px] text-gray-500 font-bold uppercase tracking-widest mb-4">Payment Methods</p>
-                            <div className="flex gap-4 opacity-50 grayscale hover:grayscale-0 transition-all cursor-default">
-                                <span className="bg-white px-3 py-1 text-[8px] font-black uppercase border border-gray-200">Visa</span>
-                                <span className="bg-white px-3 py-1 text-[8px] font-black uppercase border border-gray-200">Mastercard</span>
-                                <span className="bg-white px-3 py-1 text-[8px] font-black uppercase border border-gray-200">PayPal</span>
-                                <span className="bg-white px-3 py-1 text-[8px] font-black uppercase border border-gray-200">Apple Pay</span>
+                        <div className="bg-[#f8f8f8] p-8 border border-gray-100">
+                            <p className="text-[9px] font-black text-gray-400 tracking-[0.3em] mb-6 uppercase">Payment Methods</p>
+                            <div className="flex flex-wrap gap-4 opacity-40">
+                                <span className="bg-white px-4 py-1.5 text-[8px] font-black uppercase border border-gray-200">Visa</span>
+                                <span className="bg-white px-4 py-1.5 text-[8px] font-black uppercase border border-gray-200">Mastercard</span>
+                                <span className="bg-white px-4 py-1.5 text-[8px] font-black uppercase border border-gray-200">PayPal</span>
+                                <span className="bg-white px-4 py-1.5 text-[8px] font-black uppercase border border-gray-200">Apple Pay</span>
                             </div>
                         </div>
                     </div>
+                </div>
+
+                <div className="mt-16 flex justify-end">
+                    <button
+                        onClick={() => navigate('/store')}
+                        className="w-full lg:w-5/12 bg-white text-black border-2 border-black py-5 font-black uppercase tracking-[0.25em] text-[10px] hover:bg-gray-50 transition-all shadow-sm"
+                    >
+                        Back to Collection
+                    </button>
                 </div>
             </div>
         </div>

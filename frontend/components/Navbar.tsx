@@ -83,7 +83,7 @@ const Navbar: React.FC<NavbarProps> = ({ isLoggedIn, userRole, onLogout, cart, o
           {/* Cart Icon with Badge */}
           {isStorePage && (
             <button
-              onClick={() => setIsCartOpen(true)}
+              onClick={() => navigate('/checkout')}
               className="relative p-2 text-theme-dark hover:opacity-80 transition-opacity"
             >
               <CartIcon className="h-6 w-6" />

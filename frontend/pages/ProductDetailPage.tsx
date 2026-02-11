@@ -2,6 +2,7 @@ import React from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { toast } from 'react-hot-toast';
 import { Product } from '../types';
+import ProductCard from '../components/ProductCard';
 
 interface ProductDetailPageProps {
     products: Product[];
@@ -20,8 +21,54 @@ const ProductDetailPage: React.FC<ProductDetailPageProps> = ({ products, onAddTo
     React.useEffect(() => {
         if (product) {
             setActiveImage(product.imageUrl);
+            setSelectedSize(''); // Reset size when product changes
+            window.scrollTo(0, 0); // Scroll to top when product changes
         }
     }, [product]);
+
+    // Extraction logic for recommendations
+    const getRecommendations = () => {
+        if (!product || !products.length) return [];
+
+        const name = product.name.toLowerCase();
+
+        // Define common clubs to look for in the name
+        const clubs = [
+            'manchester city', 'man city',
+            'wolverhampton', 'wolves',
+            'west ham',
+            'arsenal', 'chelsea', 'liverpool', 'manchester united', 'man utd', 'tottenham', 'spurs',
+            'barcelona', 'real madrid', 'bayern'
+        ];
+
+        const detectedClub = clubs.find(club => name.includes(club));
+        const category = product.category;
+
+        // Strict filtering: same club AND same category
+        let filtered = products.filter(p => {
+            if (p.id === product.id || p._id === product._id) return false;
+
+            const pName = p.name.toLowerCase();
+            const pCategory = p.category;
+
+            // Match category strictly
+            const categoryMatch = pCategory === category;
+
+            // Match club strictly (if detected)
+            const clubMatch = detectedClub ? pName.includes(detectedClub) : true;
+
+            return clubMatch && categoryMatch;
+        });
+
+        // Ensure we only show matches that satisfy both if a club was detected
+        if (detectedClub) {
+            filtered = filtered.filter(p => p.name.toLowerCase().includes(detectedClub));
+        }
+
+        return filtered.slice(0, 4);
+    };
+
+    const recommendations = getRecommendations();
 
     const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
         const { left, top, width, height } = e.currentTarget.getBoundingClientRect();
@@ -46,10 +93,12 @@ const ProductDetailPage: React.FC<ProductDetailPageProps> = ({ products, onAddTo
         if (product) {
             if (product.sizes && product.sizes.length > 0 && !selectedSize) {
                 toast.error('Please select a size');
-                return;
+                return false;
             }
             onAddToCart(product, selectedSize);
+            return true;
         }
+        return false;
     };
 
     if (!product) {
@@ -78,12 +127,12 @@ const ProductDetailPage: React.FC<ProductDetailPageProps> = ({ products, onAddTo
                     {/* Image Section - Interactive Gallery */}
                     <div className="lg:w-7/12 flex flex-col-reverse lg:flex-row gap-4">
                         {/* Thumbnails Sidebar */}
-                        <div className="flex lg:flex-col gap-8 overflow-x-auto lg:overflow-y-auto lg:w-64 no-scrollbar">
+                        <div className="flex lg:flex-col gap-8 overflow-x-auto lg:overflow-y-auto lg:w-32 no-scrollbar">
                             {galleryImages.map((img, idx) => (
                                 <button
                                     key={`${img}-${idx}`}
                                     onClick={() => setActiveImage(img)}
-                                    className={`w-40 h-40 lg:w-full lg:h-64 flex-shrink-0 border-2 transition-all ${activeImage === img ? 'border-black' : 'border-gray-100 hover:border-gray-300'}`}
+                                    className={`w-20 h-20 lg:w-full lg:h-32 flex-shrink-0 border-2 transition-all ${activeImage === img ? 'border-black' : 'border-gray-100 hover:border-gray-300'}`}
                                 >
                                     <img src={img} alt={`${product.name} ${idx + 1}`} className="w-full h-full object-cover" />
                                 </button>
@@ -184,6 +233,16 @@ const ProductDetailPage: React.FC<ProductDetailPageProps> = ({ products, onAddTo
                                 Add to Bag
                             </button>
                             <button
+                                onClick={() => {
+                                    if (handleAddToBag()) {
+                                        navigate('/checkout');
+                                    }
+                                }}
+                                className="w-full bg-red-600 text-white py-6 font-black uppercase tracking-[0.3em] text-sm hover:bg-red-700 transition-all transform hover:-translate-y-1 shadow-[0_20px_40px_rgba(220,38,38,0.2)]"
+                            >
+                                Buy Now
+                            </button>
+                            <button
                                 onClick={() => navigate('/store')}
                                 className="w-full bg-white text-black border-2 border-black py-5 font-black uppercase tracking-[0.25em] text-[10px] hover:bg-gray-50 transition-all"
                             >
@@ -192,6 +251,18 @@ const ProductDetailPage: React.FC<ProductDetailPageProps> = ({ products, onAddTo
                         </div>
                     </div>
                 </div>
+
+                {/* Recommendations Section */}
+                {recommendations.length > 0 && (
+                    <div className="mt-24 border-t border-gray-100 pt-16">
+                        <h2 className="text-2xl font-black uppercase tracking-[0.15em] mb-10 italic">You Might Also Like</h2>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8">
+                            {recommendations.map(rec => (
+                                <ProductCard key={rec.id || rec._id} product={rec} />
+                            ))}
+                        </div>
+                    </div>
+                )}
             </div>
         </div>
     );
