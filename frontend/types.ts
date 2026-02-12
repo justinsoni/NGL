@@ -187,6 +187,7 @@ export interface Product {
   sizes?: string[];
   images?: string[];
   tags?: string[];
+  createdAt?: string;
 }
 
 export interface CartItem extends Product {

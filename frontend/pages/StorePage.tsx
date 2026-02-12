@@ -31,7 +31,19 @@ const StorePage: React.FC<{ products: Product[] }> = ({ products }) => {
         } else if (sortBy === 'Price: High to Low') {
             result.sort((a, b) => b.price - a.price);
         } else if (sortBy === 'Newest') {
-            result.sort((a, b) => String(b.id).localeCompare(String(a.id)));
+            result.sort((a, b) => {
+                const dateA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+                const dateB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+                if (dateA !== dateB) return dateB - dateA;
+                return String(b.id).localeCompare(String(a.id));
+            });
+        } else if (sortBy === 'Oldest') {
+            result.sort((a, b) => {
+                const dateA = a.createdAt ? new Date(a.createdAt).getTime() : Infinity;
+                const dateB = b.createdAt ? new Date(b.createdAt).getTime() : Infinity;
+                if (dateA !== dateB) return dateA - dateB;
+                return String(a.id).localeCompare(String(b.id));
+            });
         }
 
         return result;
@@ -93,6 +105,7 @@ const StorePage: React.FC<{ products: Product[] }> = ({ products }) => {
                             <option>Price: Low to High</option>
                             <option>Price: High to Low</option>
                             <option>Newest</option>
+                            <option>Oldest</option>
                         </select>
                     </div>
                 </div>
