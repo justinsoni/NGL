@@ -1,21 +1,21 @@
 const express = require('express');
 const { body } = require('express-validator');
-const { 
-  registerUser, 
-  getUserProfile, 
-  updateUserProfile, 
-  getAllUsers, 
-  updateUserRole, 
-  checkAuthMethod, 
+const {
+  registerUser,
+  getUserProfile,
+  updateUserProfile,
+  getAllUsers,
+  updateUserRole,
+  checkAuthMethod,
   checkUserExists,
   validateUserForLogin
 } = require('../controllers/authController');
-const { 
-  createManager, 
-  getAllManagers, 
-  getManagerById, 
-  updateManager, 
-  deactivateManager 
+const {
+  createManager,
+  getAllManagers,
+  getManagerById,
+  updateManager,
+  deactivateManager
 } = require('../controllers/managerController');
 const { authenticateToken, requireRole } = require('../middleware/auth');
 const { validateRequest } = require('../middleware/validation');

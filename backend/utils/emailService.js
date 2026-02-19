@@ -31,7 +31,7 @@ class EmailService {
     }
 
     // Initialize Gmail transporter as fallback
-    if (emailPassword && emailPassword !== 'your-app-password' && emailPassword !== 'your-16-character-app-password' && emailPassword !== 'your-gmail-app-password') {
+    if (emailPassword && emailPassword !== 'your-app-password' && emailPassword !== 'your-16-character-app-password' && emailPassword !== 'your-gmail-app-password' && emailPassword !== 'replace-with-your-gmail-app-password') {
       this.transporter = nodemailer.createTransport({
         service: 'gmail',
         auth: {
@@ -41,7 +41,7 @@ class EmailService {
       });
       console.log('✅ Gmail email service configured successfully as fallback');
     } else {
-      console.log('⚠️ Gmail credentials not configured. Please set EMAIL_USER and EMAIL_PASSWORD in .env file');
+      console.log('⚠️ Gmail credentials not configured correctly. Set EMAIL_USER and EMAIL_PASSWORD with a valid App Password in .env');
       this.transporter = null;
     }
   }
@@ -67,7 +67,7 @@ class EmailService {
   }
 
   // Send manager credentials email using Brevo (primary) or Gmail (fallback)
-  async sendManagerCredentials(managerEmail, managerName, passwordResetLink, clubName, adminName = 'System Administrator') {
+  async sendManagerCredentials(managerEmail, managerName, password, passwordResetLink, clubName, adminName = 'System Administrator') {
     const subject = `🎯 Welcome to NGL - Manager Account Created for ${clubName}`;
 
     const htmlBody = `
@@ -85,6 +85,7 @@ class EmailService {
           .credentials { background: #e8f5e8; border: 2px solid #4caf50; border-radius: 8px; padding: 20px; margin: 20px 0; }
           .button { display: inline-block; background: #4caf50; color: white; padding: 12px 24px; text-decoration: none; border-radius: 5px; margin: 10px 0; }
           .footer { text-align: center; margin-top: 30px; color: #666; font-size: 14px; }
+          .highlight { background: #f0f0f0; padding: 2px 5px; border-radius: 3px; font-family: monospace; }
         </style>
       </head>
       <body>
@@ -101,7 +102,8 @@ class EmailService {
             <div class="credentials">
               <h3>📧 Login Credentials:</h3>
               <p><strong>Email:</strong> ${managerEmail}</p>
-              <p><strong>Password Reset Link:</strong> ${passwordResetLink}</p>
+              <p><strong>Password:</strong> <span class="highlight">${password}</span></p>
+              ${passwordResetLink ? `<p><strong>Setup Link:</strong> <a href="${passwordResetLink}">Click here to set your own password</a></p>` : ''}
               <p><strong>Club:</strong> ${clubName}</p>
             </div>
             
@@ -140,7 +142,8 @@ Your manager account has been created by ${adminName} for ${clubName}.
 
 📧 Login Credentials:
 Email: ${managerEmail}
-Password Reset Link: ${passwordResetLink}
+Password: ${password}
+${passwordResetLink ? `Password Setup Link: ${passwordResetLink}` : ''}
 Club: ${clubName}
 
 🔐 Security Note: Please change your password after your first login.
@@ -182,7 +185,12 @@ NGL Administration Team
         console.log('✅ Brevo email sent successfully:', result.body?.messageId || result.messageId);
         return { success: true, messageId: result.body?.messageId || result.messageId, provider: 'brevo' };
       } catch (error) {
-        console.error('❌ Brevo email sending failed:', error.message);
+        console.error('❌ Brevo email sending failed:');
+        if (error.response && error.response.body) {
+          console.error('Brevo Error Detail:', JSON.stringify(error.response.body, null, 2));
+        } else {
+          console.error('Error Message:', error.message);
+        }
         // Fall back to Gmail if Brevo fails
       }
     }

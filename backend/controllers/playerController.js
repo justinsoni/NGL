@@ -302,6 +302,56 @@ const deletePlayer = async (req, res) => {
   }
 };
 
+const recruitPlayer = async (req, res) => {
+  try {
+    const email = (req.body.email || '').toLowerCase().trim();
+    if (!email) {
+      return res.status(400).json({ success: false, message: 'Email is required' });
+    }
+
+    const [existingPlayer, existingUser] = await Promise.all([
+      Player.findOne({ email }),
+      User.findOne({ email })
+    ]);
+
+    if (existingPlayer || existingUser) {
+      return res.status(409).json({
+        success: false,
+        message: 'A player or user with this email already exists'
+      });
+    }
+
+    // Direct recruitment is always approved and verified
+    const player = await Player.create({
+      ...req.body,
+      email,
+      status: 'approved',
+      isVerified: true,
+      documentVerification: {
+        status: 'verified',
+        method: 'manual',
+        verifiedAt: new Date(),
+        verifiedBy: req.user ? req.user._id : undefined,
+        notes: 'Recruited directly by club manager'
+      },
+      reviewedAt: new Date(),
+      reviewedBy: req.user ? req.user._id : undefined
+    });
+
+    res.status(201).json({
+      success: true,
+      message: 'Player recruited successfully',
+      data: player
+    });
+  } catch (error) {
+    console.error('Direct recruitment error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to recruit player'
+    });
+  }
+};
+
 module.exports = {
   registerPlayer,
   getPendingPlayers,
@@ -309,6 +359,7 @@ module.exports = {
   rejectPlayer,
   getApprovedPlayers,
   updatePlayer,
+  recruitPlayer,
   deletePlayer,
   verifyDocuments,
   unverifyDocuments

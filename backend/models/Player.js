@@ -118,6 +118,26 @@ const playerSchema = new mongoose.Schema({
   reviewedBy: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User'
+  },
+  // Medical & Fitness
+  hasInjuryHistory: {
+    type: Boolean,
+    default: false
+  },
+  injuryNature: {
+    type: String,
+    maxlength: 500
+  },
+  lastInjuryDate: {
+    type: Date
+  },
+  fitnessStatus: {
+    type: String,
+    trim: true
+  },
+  minimumSalary: {
+    type: Number,
+    min: 0
   }
 }, {
   timestamps: true

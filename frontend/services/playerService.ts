@@ -45,6 +45,11 @@ export const playerService = {
     const response = await api.delete(`/players/${id}`);
     return response.data;
   },
+
+  async recruit(playerData: any) {
+    const response = await api.post('/players/recruit', playerData);
+    return response.data;
+  },
 };
 
 export default playerService;

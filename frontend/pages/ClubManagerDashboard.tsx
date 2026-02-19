@@ -28,7 +28,7 @@ interface ClubManagerDashboardProps {
     onRejectPlayerRegistration: (registrationId: number, reason: string) => void;
 }
 
-type ManagerSection = 'Dashboard' | 'Manage Players' | 'Manage Coaches' | 'Manage Transfers' | 'Manage Best Goals' | 'Manage News' | 'Profile';
+type ManagerSection = 'Dashboard' | 'Manage Players' | 'Player Scouting' | 'Direct Recruitment' | 'Manage Coaches' | 'Manage Transfers' | 'Manage Best Goals' | 'Manage News' | 'Profile';
 
 const ClubManagerDashboard: React.FC<ClubManagerDashboardProps> = ({
     club,
@@ -73,12 +73,39 @@ const ClubManagerDashboard: React.FC<ClubManagerDashboardProps> = ({
 
     // Player form with identity card
     const initialFormState = {
-        name: '', email: '', phone: '', dob: '',
-        position: POSITIONS[0], nationality: '',
-        previousClub: 'Free Agent', leaguesPlayed: [] as string[],
-        imageUrl: '', identityCardUrl: '', bio: '',
+        name: '',
+        email: '',
+        phone: '',
+        dob: '',
+        age: 15,
+        position: POSITIONS[0],
+        nationality: '',
+        previousClub: '',
+        leaguesPlayed: [] as string[],
+        bio: '',
+        imageUrl: '',
+        identityCardUrl: '',
+        hasInjuryHistory: false,
+        injuryNature: '',
+        lastInjuryDate: '',
+        fitnessStatus: '',
+        minimumSalary: 0
     };
     const [formData, setFormData] = useState(initialFormState);
+    const [recruitUploadedFiles, setRecruitUploadedFiles] = useState<{
+        profilePhoto: File | null;
+        identityCard: File | null;
+    }>({
+        profilePhoto: null,
+        identityCard: null
+    });
+    const [recruitPreviewUrls, setRecruitPreviewUrls] = useState<{
+        profilePhoto: string | null;
+        identityCard: string | null;
+    }>({
+        profilePhoto: null,
+        identityCard: null
+    });
     const [editingPlayer, setEditingPlayer] = useState<Player | null>(null);
     const [clubVideos, setClubVideos] = useState<ClubVideo[]>([]);
     const [uploadedDocuments, setUploadedDocuments] = useState<{ [key: number]: File }>({});
@@ -159,6 +186,9 @@ const ClubManagerDashboard: React.FC<ClubManagerDashboardProps> = ({
     useEffect(() => {
         fetchPendingPlayers();
     }, [club.id]);
+
+    const clubPendingPlayers = pendingPlayers.filter(p => p.clubId === club.id || (p.clubId as any)?._id === club.id);
+    const generalPoolPlayers = pendingPlayers.filter(p => !p.clubId);
 
     // Load countries once for nationality dropdown
     useEffect(() => {
@@ -300,8 +330,61 @@ const ClubManagerDashboard: React.FC<ClubManagerDashboardProps> = ({
     }));
 
     const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
-        const { name, value } = e.target;
-        setFormData(prev => ({ ...prev, [name]: value }));
+        const { name, value, type } = e.target;
+
+        if (type === 'checkbox') {
+            const checkbox = e.target as HTMLInputElement;
+            const currentLeagues = formData.leaguesPlayed || [];
+            const updatedLeagues = checkbox.checked
+                ? [...currentLeagues, value]
+                : currentLeagues.filter(l => l !== value);
+            setFormData(prev => ({ ...prev, leaguesPlayed: updatedLeagues }));
+        } else if (name === 'name') {
+            const sanitized = value.replace(/[^A-Za-z\s'\-]/g, '').replace(/\s{2,}/g, ' ');
+            setFormData(prev => ({ ...prev, [name]: sanitized }));
+        } else if (name === 'phone') {
+            const digitsOnly = value.replace(/[^0-9]/g, '');
+            setFormData(prev => ({ ...prev, [name]: digitsOnly }));
+        } else {
+            setFormData(prev => ({ ...prev, [name]: value }));
+        }
+    };
+
+    const handleRecruitFileUpload = (field: 'profilePhoto' | 'identityCard', file: File) => {
+        // Validate file types and sizes as in PlayerRegistrationPage
+        const isImage = file.type.startsWith('image/');
+        const maxSize = isImage ? 5 * 1024 * 1024 : 10 * 1024 * 1024;
+
+        if (file.size > maxSize) {
+            toast.error(`File too large. Max ${isImage ? '5MB' : '10MB'}`);
+            return;
+        }
+
+        setRecruitUploadedFiles(prev => ({ ...prev, [field]: file }));
+
+        if (isImage) {
+            const previewUrl = URL.createObjectURL(file);
+            setRecruitPreviewUrls(prev => ({ ...prev, [field]: previewUrl }));
+        } else {
+            setRecruitPreviewUrls(prev => ({ ...prev, [field]: file.name }));
+        }
+    };
+
+    const recruitUploadToCloudinary = async (file: File, uploadPreset: string): Promise<string> => {
+        const url = `${(import.meta as any).env.VITE_CLOUDINARY_URL || 'https://api.cloudinary.com/v1_1/dmuilu78u/auto/upload'}`;
+        const data = new FormData();
+        data.append("file", file);
+        data.append("upload_preset", uploadPreset);
+
+        try {
+            const res = await fetch(url, { method: "POST", body: data });
+            if (!res.ok) throw new Error("Upload failed");
+            const result = await res.json();
+            return result.secure_url;
+        } catch (err) {
+            console.error("Cloudinary upload error:", err);
+            throw err;
+        }
     };
 
 
@@ -1006,13 +1089,19 @@ const ClubManagerDashboard: React.FC<ClubManagerDashboardProps> = ({
             email: player.email,
             phone: player.phone,
             dob: player.dob ? new Date(player.dob).toISOString().split('T')[0] : '',
+            age: player.age || 15,
             position: player.position,
             nationality: player.nationality,
-            previousClub: player.previousClub,
-            leaguesPlayed: player.leaguesPlayed,
-            imageUrl: player.imageUrl,
-            identityCardUrl: player.identityCardUrl,
-            bio: player.bio
+            previousClub: player.previousClub || '',
+            leaguesPlayed: player.leaguesPlayed || [],
+            imageUrl: player.imageUrl || '',
+            identityCardUrl: player.identityCardUrl || '',
+            bio: player.bio || '',
+            hasInjuryHistory: player.hasInjuryHistory || false,
+            injuryNature: player.injuryNature || '',
+            lastInjuryDate: player.lastInjuryDate || '',
+            fitnessStatus: player.fitnessStatus || '',
+            minimumSalary: player.minimumSalary || 0
         });
         setEditingPlayer(player);
     };
@@ -1148,6 +1237,466 @@ const ClubManagerDashboard: React.FC<ClubManagerDashboardProps> = ({
     };
 
 
+
+    const handleDirectRecruitmentSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+        e.preventDefault();
+
+        const loadingToast = toast.loading('Processing recruitment...');
+        try {
+            let imageUrl = formData.imageUrl;
+            let identityCardUrl = formData.identityCardUrl;
+
+            // Upload files to Cloudinary if selected
+            if (recruitUploadedFiles.profilePhoto) {
+                imageUrl = await recruitUploadToCloudinary(recruitUploadedFiles.profilePhoto, 'ml_default');
+            }
+            if (recruitUploadedFiles.identityCard) {
+                identityCardUrl = await recruitUploadToCloudinary(recruitUploadedFiles.identityCard, 'ml_default');
+            }
+
+            if (!identityCardUrl && !recruitUploadedFiles.identityCard) {
+                toast.error('Identity document is required', { id: loadingToast });
+                return;
+            }
+
+            const recruitmentData = {
+                ...formData,
+                imageUrl,
+                identityCardUrl,
+                clubId: club.id,
+                club: club.name,
+                clubLogo: club.logo,
+                status: 'approved',
+                isVerified: true
+            };
+
+            const response = await playerService.recruit(recruitmentData);
+            if (response.success) {
+                toast.success('Player recruited successfully and added to squad!', { id: loadingToast });
+                await fetchApprovedPlayers();
+                setFormData(initialFormState);
+                setRecruitUploadedFiles({ profilePhoto: null, identityCard: null });
+                setRecruitPreviewUrls({ profilePhoto: null, identityCard: null });
+                setActiveSection('Manage Players');
+            } else {
+                toast.error(response.message || 'Failed to recruit player', { id: loadingToast });
+            }
+        } catch (error: any) {
+            console.error('Error in direct recruitment:', error);
+            toast.error(error.response?.data?.message || 'Failed to recruit player', { id: loadingToast });
+        }
+    };
+
+    const renderDirectRecruitment = () => {
+        // Date boundaries for logical DOB
+        const today = new Date();
+        const maxDobDate = new Date(today.getFullYear() - 10, today.getMonth(), today.getDate());
+        const minDobDate = new Date(today.getFullYear() - 60, today.getMonth(), today.getDate());
+        const formatDate = (d: Date) => new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().split('T')[0];
+        const minDobStr = formatDate(minDobDate);
+        const maxDobStr = formatDate(maxDobDate);
+
+        return (
+            <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+                <div className="bg-white rounded-2xl shadow-2xl overflow-hidden">
+                    {/* Header - Matching Registration Form */}
+                    <div className="bg-gradient-to-r from-blue-600 to-purple-600 px-8 py-8 text-white">
+                        <h1 className="text-4xl font-bold text-center mb-2">Direct Player Recruitment</h1>
+                        <p className="text-center text-blue-100 text-lg">
+                            Manually add a player directly to your squad bypassing the standard registration process
+                        </p>
+                    </div>
+
+                    <div className="p-8 space-y-8">
+                        <form onSubmit={handleDirectRecruitmentSubmit} className="space-y-8">
+                            {/* Personal Information */}
+                            <div className="bg-gray-50 rounded-xl p-8 border border-gray-200">
+                                <div className="flex items-center mb-6">
+                                    <div className="w-10 h-10 bg-blue-600 rounded-full flex items-center justify-center mr-4">
+                                        <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                                        </svg>
+                                    </div>
+                                    <h2 className="text-2xl font-bold text-gray-800">Personal Information</h2>
+                                </div>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                    <div>
+                                        <label className="block text-sm font-semibold text-gray-700 mb-2">Full Name *</label>
+                                        <input
+                                            name="name"
+                                            value={formData.name}
+                                            onChange={handleInputChange}
+                                            required
+                                            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all"
+                                            placeholder="Enter full name"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm font-semibold text-gray-700 mb-2">Age *</label>
+                                        <input
+                                            type="number"
+                                            name="age"
+                                            value={formData.age}
+                                            onChange={handleInputChange}
+                                            min={15}
+                                            max={45}
+                                            required
+                                            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all"
+                                            placeholder="15"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm font-semibold text-gray-700 mb-2">Email Address *</label>
+                                        <input
+                                            type="email"
+                                            name="email"
+                                            value={formData.email}
+                                            onChange={handleInputChange}
+                                            required
+                                            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all"
+                                            placeholder="your.email@example.com"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm font-semibold text-gray-700 mb-2">Phone Number *</label>
+                                        <input
+                                            type="tel"
+                                            name="phone"
+                                            value={formData.phone}
+                                            onChange={handleInputChange}
+                                            required
+                                            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all"
+                                            placeholder="+1 (555) 123-4567"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm font-semibold text-gray-700 mb-2">Date of Birth *</label>
+                                        <input
+                                            type="date"
+                                            name="dob"
+                                            value={formData.dob}
+                                            onChange={handleInputChange}
+                                            min={minDobStr}
+                                            max={maxDobStr}
+                                            required
+                                            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm font-semibold text-gray-700 mb-2">Nationality *</label>
+                                        <select
+                                            name="nationality"
+                                            value={formData.nationality}
+                                            onChange={handleInputChange}
+                                            required
+                                            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all bg-white text-black"
+                                        >
+                                            <option value="">Select nationality</option>
+                                            {countries.map(country => (
+                                                <option key={country.code} value={country.name} className="text-black">
+                                                    {country.flag} {country.name}
+                                                </option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Gaming Information */}
+                            <div className="bg-gray-50 rounded-xl p-8 border border-gray-200">
+                                <div className="flex items-center mb-6">
+                                    <div className="w-10 h-10 bg-green-600 rounded-full flex items-center justify-center mr-4">
+                                        <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.828 14.828a4 4 0 01-5.656 0M9 10h1m4 0h1m-6 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                        </svg>
+                                    </div>
+                                    <h2 className="text-2xl font-bold text-gray-800">Gaming Information</h2>
+                                </div>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                    <div>
+                                        <label className="block text-sm font-semibold text-gray-700 mb-2">Preferred Position *</label>
+                                        <select
+                                            name="position"
+                                            value={formData.position}
+                                            onChange={handleInputChange}
+                                            required
+                                            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all bg-white text-black"
+                                        >
+                                            {POSITIONS.map(position => (
+                                                <option key={position} value={position} className="text-black">{position}</option>
+                                            ))}
+                                        </select>
+                                    </div>
+
+                                    <div className="md:col-span-2">
+                                        <label className="block text-sm font-semibold text-gray-700 mb-2">Previous Club</label>
+                                        <input
+                                            name="previousClub"
+                                            value={formData.previousClub}
+                                            onChange={handleInputChange}
+                                            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all"
+                                            placeholder="Enter previous club (if any)"
+                                        />
+                                    </div>
+                                    <div className="md:col-span-2">
+                                        <label className="block text-sm font-semibold text-gray-700 mb-2">Minimum Salary Expectation ($) *</label>
+                                        <input
+                                            type="number"
+                                            name="minimumSalary"
+                                            value={formData.minimumSalary}
+                                            onChange={handleInputChange}
+                                            min="0"
+                                            required
+                                            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all"
+                                        />
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Leagues Played */}
+                            <div className="bg-gray-50 rounded-xl p-8 border border-gray-200">
+                                <div className="flex items-center mb-6">
+                                    <div className="w-10 h-10 bg-purple-600 rounded-full flex items-center justify-center mr-4">
+                                        <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+                                        </svg>
+                                    </div>
+                                    <h2 className="text-2xl font-bold text-gray-800">Leagues Played *</h2>
+                                </div>
+                                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                                    {LEAGUES.map(league => (
+                                        <label key={league} className="flex items-center p-3 bg-white rounded-lg border border-gray-200 hover:border-blue-300 transition-all duration-200 cursor-pointer">
+                                            <input
+                                                type="checkbox"
+                                                name="leaguesPlayed"
+                                                value={league}
+                                                checked={(formData.leaguesPlayed || []).includes(league)}
+                                                onChange={handleInputChange}
+                                                className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                                            />
+                                            <span className="ml-3 text-sm font-medium text-gray-700">{league}</span>
+                                        </label>
+                                    ))}
+                                </div>
+                            </div>
+
+                            {/* Medical and Fitness History */}
+                            <div className="bg-gray-50 rounded-xl p-8 border border-gray-200">
+                                <div className="flex items-center mb-6">
+                                    <div className="w-10 h-10 bg-red-600 rounded-full flex items-center justify-center mr-4">
+                                        <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
+                                        </svg>
+                                    </div>
+                                    <h2 className="text-2xl font-bold text-gray-800">Medical and Fitness History</h2>
+                                </div>
+
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                    <div className="md:col-span-2">
+                                        <label className="block text-sm font-semibold text-gray-700 mb-2">Injury History (Yes / No) *</label>
+                                        <div className="flex space-x-6">
+                                            <label className="inline-flex items-center">
+                                                <input
+                                                    type="radio"
+                                                    checked={formData.hasInjuryHistory === true}
+                                                    onChange={() => setFormData(p => ({ ...p, hasInjuryHistory: true }))}
+                                                    className="form-radio h-5 w-5 text-red-600"
+                                                />
+                                                <span className="ml-2 text-gray-700 font-medium">Yes</span>
+                                            </label>
+                                            <label className="inline-flex items-center">
+                                                <input
+                                                    type="radio"
+                                                    checked={formData.hasInjuryHistory === false}
+                                                    onChange={() => setFormData(p => ({ ...p, hasInjuryHistory: false }))}
+                                                    className="form-radio h-5 w-5 text-green-600"
+                                                />
+                                                <span className="ml-2 text-gray-700 font-medium">No</span>
+                                            </label>
+                                        </div>
+                                    </div>
+
+                                    {formData.hasInjuryHistory && (
+                                        <>
+                                            <div className="md:col-span-2">
+                                                <label className="block text-sm font-semibold text-gray-700 mb-2">Nature of Previous Injuries *</label>
+                                                <textarea
+                                                    name="injuryNature"
+                                                    value={formData.injuryNature}
+                                                    onChange={handleInputChange}
+                                                    rows={3}
+                                                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all"
+                                                    placeholder="Describe previous injuries..."
+                                                />
+                                            </div>
+                                            <div>
+                                                <label className="block text-sm font-semibold text-gray-700 mb-2">Date of Last Injury *</label>
+                                                <input
+                                                    type="date"
+                                                    name="lastInjuryDate"
+                                                    value={formData.lastInjuryDate}
+                                                    onChange={handleInputChange}
+                                                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all font-sans"
+                                                />
+                                            </div>
+                                        </>
+                                    )}
+
+                                    <div className={formData.hasInjuryHistory ? "" : "md:col-span-2"}>
+                                        <label className="block text-sm font-semibold text-gray-700 mb-2">Current Fitness Status *</label>
+                                        <select
+                                            name="fitnessStatus"
+                                            value={formData.fitnessStatus}
+                                            onChange={handleInputChange}
+                                            required
+                                            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all bg-white text-black"
+                                        >
+                                            <option value="">Select status</option>
+                                            <option value="Fully Fit">Fully Fit</option>
+                                            <option value="Match Fit">Match Fit</option>
+                                            <option value="Returning from Injury">Returning from Injury</option>
+                                            <option value="Injured">Injured</option>
+                                            <option value="Recovering">Recovering</option>
+                                        </select>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Documents & Photo */}
+                            <div className="bg-gray-50 rounded-xl p-8 border border-gray-200">
+                                <div className="flex items-center mb-6">
+                                    <div className="w-10 h-10 bg-orange-600 rounded-full flex items-center justify-center mr-4">
+                                        <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                                        </svg>
+                                    </div>
+                                    <h2 className="text-2xl font-bold text-gray-800">Documents & Photo</h2>
+                                </div>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                                    <div>
+                                        <label className="block text-sm font-semibold text-gray-700 mb-4">Profile Photo</label>
+                                        {recruitPreviewUrls.profilePhoto ? (
+                                            <div className="relative group">
+                                                <img src={recruitPreviewUrls.profilePhoto} alt="Profile" className="w-full h-48 object-cover rounded-xl border-2 border-green-300 shadow-md" />
+                                                <button
+                                                    type="button"
+                                                    onClick={() => {
+                                                        setRecruitPreviewUrls(p => ({ ...p, profilePhoto: null }));
+                                                        setRecruitUploadedFiles(p => ({ ...p, profilePhoto: null }));
+                                                    }}
+                                                    className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 shadow-lg hover:bg-red-600 transition-colors"
+                                                >
+                                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" /></svg>
+                                                </button>
+                                                <p className="mt-2 text-center text-sm font-medium text-green-600">✓ Photo Selected</p>
+                                            </div>
+                                        ) : (
+                                            <label className="border-2 border-dashed border-gray-300 rounded-xl p-8 flex flex-col items-center justify-center cursor-pointer hover:border-blue-400 hover:bg-blue-50 transition-all group">
+                                                <input
+                                                    type="file"
+                                                    accept="image/*"
+                                                    className="hidden"
+                                                    onChange={(e) => e.target.files?.[0] && handleRecruitFileUpload('profilePhoto', e.target.files[0])}
+                                                />
+                                                <div className="w-12 h-12 bg-gray-100 rounded-full flex items-center justify-center mb-3 group-hover:bg-blue-100 transition-colors">
+                                                    <svg className="w-6 h-6 text-gray-400 group-hover:text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4" /></svg>
+                                                </div>
+                                                <span className="text-sm font-medium text-gray-600">Upload Profile Photo</span>
+                                                <span className="text-xs text-gray-400 mt-1">JPG, PNG, WEBP up to 5MB</span>
+                                            </label>
+                                        )}
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm font-semibold text-gray-700 mb-4">Identity Card / Player Card * (PDF, JPG, PNG)</label>
+                                        {recruitPreviewUrls.identityCard ? (
+                                            <div className="bg-blue-50 p-6 rounded-xl border-2 border-blue-200 flex items-center justify-between shadow-sm">
+                                                <div className="flex items-center">
+                                                    <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center mr-3">
+                                                        <svg className="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+                                                    </div>
+                                                    <div className="truncate max-w-[150px]">
+                                                        <p className="text-sm font-bold text-blue-800 truncate">{recruitPreviewUrls.identityCard}</p>
+                                                        <p className="text-xs text-blue-600">Document Selected</p>
+                                                    </div>
+                                                </div>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => {
+                                                        setRecruitPreviewUrls(p => ({ ...p, identityCard: null }));
+                                                        setRecruitUploadedFiles(p => ({ ...p, identityCard: null }));
+                                                    }}
+                                                    className="text-red-500 hover:text-red-700 p-1"
+                                                >
+                                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                                                </button>
+                                            </div>
+                                        ) : (
+                                            <label className="border-2 border-dashed border-gray-300 rounded-xl p-8 flex flex-col items-center justify-center cursor-pointer hover:border-purple-400 hover:bg-purple-50 transition-all group">
+                                                <input
+                                                    type="file"
+                                                    accept=".pdf,image/*"
+                                                    className="hidden"
+                                                    onChange={(e) => e.target.files?.[0] && handleRecruitFileUpload('identityCard', e.target.files[0])}
+                                                />
+                                                <div className="w-12 h-12 bg-gray-100 rounded-full flex items-center justify-center mb-3 group-hover:bg-purple-100 transition-colors">
+                                                    <svg className="w-6 h-6 text-gray-400 group-hover:text-purple-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 13h6m-3-3v6m-9 1V7a2 2 0 012-2h6l2 2h6a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2z" /></svg>
+                                                </div>
+                                                <span className="text-sm font-medium text-gray-600">Upload Identity Document *</span>
+                                                <span className="text-xs text-gray-400 mt-1">PDF, JPG, PNG up to 10MB</span>
+                                            </label>
+                                        )}
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* About You */}
+                            <div className="bg-gray-50 rounded-xl p-8 border border-gray-200">
+                                <div className="flex items-center mb-6">
+                                    <div className="w-10 h-10 bg-indigo-600 rounded-full flex items-center justify-center mr-4">
+                                        <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                        </svg>
+                                    </div>
+                                    <h2 className="text-2xl font-bold text-gray-800">About You</h2>
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-semibold text-gray-700 mb-2">Bio / Description *</label>
+                                    <textarea
+                                        name="bio"
+                                        value={formData.bio}
+                                        onChange={handleInputChange}
+                                        rows={4}
+                                        required
+                                        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all"
+                                        placeholder="Tell us about the player's gaming experience, achievements, etc."
+                                    />
+                                </div>
+                            </div>
+
+                            <div className="flex gap-6 pt-10">
+                                <button
+                                    type="submit"
+                                    className="flex-1 bg-gradient-to-r from-blue-600 to-purple-600 text-white font-bold py-4 px-8 rounded-xl hover:opacity-90 transition-all shadow-xl text-lg transform hover:-translate-y-1"
+                                >
+                                    Complete Recruitment
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        setFormData(initialFormState);
+                                        setActiveSection('Manage Players');
+                                    }}
+                                    className="px-8 py-4 bg-gray-200 text-gray-700 font-bold rounded-xl hover:bg-gray-300 transition-all text-lg"
+                                >
+                                    Cancel
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        );
+    };
 
     const renderManageCoaches = () => (
         <div>
@@ -2194,15 +2743,15 @@ const ClubManagerDashboard: React.FC<ClubManagerDashboardProps> = ({
                     </div>
                 </div>
 
-                {pendingPlayers.length === 0 ? (
+                {clubPendingPlayers.length === 0 ? (
                     <div className="bg-theme-secondary-bg p-8 rounded-xl text-center">
                         <div className="text-6xl mb-4">📝</div>
                         <h4 className="text-xl font-semibold text-theme-dark mb-2">No Pending Registrations</h4>
-                        <p className="text-theme-text-secondary">All player registration requests have been processed.</p>
+                        <p className="text-theme-text-secondary">All player registration requests for {club.name} have been processed.</p>
                     </div>
                 ) : (
                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                        {pendingPlayers.map(player => (
+                        {clubPendingPlayers.map(player => (
                             <div key={player._id || player.id} className="bg-theme-secondary-bg p-6 rounded-xl shadow-lg border-l-4 border-yellow-500">
                                 <div className="flex items-start justify-between mb-4">
                                     <div className="flex items-center gap-4">
@@ -2407,6 +2956,76 @@ const ClubManagerDashboard: React.FC<ClubManagerDashboardProps> = ({
         </div>
     );
 
+    const renderPlayerScouting = () => (
+        <div>
+            <h2 className="text-3xl font-bold mb-4 text-theme-dark text-center">Player Scouting</h2>
+            <p className="mb-8 text-theme-text-secondary text-center max-w-2xl mx-auto">
+                Discover new talent for your squad. These players have registered without a preferred club and are available for scouting.
+            </p>
+
+            {generalPoolPlayers.length === 0 ? (
+                <div className="text-center py-12 bg-theme-secondary-bg rounded-xl border-2 border-dashed border-theme-border">
+                    <div className="text-6xl mb-4">🔍</div>
+                    <h3 className="text-xl font-semibold text-theme-dark mb-2">No Candidates Found</h3>
+                    <p className="text-theme-text-secondary">Check back later for new talent registrations.</p>
+                </div>
+            ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    {generalPoolPlayers.map(player => (
+                        <div key={player._id || player.id} className="bg-theme-secondary-bg rounded-xl shadow-lg border-t-4 border-theme-primary overflow-hidden hover:shadow-xl transition-all duration-300">
+                            <div className="p-6">
+                                <div className="flex items-center gap-4 mb-4">
+                                    <img
+                                        src={player.imageUrl || (import.meta as any).env.VITE_PLACEHOLDER_IMAGE_URL || 'https://via.placeholder.com/150'}
+                                        alt={player.name}
+                                        className="h-16 w-16 rounded-full object-cover border-2 border-theme-primary"
+                                    />
+                                    <div>
+                                        <h3 className="font-bold text-theme-dark text-lg">{player.name}</h3>
+                                        <p className="text-sm text-theme-text-secondary">{player.position} • {player.nationality}</p>
+                                    </div>
+                                </div>
+
+                                <div className="space-y-2 mb-6 text-sm">
+                                    <div className="flex justify-between">
+                                        <span className="text-theme-text-secondary">Previous Club:</span>
+                                        <span className="font-medium text-theme-dark-accent">{player.previousClub || 'Free Agent'}</span>
+                                    </div>
+                                    <div className="flex justify-between">
+                                        <span className="text-theme-text-secondary">Age:</span>
+                                        <span className="font-medium text-theme-dark-accent">
+                                            {player.dob ? (
+                                                Math.floor((new Date().getTime() - new Date(player.dob).getTime()) / (1000 * 60 * 60 * 24 * 365.25))
+                                            ) : 'N/A'}
+                                        </span>
+                                    </div>
+                                </div>
+
+                                <div className="grid grid-cols-2 gap-3">
+                                    <button
+                                        onClick={() => {
+                                            // Reuse existing edit (viewing) modal logic if possible or just show toast for now
+                                            handleEditClick(player);
+                                        }}
+                                        className="bg-theme-secondary-bg border border-theme-border text-theme-dark py-2 rounded-md font-medium hover:bg-theme-border transition-colors text-sm"
+                                    >
+                                        View Profile
+                                    </button>
+                                    <button
+                                        onClick={() => handleApprovePlayer(player._id || player.id)}
+                                        className="bg-theme-primary text-theme-dark py-2 rounded-md font-medium hover:opacity-90 transition-opacity text-sm"
+                                    >
+                                        Scout Player
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            )}
+        </div>
+    );
+
     const renderSection = () => {
         switch (activeSection) {
             case 'Dashboard':
@@ -2425,6 +3044,10 @@ const ClubManagerDashboard: React.FC<ClubManagerDashboardProps> = ({
                 </>;
             case 'Manage Players':
                 return renderManagePlayers();
+            case 'Player Scouting':
+                return renderPlayerScouting();
+            case 'Direct Recruitment':
+                return renderDirectRecruitment();
             case 'Manage Coaches':
                 return renderManageCoaches();
             case 'Manage Transfers':
@@ -2545,7 +3168,7 @@ const ClubManagerDashboard: React.FC<ClubManagerDashboardProps> = ({
         </div>
     );
 
-    const sections: ManagerSection[] = ['Dashboard', 'Manage Players', 'Manage Coaches', 'Manage Transfers', 'Manage Best Goals', 'Manage News', 'Profile'];
+    const sections: ManagerSection[] = ['Dashboard', 'Manage Players', 'Player Scouting', 'Direct Recruitment', 'Manage Coaches', 'Manage Transfers', 'Manage Best Goals', 'Manage News', 'Profile'];
 
     return (
         <div className="flex min-h-screen bg-theme-light">

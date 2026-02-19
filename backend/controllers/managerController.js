@@ -56,27 +56,67 @@ const createManager = async (req, res) => {
       });
     }
 
-    // Create Firebase user with email and password
+    // Create or Update Firebase user
     let firebaseUid;
     let passwordResetLink = null;
     const password = EmailService.generateSecurePassword(); // Store password for potential fallback
+    const normalizedEmail = managerEmail.toLowerCase();
+
     try {
-      const firebaseUser = await admin.auth().createUser({
-        email: managerEmail.toLowerCase(),
-        password: password,
-        displayName: managerName,
-        emailVerified: true
-      });
-      firebaseUid = firebaseUser.uid;
-      console.log('✅ Firebase user created successfully:', firebaseUid);
+      try {
+        // 1. Try to create the user first
+        const firebaseUser = await admin.auth().createUser({
+          email: normalizedEmail,
+          password: password,
+          displayName: managerName,
+          emailVerified: true
+        });
+        firebaseUid = firebaseUser.uid;
+        console.log('✅ New Firebase user created successfully:', firebaseUid);
+      } catch (createError) {
+        if (createError.code === 'auth/email-already-in-use') {
+          console.log('ℹ️ Email already exists in Firebase, fetching existing user and updating password...');
+          // 1b. If user exists, fetch their UID and update their password
+          const existingFirebaseUser = await admin.auth().getUserByEmail(normalizedEmail);
+          firebaseUid = existingFirebaseUser.uid;
 
-      // Generate password reset link for first-time setup
-      passwordResetLink = await admin.auth().generatePasswordResetLink(managerEmail.toLowerCase());
+          // Update the existing user to match the new manager credentials
+          await admin.auth().updateUser(firebaseUid, {
+            password: password,
+            displayName: managerName
+          });
+          console.log('✅ Existing Firebase user updated successfully:', firebaseUid);
+        } else {
+          // Re-throw if it's another error
+          throw createError;
+        }
+      }
+
+      // 2. Try to generate password reset link
+      try {
+        const actionCodeSettings = {
+          // The URL to redirect to after password reset
+          url: `${process.env.FRONTEND_URL || 'http://localhost:5173'}/login`,
+          handleCodeInApp: true
+        };
+        try {
+          // Attempt with settings first (provides better redirect URL)
+          passwordResetLink = await admin.auth().generatePasswordResetLink(normalizedEmail, actionCodeSettings);
+          console.log('✅ Password reset link generated with ActionCodeSettings');
+        } catch (settingsError) {
+          console.warn('⚠️ Link generation with ActionCodeSettings failed, falling back to standard link:', settingsError.message);
+          // Fallback to standard link generation without settings
+          passwordResetLink = await admin.auth().generatePasswordResetLink(normalizedEmail);
+          console.log('✅ Standard password reset link generated successfully');
+        }
+      } catch (linkError) {
+        console.error('❌ All password reset link generation attempts failed:', linkError.message);
+        // Continue even if link generation fails, as we have the password fallback
+      }
     } catch (firebaseError) {
-      console.error('❌ Firebase user creation failed:', firebaseError.message);
-
+      console.error('❌ Firebase connection failed:', firebaseError.message);
       firebaseUid = `manager_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-      console.log('⚠️ Using placeholder Firebase UID:', firebaseUid);
+      console.log('⚠️ Using placeholder Firebase UID (auth might fail):', firebaseUid);
     }
 
     // Create manager user in MongoDB
@@ -109,11 +149,12 @@ const createManager = async (req, res) => {
       // Continue without failing the creation
     }
 
-    // Send email with password reset link
+    // Send email with credentials
     try {
       const emailResult = await emailService.sendManagerCredentials(
         managerEmail,
         managerName,
+        password, // IMPORTANT: Pass password as fallback
         passwordResetLink,
         clubName,
         adminUser.name || 'System Administrator'

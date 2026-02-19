@@ -5,6 +5,7 @@ const {
   approvePlayer,
   rejectPlayer,
   getApprovedPlayers,
+  recruitPlayer,
   verifyDocuments,
   unverifyDocuments
 } = require('../controllers/playerController');
@@ -12,6 +13,7 @@ const { verifyFirebaseToken, requireClubManager } = require('../middleware/auth'
 const router = express.Router();
 
 router.post('/register', registerPlayer);
+router.post('/recruit', verifyFirebaseToken, requireClubManager, recruitPlayer);
 
 router.get('/', getPendingPlayers);
 router.get('/approved', getApprovedPlayers);

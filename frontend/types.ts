@@ -33,11 +33,13 @@ export interface Player {
   };
   submittedAt?: string;
   reviewedAt?: string;
+  age?: number;
   fitnessStatus?: string;
   hasInjuryHistory?: boolean;
   injuryNature?: string;
   lastInjuryDate?: string;
   minimumSalary?: number;
+  clubId?: any;
 }
 
 export interface CreatedUser {

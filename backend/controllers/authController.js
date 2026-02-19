@@ -26,8 +26,8 @@ const registerUser = async (req, res) => {
     }
 
     // Check if user already exists
-    const existingUser = await User.findOne({ 
-      $or: [{ firebaseUid }, { email: email.toLowerCase() }] 
+    const existingUser = await User.findOne({
+      $or: [{ firebaseUid }, { email: email.toLowerCase() }]
     });
 
     if (existingUser) {
@@ -88,7 +88,7 @@ const registerUser = async (req, res) => {
 
   } catch (error) {
     console.error('Registration error:', error.message);
-    
+
     if (error.code === 11000) {
       return res.status(409).json({
         success: false,
@@ -221,7 +221,7 @@ const updateUserProfile = async (req, res) => {
 
   } catch (error) {
     console.error('Update profile error:', error.message);
-    
+
     if (error.code === 11000) {
       return res.status(409).json({
         success: false,
@@ -351,147 +351,147 @@ const updateUserRole = async (req, res) => {
 
 // Check if user signed up with Google
 const checkAuthMethod = async (req, res) => {
-    try {
-        const { email } = req.body;
+  try {
+    const { email } = req.body;
 
-        if (!email) {
-            return res.status(400).json({ 
-                success: false, 
-                message: 'Email is required' 
-            });
-        }
-
-        // Find user in database
-        const user = await User.findOne({ email: email.toLowerCase() });
-
-        if (!user) {
-            return res.status(404).json({ 
-                success: false, 
-                message: 'User not found',
-                isGoogleUser: null, // null indicates unknown - frontend should check Firebase
-                userNotFound: true
-            });
-        }
-
-        // Check if user signed up with Google
-        const isGoogleUser = user.authMethod === 'google';
-
-        return res.status(200).json({
-            success: true,
-            isGoogleUser,
-            message: isGoogleUser ? 'User signed up with Google' : 'User signed up with email/password'
-        });
-
-    } catch (error) {
-        console.error('Error checking auth method:', error);
-        return res.status(500).json({ 
-            success: false, 
-            message: 'Internal server error',
-            isGoogleUser: false
-        });
+    if (!email) {
+      return res.status(400).json({
+        success: false,
+        message: 'Email is required'
+      });
     }
+
+    // Find user in database
+    const user = await User.findOne({ email: email.toLowerCase() });
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found',
+        isGoogleUser: null, // null indicates unknown - frontend should check Firebase
+        userNotFound: true
+      });
+    }
+
+    // Check if user signed up with Google
+    const isGoogleUser = user.authMethod === 'google';
+
+    return res.status(200).json({
+      success: true,
+      isGoogleUser,
+      message: isGoogleUser ? 'User signed up with Google' : 'User signed up with email/password'
+    });
+
+  } catch (error) {
+    console.error('Error checking auth method:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Internal server error',
+      isGoogleUser: false
+    });
+  }
 };
 
 // Check if user exists by email
 const checkUserExists = async (req, res) => {
-    try {
-        const { email } = req.body;
+  try {
+    const { email } = req.body;
 
-        if (!email) {
-            return res.status(400).json({ 
-                success: false, 
-                message: 'Email is required' 
-            });
-        }
-
-        // Find user in database
-        const user = await User.findOne({ email: email.toLowerCase() });
-
-        return res.status(200).json({
-            success: true,
-            exists: !!user,
-            message: user ? 'User exists' : 'User not found'
-        });
-
-    } catch (error) {
-        console.error('Error checking user existence:', error);
-        return res.status(500).json({ 
-            success: false, 
-            message: 'Internal server error',
-            exists: false
-        });
+    if (!email) {
+      return res.status(400).json({
+        success: false,
+        message: 'Email is required'
+      });
     }
+
+    // Find user in database
+    const user = await User.findOne({ email: email.toLowerCase() });
+
+    return res.status(200).json({
+      success: true,
+      exists: !!user,
+      message: user ? 'User exists' : 'User not found'
+    });
+
+  } catch (error) {
+    console.error('Error checking user existence:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Internal server error',
+      exists: false
+    });
+  }
 };
 
 // Validate user credentials against MongoDB before login
 const validateUserForLogin = async (req, res) => {
-    try {
-        const { email, name } = req.body;
+  try {
+    const { email, name } = req.body;
 
-        if (!email) {
-            return res.status(400).json({ 
-                success: false, 
-                message: 'Email is required' 
-            });
-        }
-
-        if (!name) {
-            return res.status(400).json({ 
-                success: false, 
-                message: 'Name is required for login' 
-            });
-        }
-
-        // Find user in database by email
-        const user = await User.findOne({ email: email.toLowerCase() });
-
-        if (!user) {
-            return res.status(404).json({ 
-                success: false, 
-                message: 'No account found with this email address. Please check your email or create a new account.',
-                userNotFound: true
-            });
-        }
-
-        // Check if user is active
-        if (!user.isActive) {
-            return res.status(403).json({ 
-                success: false, 
-                message: 'Account is deactivated. Please contact support for assistance.',
-                accountDeactivated: true
-            });
-        }
-
-        // Validate name matches (case-insensitive) - REQUIRED for login
-        if (user.name.toLowerCase() !== name.toLowerCase()) {
-            return res.status(400).json({ 
-                success: false, 
-                message: `Name does not match our records. Expected: "${user.name}", but received: "${name}". Please verify your name and try again.`,
-                nameMismatch: true
-            });
-        }
-
-        // Return user validation success
-        return res.status(200).json({
-            success: true,
-            message: 'User validation successful',
-            user: {
-                id: user._id,
-                email: user.email,
-                name: user.name,
-                role: user.role,
-                authMethod: user.authMethod,
-                isActive: user.isActive
-            }
-        });
-
-    } catch (error) {
-        console.error('Error validating user for login:', error);
-        return res.status(500).json({ 
-            success: false, 
-            message: 'Internal server error during user validation'
-        });
+    if (!email) {
+      return res.status(400).json({
+        success: false,
+        message: 'Email is required'
+      });
     }
+
+    if (!name) {
+      return res.status(400).json({
+        success: false,
+        message: 'Name is required for login'
+      });
+    }
+
+    // Find user in database by email
+    const user = await User.findOne({ email: email.toLowerCase() });
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'No account found with this email address. Please check your email or create a new account.',
+        userNotFound: true
+      });
+    }
+
+    // Check if user is active
+    if (!user.isActive) {
+      return res.status(403).json({
+        success: false,
+        message: 'Account is deactivated. Please contact support for assistance.',
+        accountDeactivated: true
+      });
+    }
+
+    // Validate name matches (case-insensitive) - REQUIRED for login
+    if (user.name.toLowerCase() !== name.toLowerCase()) {
+      return res.status(400).json({
+        success: false,
+        message: `Name does not match our records. Expected: "${user.name}", but received: "${name}". Please verify your name and try again.`,
+        nameMismatch: true
+      });
+    }
+
+    // Return user validation success
+    return res.status(200).json({
+      success: true,
+      message: 'User validation successful',
+      user: {
+        id: user._id,
+        email: user.email,
+        name: user.name,
+        role: user.role,
+        authMethod: user.authMethod,
+        isActive: user.isActive
+      }
+    });
+
+  } catch (error) {
+    console.error('Error validating user for login:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Internal server error during user validation'
+    });
+  }
 };
 
 module.exports = {
