@@ -1,4 +1,6 @@
 const nodemailer = require('nodemailer');
+const fs = require('fs');
+const path = require('path');
 
 class EmailService {
   constructor() {
@@ -11,6 +13,21 @@ class EmailService {
     console.log('BREVO_API_KEY:', brevoApiKey ? '***configured***' : 'NOT CONFIGURED');
     console.log('EMAIL_USER:', emailUser);
     console.log('EMAIL_PASSWORD:', emailPassword ? '***configured***' : 'NOT CONFIGURED');
+
+    // Debug file logging
+    const debugInfo = {
+      timestamp: new Date().toISOString(),
+      brevoApiKey: brevoApiKey ? 'Starts with: ' + brevoApiKey.substring(0, 10) + '...' : 'MISSING',
+      emailUser: emailUser,
+      emailPasswordConfigured: !!emailPassword && emailPassword !== 'replace-with-your-gmail-app-password',
+      envKeys: Object.keys(process.env).filter(key => key.includes('BREVO') || key.includes('EMAIL'))
+    };
+
+    try {
+      fs.writeFileSync(path.join(__dirname, '../email-debug.log'), JSON.stringify(debugInfo, null, 2));
+    } catch (e) {
+      console.error('Failed to write email debug log:', e.message);
+    }
 
     // Initialize Brevo if API key is available
     if (brevoApiKey && brevoApiKey !== 'xkeysib-your-brevo-api-key-here' && brevoApiKey !== 'your-brevo-api-key') {
@@ -185,12 +202,8 @@ NGL Administration Team
         console.log('✅ Brevo email sent successfully:', result.body?.messageId || result.messageId);
         return { success: true, messageId: result.body?.messageId || result.messageId, provider: 'brevo' };
       } catch (error) {
-        console.error('❌ Brevo email sending failed:');
-        if (error.response && error.response.body) {
-          console.error('Brevo Error Detail:', JSON.stringify(error.response.body, null, 2));
-        } else {
-          console.error('Error Message:', error.message);
-        }
+        console.error('❌ Brevo email sending failed:', error.message);
+        this.lastError = error.response && error.response.body ? JSON.stringify(error.response.body) : error.message;
         // Fall back to Gmail if Brevo fails
       }
     }
@@ -232,7 +245,7 @@ NGL Administration Team
 
     return {
       success: false,
-      message: 'No email service configured. Please set up email credentials. Credentials have been logged to console.',
+      message: this.lastError || 'No email service configured or all services failed.',
       credentials: {
         email: managerEmail,
         passwordResetLink: passwordResetLink,

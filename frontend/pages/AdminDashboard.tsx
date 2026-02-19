@@ -644,6 +644,9 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
     const handleCreateManagerSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
+
+        if (isCreatingUser) return; // Prevent double submission
+
         setErrorMessage('');
 
         if (!newManagerName.trim() || !newManagerEmail.trim()) {
@@ -655,15 +658,15 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
         const selectedClub = clubs.find(c => String(c.id) === newManagerClubId);
 
         // Check if club already has a manager
-        const existingManager = createdUsers.find((u: CreatedUser) => u.role === 'clubManager' && String(u.clubId) === newManagerClubId && u.isActive);
-        if (existingManager) {
+        const clubHasManager = createdUsers.some((u: CreatedUser) => u.role === 'clubManager' && u.clubName === selectedClub?.name && u.isActive);
+        if (clubHasManager) {
             setErrorMessage(`${selectedClub?.name} already has an active manager.`);
             return;
         }
 
         // Check if email already exists
-        const existingUser = createdUsers.find((u: CreatedUser) => u.email.toLowerCase() === newManagerEmail.toLowerCase());
-        if (existingUser) {
+        const emailExists = createdUsers.some((u: CreatedUser) => u.email.toLowerCase() === newManagerEmail.toLowerCase());
+        if (emailExists) {
             setErrorMessage('An account with this email already exists.');
             return;
         }
@@ -724,7 +727,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
             if (error.response?.data?.message) {
                 setErrorMessage(error.response.data.message);
             } else if (error.response?.status === 409) {
-                setErrorMessage('A user with this email already exists.');
+                setErrorMessage(error.response.data.message || 'A user with this email or club already exists.');
             } else if (error.response?.status === 400) {
                 setErrorMessage('Please check your input and try again.');
             } else if (error.response?.status === 401) {
@@ -737,7 +740,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
         }
     };
 
-    const handleDeactivateUser = (userId: number) => {
+    const handleDeactivateUser = (userId: number | string) => {
         // This would need to be passed as a prop from App.tsx
         console.log('Deactivate user:', userId);
     };

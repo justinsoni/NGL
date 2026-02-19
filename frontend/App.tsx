@@ -1,6 +1,6 @@
 
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { HashRouter, Routes, Route, useLocation, Navigate } from 'react-router-dom';
 import { Toaster, toast } from 'react-hot-toast';
 import { AuthProvider } from './contexts/AuthContext';
@@ -37,6 +37,7 @@ import { EmailService } from './utils/emailService';
 import { clubService } from './services/clubService';
 import { playerService } from './services/playerService';
 import { productService } from './services/productService';
+import { apiService } from './services/api';
 
 const ScrollToTop = () => {
   const { pathname } = useLocation();
@@ -197,11 +198,11 @@ const App = () => {
   }, [userRole]);
 
   // Resolve and set managed club, refreshing from API if needed
-  const resolveAndSetManagedClub = async (userClub: string | undefined, userId?: number) => {
+  const resolveAndSetManagedClub = useCallback(async (userClub: string | undefined, userId?: number) => {
     if (!userClub) {
-      const user = createdUsers.find(u => u.id === userId);
+      const user = createdUsers.find(u => u.id === (userId as any));
       if (user && user.clubId) {
-        const localClub = clubsData.find(c => c.id === user.clubId);
+        const localClub = clubsData.find(c => c.id === Number(user.clubId));
         setManagedClub(localClub || null);
       }
       return;
@@ -229,10 +230,41 @@ const App = () => {
     }
 
     setManagedClub(club || null);
-  };
+  }, [clubsData, createdUsers]);
+
+  // Fetch all users/managers if admin
+  useEffect(() => {
+    const fetchManagers = async () => {
+      if (isLoggedIn && userRole === 'admin') {
+        try {
+          const managers = await apiService.getManagers();
+          const normalizedManagers: CreatedUser[] = managers.map(m => ({
+            id: m.id as any,
+            email: m.email,
+            role: m.role as any,
+            clubId: m.club, // Backend stores club name/id in 'club' field
+            clubName: m.club,
+            isActive: m.isActive,
+            createdAt: m.createdAt,
+            password: '••••••••' // Placeholder for UI
+          }));
+
+          // Merge with initial admin if not present
+          setCreatedUsers(prev => {
+            const admin = prev.find(u => u.role === 'admin');
+            return admin ? [admin, ...normalizedManagers] : normalizedManagers;
+          });
+        } catch (error) {
+          console.error('Failed to fetch managers:', error);
+        }
+      }
+    };
+
+    fetchManagers();
+  }, [isLoggedIn, userRole]);
 
   // Handler for Firebase auth state changes
-  const handleFirebaseAuthChange = async (isLoggedIn: boolean, userRole: UserRole | null, userId?: number, userClub?: string) => {
+  const handleFirebaseAuthChange = useCallback(async (isLoggedIn: boolean, userRole: UserRole | null, userId?: number, userClub?: string) => {
     console.log('🔍 App - handleFirebaseAuthChange called:', {
       isLoggedIn,
       userRole,
@@ -250,7 +282,7 @@ const App = () => {
     } else {
       setManagedClub(null);
     }
-  };
+  }, [resolveAndSetManagedClub]);
 
   // Fetch approved players for the managed club (used by Coach view)
   const fetchApprovedPlayersForManagedClub = async (club: Club | null) => {

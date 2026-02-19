@@ -43,13 +43,13 @@ export interface Player {
 }
 
 export interface CreatedUser {
-  id: number;
+  id: number | string;
   email: string;
   password: string;
   role: UserRole;
-  clubId?: number;
+  clubId?: number | string;
   clubName?: string;
-  addedBy?: number; // ID of the user who created this account
+  addedBy?: number | string; // ID of the user who created this account
   isActive: boolean;
   createdAt: string;
   lastLogin?: string;

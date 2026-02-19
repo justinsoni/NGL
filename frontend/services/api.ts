@@ -105,7 +105,7 @@ api.interceptors.response.use(
   (error: AxiosError<ApiResponse>) => {
     const message = error.response?.data?.message || error.message || 'Something went wrong. Please try again or contact support if the issue persists.';
     const url = error.config?.url || '';
-    
+
     // Handle specific error cases
     if (error.response?.status === 401) {
       // Token expired or invalid
@@ -150,7 +150,7 @@ api.interceptors.response.use(
     } else {
       toast.error(message);
     }
-    
+
     return Promise.reject(error);
   }
 );
@@ -211,6 +211,11 @@ class ApiService {
 
   async deactivateUser(userId: string): Promise<void> {
     await api.delete(`/auth/users/${userId}`);
+  }
+
+  async getManagers(): Promise<ApiUser[]> {
+    const response = await api.get<ApiResponse<{ managers: ApiUser[] }>>('/auth/managers');
+    return response.data.data!.managers;
   }
 
   // Validate user credentials against MongoDB before login
