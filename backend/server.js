@@ -26,6 +26,9 @@ const newsItemRoutes = require('./routes/newsItemRoutes');
 const leagueConfigRoutes = require('./routes/leagueConfig');
 const matchDataRoutes = require('./routes/matchData');
 const productRoutes = require('./routes/products');
+const scoutRoutes = require('./routes/scoutRoutes');
+const paymentRoutes = require('./routes/paymentRoutes');
+const mediaRoutes = require('./routes/mediaRoutes');
 
 // Initialize Express app
 const app = express();
@@ -73,6 +76,9 @@ app.use('/api/news', newsItemRoutes);
 app.use('/api/league-config', leagueConfigRoutes);
 app.use('/api/match-data', matchDataRoutes);
 app.use('/api/products', productRoutes);
+app.use('/api/scout', scoutRoutes);
+app.use('/api/payment', paymentRoutes);
+app.use('/api/media', mediaRoutes);
 
 // 404 handler for undefined routes
 app.use('*', (req, res) => {
@@ -117,7 +123,11 @@ app.use('*', (req, res) => {
       'GET /api/news',
       'POST /api/news',
       'PUT /api/news/:id',
-      'DELETE /api/news/:id'
+      'DELETE /api/news/:id',
+      'POST /api/scout/ask',
+      'GET /api/scout/players',
+      'POST /api/payment/create-order',
+      'POST /api/payment/verify-payment'
     ]
   });
 });

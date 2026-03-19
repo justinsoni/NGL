@@ -1,4 +1,5 @@
 const User = require('../models/User');
+const Club = require('../models/Club');
 const { validationResult } = require('express-validator');
 const { initializeApp } = require('firebase-admin/app');
 const { getAuth } = require('firebase-admin/auth');
@@ -21,11 +22,12 @@ const generatePassword = () => {
 // @access  Private (Club Manager only)
 const createCoach = async (req, res) => {
   try {
-    const { 
-      name, 
-      email, 
-      phone, 
+    const {
+      name,
+      email,
+      phone,
       clubId,
+      clubName: providedClubName,
       dateOfBirth,
       nationality,
       bio,
@@ -42,7 +44,7 @@ const createCoach = async (req, res) => {
       trophies,
       documents
     } = req.body;
-    
+
     const managerUser = req.user; // Set by auth middleware
 
     // Validate required fields
@@ -99,18 +101,18 @@ const createCoach = async (req, res) => {
         authMethod: 'email',
         profile: {
           phone,
-          dateOfBirth,
-          nationality,
-          bio,
-          coachingLicense,
-          licenseExpiryDate,
-          specializations,
-          languages,
-          yearsOfExperience,
-          position,
-          contractStartDate,
-          contractEndDate,
-          salary,
+          dateOfBirth: dateOfBirth || undefined,
+          nationality: nationality || undefined,
+          bio: bio || undefined,
+          coachingLicense: coachingLicense || undefined,
+          licenseExpiryDate: licenseExpiryDate || undefined,
+          specializations: specializations || undefined,
+          languages: languages || undefined,
+          yearsOfExperience: yearsOfExperience || undefined,
+          position: position || undefined,
+          contractStartDate: contractStartDate || undefined,
+          contractEndDate: contractEndDate || undefined,
+          salary: salary || undefined,
           previousClubs: previousClubs || [],
           trophies: trophies || [],
           documents: documents || []
@@ -122,6 +124,17 @@ const createCoach = async (req, res) => {
       const coach = await User.create(coachData);
       console.log('✅ MongoDB coach record created:', coach._id);
 
+      // Resolve club name for the email
+      let resolvedClubName = providedClubName || clubId;
+      try {
+        const clubDoc = await Club.findById(clubId);
+        if (clubDoc && clubDoc.name) {
+          resolvedClubName = clubDoc.name;
+        }
+      } catch (clubLookupErr) {
+        console.log('⚠️ Could not look up club name, using provided value:', resolvedClubName);
+      }
+
       // Send welcome email with login credentials
       try {
         const emailService = new EmailService();
@@ -129,9 +142,9 @@ const createCoach = async (req, res) => {
           email,
           name,
           temporaryPassword,
-          clubId
+          resolvedClubName
         );
-        console.log('✅ Welcome email sent to coach');
+        console.log('✅ Welcome email sent to coach at', email);
       } catch (emailError) {
         console.error('❌ Failed to send welcome email:', emailError.message);
         // Don't fail the entire operation if email fails
@@ -183,7 +196,7 @@ const createCoach = async (req, res) => {
 
   } catch (error) {
     console.error('❌ Create coach error:', error);
-    
+
     // Provide specific error messages for common issues
     if (error.code === 'auth/email-already-exists') {
       return res.status(409).json({
@@ -191,14 +204,14 @@ const createCoach = async (req, res) => {
         message: 'A user with this email already exists'
       });
     }
-    
+
     if (error.code === 'auth/invalid-email') {
       return res.status(400).json({
         success: false,
         message: 'Invalid email address format'
       });
     }
-    
+
     if (error.code === 'auth/weak-password') {
       return res.status(400).json({
         success: false,

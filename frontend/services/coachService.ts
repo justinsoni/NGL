@@ -8,6 +8,7 @@ export interface CreateCoachData {
   email: string;
   phone: string;
   clubId: string;
+  clubName?: string;
   dateOfBirth?: string;
   nationality?: string;
   bio?: string;

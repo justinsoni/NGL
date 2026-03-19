@@ -71,7 +71,7 @@ const playerSchema = new mongoose.Schema({
     },
     method: {
       type: String,
-      enum: ['manual', 'auto', 'ai', null],
+      enum: ['manual', 'auto', 'ai', 'scouted', null],
       default: null
     },
     verifiedAt: {
@@ -138,7 +138,35 @@ const playerSchema = new mongoose.Schema({
   minimumSalary: {
     type: Number,
     min: 0
-  }
+  },
+  // AI scouting fields
+  scoutReport: {
+    type: String,
+    maxlength: 2000
+  },
+  strengths: [{
+    type: String,
+    trim: true
+  }],
+  weaknesses: [{
+    type: String,
+    trim: true
+  }],
+  potentialScore: {
+    type: Number,
+    min: 0,
+    max: 100
+  },
+  pace: { type: Number, min: 0, max: 100 },
+  shooting: { type: Number, min: 0, max: 100 },
+  passing: { type: Number, min: 0, max: 100 },
+  dribbling: { type: Number, min: 0, max: 100 },
+  defending: { type: Number, min: 0, max: 100 },
+  physicality: { type: Number, min: 0, max: 100 },
+  rejectedBy: [{
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User'
+  }]
 }, {
   timestamps: true
 });

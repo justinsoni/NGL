@@ -8,7 +8,7 @@ const userSchema = new mongoose.Schema({
     unique: true,
     index: true
   },
-  
+
   // Basic user information
   name: {
     type: String,
@@ -16,7 +16,7 @@ const userSchema = new mongoose.Schema({
     trim: true,
     maxlength: 100
   },
-  
+
   email: {
     type: String,
     required: true,
@@ -25,7 +25,7 @@ const userSchema = new mongoose.Schema({
     trim: true,
     match: [/^\w+([.-]?\w+)*@\w+([.-]?\w+)*(\.\w{2,3})+$/, 'Please enter a valid email']
   },
-  
+
   // User role with enum validation
   role: {
     type: String,
@@ -33,14 +33,14 @@ const userSchema = new mongoose.Schema({
     default: 'registeredUser',
     required: true
   },
-  
+
   // Optional club association
   club: {
     type: String,
     trim: true,
     maxlength: 100
   },
-  
+
   // Program registrations array
   programRegistrations: [{
     programId: {
@@ -58,13 +58,13 @@ const userSchema = new mongoose.Schema({
     },
     notes: String
   }],
-  
+
   // Additional profile information
   profile: {
     phone: {
       type: String,
       trim: true,
-      match: [/^[\+]?[1-9][\d]{0,15}$/, 'Please enter a valid phone number']
+      match: [/^[\+]?[\d]{7,15}$/, 'Please enter a valid phone number (7-15 digits)']
     },
     dateOfBirth: Date,
     nationality: {
@@ -92,36 +92,63 @@ const userSchema = new mongoose.Schema({
     avatar: {
       type: String,
       trim: true
-    }
+    },
+    // Coach-specific profile fields
+    imageUrl: { type: String, trim: true },
+    coachingLicense: { type: String, trim: true },
+    licenseExpiryDate: Date,
+    specializations: { type: String, trim: true },
+    languages: { type: String, trim: true },
+    yearsOfExperience: { type: Number },
+    contractStartDate: Date,
+    contractEndDate: Date,
+    salary: { type: String, trim: true },
+    previousClubs: [{
+      clubName: { type: String, trim: true },
+      startDate: String,
+      endDate: String,
+      achievements: { type: String, trim: true }
+    }],
+    trophies: [{
+      name: { type: String, trim: true },
+      year: String,
+      club: { type: String, trim: true },
+      level: { type: String, trim: true }
+    }],
+    documents: [{
+      type: { type: String, trim: true },
+      name: { type: String, trim: true },
+      url: { type: String, trim: true }
+    }]
   },
-  
+
   // Account status and metadata
   isActive: {
     type: Boolean,
     default: true
   },
-  
+
   isEmailVerified: {
     type: Boolean,
     default: false
   },
-  
+
   // Authentication method
   authMethod: {
     type: String,
     enum: ['email', 'google'],
     default: 'email'
   },
-  
+
   lastLogin: {
     type: Date
   },
-  
+
   createdAt: {
     type: Date,
     default: Date.now
   },
-  
+
   updatedAt: {
     type: Date,
     default: Date.now
@@ -139,38 +166,38 @@ userSchema.index({ club: 1 });
 userSchema.index({ createdAt: -1 });
 
 // Virtual for full name display
-userSchema.virtual('displayName').get(function() {
+userSchema.virtual('displayName').get(function () {
   return this.name || this.email.split('@')[0];
 });
 
 // Pre-save middleware to update the updatedAt field
-userSchema.pre('save', function(next) {
+userSchema.pre('save', function (next) {
   this.updatedAt = Date.now();
   next();
 });
 
 // Instance method to check if user has specific role
-userSchema.methods.hasRole = function(role) {
+userSchema.methods.hasRole = function (role) {
   return this.role === role;
 };
 
 // Instance method to check if user is admin
-userSchema.methods.isAdmin = function() {
+userSchema.methods.isAdmin = function () {
   return this.role === 'admin';
 };
 
 // Instance method to check if user can manage club
-userSchema.methods.canManageClub = function(clubName) {
+userSchema.methods.canManageClub = function (clubName) {
   return this.role === 'admin' || (this.role === 'clubManager' && this.club === clubName);
 };
 
 // Static method to find users by role
-userSchema.statics.findByRole = function(role) {
+userSchema.statics.findByRole = function (role) {
   return this.find({ role, isActive: true });
 };
 
 // Static method to find users by club
-userSchema.statics.findByClub = function(club) {
+userSchema.statics.findByClub = function (club) {
   return this.find({ club, isActive: true });
 };
 

@@ -309,21 +309,75 @@ const recruitPlayer = async (req, res) => {
       return res.status(400).json({ success: false, message: 'Email is required' });
     }
 
-    const [existingPlayer, existingUser] = await Promise.all([
-      Player.findOne({ email }),
-      User.findOne({ email })
-    ]);
+    // Sanitize input to avoid conflicts during save
+    const playerData = { ...req.body };
+    delete playerData._id;
+    delete playerData.__v;
+    delete playerData.status;
+    delete playerData.reviewedAt;
+    delete playerData.reviewedBy;
+    delete playerData.documentVerification;
 
-    if (existingPlayer || existingUser) {
-      return res.status(409).json({
-        success: false,
-        message: 'A player or user with this email already exists'
+    // Check for existing player prioritizing recruitable one (no club) if multiple exist
+    let existingPlayer = await Player.findOne({ email, clubId: null });
+    if (!existingPlayer) {
+      existingPlayer = await Player.findOne({ email });
+    }
+    const existingUser = await User.findOne({ email });
+
+    // If player exists but has no club, we can "recruit" them by updating their record
+    if (existingPlayer && !existingPlayer.clubId) {
+      const updatedPlayer = await Player.findByIdAndUpdate(
+        existingPlayer._id,
+        {
+          ...playerData,
+          email, // Keep normalized email
+          status: 'approved',
+          isVerified: true,
+          documentVerification: {
+            status: 'verified',
+            method: 'manual',
+            verifiedAt: new Date(),
+            verifiedBy: req.user ? req.user._id : undefined,
+            notes: 'Recruited directly (updated existing registrant)'
+          }
+        },
+        { new: true }
+      );
+      return res.status(200).json({
+        success: true,
+        message: 'Existing player record updated and added to your squad',
+        data: updatedPlayer
       });
     }
 
-    // Direct recruitment is always approved and verified
+    // Conflict Detection
+    if (existingPlayer && existingPlayer.clubId) {
+      // If the player is already in THIS manager's club, it's a success (or a no-op)
+      if (existingPlayer.clubId.toString() === req.body.clubId?.toString()) {
+        return res.status(200).json({
+          success: true,
+          message: 'This player is already in your club squad.',
+          data: existingPlayer
+        });
+      }
+
+      return res.status(409).json({
+        success: false,
+        message: 'A player with this email already belongs to another club. Multiple club memberships are not permitted.'
+      });
+    }
+
+    // If we have a user record but no player record, that's fine—we can create the player profile.
+    // However, if they are already a manager or admin, it might be a mistake, but we'll allow it 
+    // for now or you could add a check here if needed.
+    if (existingUser && !existingPlayer) {
+      console.log(`User exists for ${email} but no player profile found. Creating one...`);
+    }
+
+    // Direct recruitment as a new record
     const player = await Player.create({
-      ...req.body,
+      ...playerData,
       email,
       status: 'approved',
       isVerified: true,
@@ -352,6 +406,88 @@ const recruitPlayer = async (req, res) => {
   }
 };
 
+const recruitProspect = async (req, res) => {
+  try {
+    const { prospectId, clubId } = req.body;
+    if (!prospectId || !clubId) {
+      return res.status(400).json({ success: false, message: 'ID and Club ID required' });
+    }
+
+    // 1. Check if it's a real player registration (priority)
+    const player = await Player.findById(prospectId);
+    if (player) {
+      if (player.clubId) {
+        return res.status(400).json({ success: false, message: 'Player already has a club assigned' });
+      }
+
+      player.clubId = clubId;
+      player.status = 'approved';
+      player.isVerified = true;
+      player.documentVerification = {
+        status: 'verified',
+        method: 'scouted',
+        verifiedAt: new Date(),
+        verifiedBy: req.user ? req.user._id : undefined,
+        notes: 'Recruited from scouting pool (registrant)'
+      };
+
+      await player.save();
+      return res.status(200).json({
+        success: true,
+        message: 'Player successfully added to your squad!',
+        data: player
+      });
+    }
+
+    // 2. Fallback: Check if it's a mock Prospect (for AI Advisor recommendations)
+    const Prospect = require('../models/Prospect');
+    const prospect = await Prospect.findById(prospectId);
+
+    if (prospect) {
+      // Check if real player with this email already exists
+      const existingPlayer = await Player.findOne({ email: prospect.email });
+      if (existingPlayer) {
+        return res.status(409).json({ success: false, message: 'A player with this email is already registered' });
+      }
+
+      const pData = prospect.toObject();
+      delete pData._id;
+      delete pData.rejectedBy;
+      delete pData.__v;
+      delete pData.createdAt;
+      delete pData.updatedAt;
+
+      // Ensure required player fields are present (mock data might be incomplete)
+      const newPlayer = await Player.create({
+        ...pData,
+        phone: pData.phone || '0000000000', // Default if missing in mock
+        identityCardUrl: pData.identityCardUrl || 'https://via.placeholder.com/150',
+        dob: pData.dob || new Date('2000-01-01'),
+        clubId,
+        status: 'approved',
+        isVerified: true,
+        documentVerification: {
+          status: 'verified',
+          method: 'scouted',
+          verifiedAt: new Date(),
+          verifiedBy: req.user ? req.user._id : undefined,
+          notes: 'Scouted from mock prospect pool'
+        }
+      });
+      return res.status(201).json({ success: true, message: 'Prospect successfully recruited!', data: newPlayer });
+    }
+
+    return res.status(404).json({ success: false, message: 'Candidate not found in registry' });
+  } catch (error) {
+    console.error('Recruitment process error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Internal server error during recruitment',
+      error: error.message
+    });
+  }
+};
+
 module.exports = {
   registerPlayer,
   getPendingPlayers,
@@ -360,6 +496,7 @@ module.exports = {
   getApprovedPlayers,
   updatePlayer,
   recruitPlayer,
+  recruitProspect,
   deletePlayer,
   verifyDocuments,
   unverifyDocuments

@@ -40,6 +40,17 @@ export interface Player {
   lastInjuryDate?: string;
   minimumSalary?: number;
   clubId?: any;
+  // Scouting Advisor fields
+  scoutReport?: string;
+  strengths?: string[];
+  weaknesses?: string[];
+  potentialScore?: number;
+  pace?: number;
+  shooting?: number;
+  passing?: number;
+  dribbling?: number;
+  defending?: number;
+  physicality?: number;
 }
 
 export interface CreatedUser {

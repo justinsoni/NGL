@@ -7,11 +7,13 @@ import { useAuth } from '../contexts/AuthContext';
 import { coachService, CreateCoachData } from '../services/coachService';
 import { countryService, type CountryOption } from '../services/countryService';
 import { playerService } from '../services/playerService';
+import { prospectService, Prospect } from '../services/prospectService';
 import { createNews } from '@/api/news/createNews';
 import { fetchNews } from '@/api/news/fetchNews';
 import { deleteNewsById } from '@/api/news/deleteNewsItemById';
 import { updateNewsById } from '@/api/news/updateNewsById';
 import toast from 'react-hot-toast';
+import ScoutAdvisor from '../components/ScoutAdvisor';
 
 interface ClubManagerDashboardProps {
     club: Club;
@@ -28,7 +30,7 @@ interface ClubManagerDashboardProps {
     onRejectPlayerRegistration: (registrationId: number, reason: string) => void;
 }
 
-type ManagerSection = 'Dashboard' | 'Manage Players' | 'Player Scouting' | 'Direct Recruitment' | 'Manage Coaches' | 'Manage Transfers' | 'Manage Best Goals' | 'Manage News' | 'Profile';
+type ManagerSection = 'Dashboard' | 'Manage Players' | 'Player Scouting' | 'AI Scout Advisor' | 'Direct Recruitment' | 'Manage Coaches' | 'Manage Transfers' | 'Manage Best Goals' | 'Manage News' | 'Profile';
 
 const ClubManagerDashboard: React.FC<ClubManagerDashboardProps> = ({
     club,
@@ -147,6 +149,8 @@ const ClubManagerDashboard: React.FC<ClubManagerDashboardProps> = ({
     const [bestGoals, setBestGoals] = useState<BestGoalItem[]>([]);
     const [bestGoalImageFile, setBestGoalImageFile] = useState<File | null>(null);
     const [bestGoalImagePreview, setBestGoalImagePreview] = useState<string>('');
+    const [prospects, setProspects] = useState<Prospect[]>([]);
+    const [isLoadingProspects, setIsLoadingProspects] = useState(false);
 
     // Countries for dropdown
     const [countries, setCountries] = useState<CountryOption[]>([]);
@@ -160,6 +164,7 @@ const ClubManagerDashboard: React.FC<ClubManagerDashboardProps> = ({
     });
     const [uploadedProfilePic, setUploadedProfilePic] = useState<File | null>(null);
     const [profilePicPreview, setProfilePicPreview] = useState<string>('');
+    const [isRecruiting, setIsRecruiting] = useState(false);
 
     // Update profile data when user changes
     useEffect(() => {
@@ -188,6 +193,28 @@ const ClubManagerDashboard: React.FC<ClubManagerDashboardProps> = ({
     }, [club.id]);
 
     const clubPendingPlayers = pendingPlayers.filter(p => p.clubId === club.id || (p.clubId as any)?._id === club.id);
+    const fetchProspects = async () => {
+        try {
+            setIsLoadingProspects(true);
+            const response = await prospectService.getProspects();
+            if (response.success) {
+                setProspects(response.data);
+            }
+        } catch (error) {
+            console.error('Failed to fetch prospects:', error);
+        } finally {
+            setIsLoadingProspects(false);
+        }
+    };
+
+    useEffect(() => {
+        if (activeSection === 'Player Scouting') {
+            fetchProspects();
+        }
+    }, [activeSection]);
+
+    // Cleanup: generalPoolPlayers is no longer used for Scouting, 
+    // but kept for compatibility in other parts if needed.
     const generalPoolPlayers = pendingPlayers.filter(p => !p.clubId);
 
     // Load countries once for nationality dropdown
@@ -965,12 +992,12 @@ const ClubManagerDashboard: React.FC<ClubManagerDashboardProps> = ({
                 }
             }
 
-            // Prepare coach data for API
             const coachData: CreateCoachData = {
                 name: professionalCoachData.name,
                 email: professionalCoachData.email,
                 phone: phoneDigits || professionalCoachData.phone,
                 clubId: club.id.toString(),
+                clubName: club.name,
                 dateOfBirth: professionalCoachData.dateOfBirth,
                 nationality: professionalCoachData.nationality,
                 bio: professionalCoachData.bio,
@@ -999,7 +1026,7 @@ const ClubManagerDashboard: React.FC<ClubManagerDashboardProps> = ({
             const response = await coachService.createCoach(coachData);
 
             if (response.success) {
-                alert(`✅ Coach account created successfully!\n\nLogin credentials have been sent to ${professionalCoachData.email}.\n\nThe coach can now log in to their dashboard using the provided password.`);
+                toast.success(`Coach account created successfully! Login credentials have been sent to ${professionalCoachData.email}.`);
 
                 // Reset form
                 setProfessionalCoachData({
@@ -1038,11 +1065,11 @@ const ClubManagerDashboard: React.FC<ClubManagerDashboardProps> = ({
 
             // Show specific error messages
             if (error.message.includes('email already exists')) {
-                alert('❌ A user with this email address already exists. Please use a different email.');
+                toast.error('A user with this email address already exists. Please use a different email.');
             } else if (error.message.includes('Invalid email')) {
-                alert('❌ Please enter a valid email address.');
+                toast.error('Please enter a valid email address.');
             } else {
-                alert(`❌ Failed to create coach account: ${error.message || 'Please try again.'}`);
+                toast.error(`Failed to create coach account: ${error.message || 'Please try again.'}`);
             }
         } finally {
             // Reset button state
@@ -1236,11 +1263,47 @@ const ClubManagerDashboard: React.FC<ClubManagerDashboardProps> = ({
         }
     };
 
+    const handleRejectProspect = async (prospectId: string) => {
+        if (!confirm('Are you sure you want to reject this prospect? They will be hidden from your scouting list.')) return;
+
+        const loadingToast = toast.loading('Rejecting prospect...');
+        try {
+            const response = await prospectService.rejectProspect(prospectId);
+            if (response.success) {
+                setProspects(prev => prev.filter(p => p._id !== prospectId));
+                toast.success('Prospect rejected', { id: loadingToast });
+            } else {
+                toast.error(response.message || 'Failed to reject prospect', { id: loadingToast });
+            }
+        } catch (error: any) {
+            toast.error('Error rejecting prospect', { id: loadingToast });
+        }
+    };
+
+    const handleScoutProspect = async (prospectId: string) => {
+        const loadingToast = toast.loading('Recruiting prospect...');
+        try {
+            const response = await prospectService.scoutProspect(prospectId, club.id.toString());
+            if (response.success) {
+                setProspects(prev => prev.filter(p => p._id !== prospectId));
+                await fetchApprovedPlayers();
+                toast.success('Prospect recruited and added to squad!', { id: loadingToast });
+                setActiveSection('Manage Players');
+            } else {
+                toast.error(response.message || 'Failed to recruit prospect', { id: loadingToast });
+            }
+        } catch (error: any) {
+            toast.error('Error recruiting prospect', { id: loadingToast });
+        }
+    };
+
 
 
     const handleDirectRecruitmentSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
         e.preventDefault();
+        if (isRecruiting) return;
 
+        setIsRecruiting(true);
         const loadingToast = toast.loading('Processing recruitment...');
         try {
             let imageUrl = formData.imageUrl;
@@ -1284,6 +1347,8 @@ const ClubManagerDashboard: React.FC<ClubManagerDashboardProps> = ({
         } catch (error: any) {
             console.error('Error in direct recruitment:', error);
             toast.error(error.response?.data?.message || 'Failed to recruit player', { id: loadingToast });
+        } finally {
+            setIsRecruiting(false);
         }
     };
 
@@ -1676,9 +1741,10 @@ const ClubManagerDashboard: React.FC<ClubManagerDashboardProps> = ({
                             <div className="flex gap-6 pt-10">
                                 <button
                                     type="submit"
-                                    className="flex-1 bg-gradient-to-r from-blue-600 to-purple-600 text-white font-bold py-4 px-8 rounded-xl hover:opacity-90 transition-all shadow-xl text-lg transform hover:-translate-y-1"
+                                    disabled={isRecruiting}
+                                    className={`flex-1 bg-gradient-to-r from-blue-600 to-purple-600 text-white font-bold py-4 px-8 rounded-xl transition-all shadow-xl text-lg transform hover:-translate-y-1 ${isRecruiting ? 'opacity-50 cursor-not-allowed' : 'hover:opacity-90'}`}
                                 >
-                                    Complete Recruitment
+                                    {isRecruiting ? 'Processing...' : 'Complete Recruitment'}
                                 </button>
                                 <button
                                     type="button"
@@ -2963,7 +3029,11 @@ const ClubManagerDashboard: React.FC<ClubManagerDashboardProps> = ({
                 Discover new talent for your squad. These players have registered without a preferred club and are available for scouting.
             </p>
 
-            {generalPoolPlayers.length === 0 ? (
+            {isLoadingProspects ? (
+                <div className="flex justify-center py-12">
+                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-theme-primary"></div>
+                </div>
+            ) : prospects.length === 0 ? (
                 <div className="text-center py-12 bg-theme-secondary-bg rounded-xl border-2 border-dashed border-theme-border">
                     <div className="text-6xl mb-4">🔍</div>
                     <h3 className="text-xl font-semibold text-theme-dark mb-2">No Candidates Found</h3>
@@ -2971,7 +3041,7 @@ const ClubManagerDashboard: React.FC<ClubManagerDashboardProps> = ({
                 </div>
             ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    {generalPoolPlayers.map(player => (
+                    {prospects.map(player => (
                         <div key={player._id || player.id} className="bg-theme-secondary-bg rounded-xl shadow-lg border-t-4 border-theme-primary overflow-hidden hover:shadow-xl transition-all duration-300">
                             <div className="p-6">
                                 <div className="flex items-center gap-4 mb-4">
@@ -3001,22 +3071,29 @@ const ClubManagerDashboard: React.FC<ClubManagerDashboardProps> = ({
                                     </div>
                                 </div>
 
-                                <div className="grid grid-cols-2 gap-3">
+                                <div className="grid grid-cols-1 gap-3">
                                     <button
                                         onClick={() => {
-                                            // Reuse existing edit (viewing) modal logic if possible or just show toast for now
-                                            handleEditClick(player);
+                                            handleEditClick(player as any);
                                         }}
-                                        className="bg-theme-secondary-bg border border-theme-border text-theme-dark py-2 rounded-md font-medium hover:bg-theme-border transition-colors text-sm"
+                                        className="w-full bg-theme-secondary-bg border border-theme-border text-theme-dark py-2 rounded-md font-medium hover:bg-theme-border transition-colors text-sm"
                                     >
                                         View Profile
                                     </button>
-                                    <button
-                                        onClick={() => handleApprovePlayer(player._id || player.id)}
-                                        className="bg-theme-primary text-theme-dark py-2 rounded-md font-medium hover:opacity-90 transition-opacity text-sm"
-                                    >
-                                        Scout Player
-                                    </button>
+                                    <div className="grid grid-cols-2 gap-3">
+                                        <button
+                                            onClick={() => handleRejectProspect(player._id)}
+                                            className="bg-red-50 text-red-600 border border-red-200 py-2 rounded-md font-medium hover:bg-red-100 transition-colors text-sm"
+                                        >
+                                            Reject
+                                        </button>
+                                        <button
+                                            onClick={() => handleScoutProspect(player._id)}
+                                            className="bg-theme-primary text-theme-dark py-2 rounded-md font-medium hover:opacity-90 transition-opacity text-sm"
+                                        >
+                                            Scout Player
+                                        </button>
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -3046,6 +3123,8 @@ const ClubManagerDashboard: React.FC<ClubManagerDashboardProps> = ({
                 return renderManagePlayers();
             case 'Player Scouting':
                 return renderPlayerScouting();
+            case 'AI Scout Advisor':
+                return <ScoutAdvisor />;
             case 'Direct Recruitment':
                 return renderDirectRecruitment();
             case 'Manage Coaches':
@@ -3168,7 +3247,7 @@ const ClubManagerDashboard: React.FC<ClubManagerDashboardProps> = ({
         </div>
     );
 
-    const sections: ManagerSection[] = ['Dashboard', 'Manage Players', 'Player Scouting', 'Direct Recruitment', 'Manage Coaches', 'Manage Transfers', 'Manage Best Goals', 'Manage News', 'Profile'];
+    const sections: ManagerSection[] = ['Dashboard', 'Manage Players', 'Player Scouting', 'AI Scout Advisor', 'Direct Recruitment', 'Manage Coaches', 'Manage Transfers', 'Manage Best Goals', 'Manage News', 'Profile'];
 
     return (
         <div className="flex min-h-screen bg-theme-light">

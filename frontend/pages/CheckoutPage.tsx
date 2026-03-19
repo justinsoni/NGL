@@ -3,6 +3,13 @@ import { useNavigate } from 'react-router-dom';
 import { toast } from 'react-hot-toast';
 import { CartItem } from '../types';
 
+// Add type declaration for Razorpay payload
+declare global {
+    interface Window {
+        Razorpay: any;
+    }
+}
+
 interface CheckoutPageProps {
     cart: CartItem[];
     onUpdateQuantity: (productId: string | number, delta: number, size?: string) => void;
@@ -28,6 +35,16 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ cart, onUpdateQuantity, onR
         setFormData(prev => ({ ...prev, [name]: value }));
     };
 
+    const loadRazorpayScript = () => {
+        return new Promise((resolve) => {
+            const script = document.createElement('script');
+            script.src = 'https://checkout.razorpay.com/v1/checkout.js';
+            script.onload = () => resolve(true);
+            script.onerror = () => resolve(false);
+            document.body.appendChild(script);
+        });
+    };
+
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
 
@@ -38,16 +55,96 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ cart, onUpdateQuantity, onR
 
         setIsProcessing(true);
 
-        // Simulate API call
-        setTimeout(() => {
+        const res = await loadRazorpayScript();
+
+        if (!res) {
+            toast.error('Razorpay SDK failed to load. Are you online?');
             setIsProcessing(false);
-            onClearCart();
-            toast.success('Order placed successfully! Thank you for shopping with NGL.', {
-                duration: 6000,
-                icon: '🎉'
+            return;
+        }
+
+        try {
+            // Create order on backend
+            const orderResponse = await fetch('http://localhost:5001/api/payment/create-order', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ amount: total })
             });
-            navigate('/store');
-        }, 2000);
+            const orderData = await orderResponse.json();
+
+            if (!orderData.success) {
+                toast.error('Failed to create order');
+                setIsProcessing(false);
+                return;
+            }
+
+            const options = {
+                key: 'rzp_test_R79jO6N4F99QLG', // Hardcoded as requested or via env var (better to inject if we had it in frontend env)
+                amount: orderData.amount,
+                currency: orderData.currency,
+                name: 'NGL Store',
+                description: 'Order Payment',
+                order_id: orderData.orderId,
+                handler: async function (response: any) {
+                    try {
+                        const verifyRes = await fetch('http://localhost:5001/api/payment/verify-payment', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                razorpay_order_id: response.razorpay_order_id,
+                                razorpay_payment_id: response.razorpay_payment_id,
+                                razorpay_signature: response.razorpay_signature,
+                                customerDetails: formData,
+                                products: cart.map(item => ({
+                                    productId: item.id,
+                                    name: item.name,
+                                    price: item.price,
+                                    quantity: item.quantity,
+                                    size: item.selectedSize
+                                })),
+                                totalAmount: total
+                            })
+                        });
+                        const verifyData = await verifyRes.json();
+                        if (verifyData.success) {
+                            onClearCart();
+                            toast.success('Payment Successful! Thank you for your purchase.', {
+                                duration: 6000,
+                                icon: '🎉'
+                            });
+                            navigate('/store');
+                        } else {
+                            toast.error('Payment Verification Failed');
+                        }
+                    } catch (err) {
+                        toast.error('Payment Verification Failed');
+                    }
+                },
+                prefill: {
+                    name: formData.name,
+                    email: formData.email,
+                },
+                notes: {
+                    address: formData.address,
+                },
+                theme: {
+                    color: '#e31e24'
+                },
+                modal: {
+                    ondismiss: function () {
+                        setIsProcessing(false);
+                        toast.error('Payment cancelled');
+                    }
+                }
+            };
+
+            const paymentObject = new window.Razorpay(options);
+            paymentObject.open();
+
+        } catch (error) {
+            toast.error('Something went wrong during checkout');
+            setIsProcessing(false);
+        }
     };
 
     if (cart.length === 0 && !isProcessing) {

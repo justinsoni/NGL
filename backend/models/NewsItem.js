@@ -39,7 +39,7 @@ const newsItemSchema = new mongoose.Schema({
   summary: {
     type: String,
     trim: true,
-    maxlength: 500
+    maxlength: 2000
   },
   content: {
     type: String,

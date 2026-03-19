@@ -16,7 +16,7 @@ import { updateNewsById } from '@/api/news/updateNewsById';
 import { getLeagueConfig, updateLeagueConfig, resetLeagueConfig, LeagueConfigDTO } from '../services/leagueConfigService';
 import { initializeLeagueTableAdmin } from '../services/tableService';
 
-type AdminSection = 'Dashboard' | 'Manage Clubs' | 'Manage Fixtures' | 'Manage Store' | 'Manage News' | 'Latest News & Features' | 'Manage Match Reports' | 'Manage Trending News' | 'User Management' | 'League Settings';
+type AdminSection = 'Dashboard' | 'Manage Clubs' | 'Manage Fixtures' | 'Manage Store' | 'Manage News' | 'Latest News & Features' | 'Manage Match Reports' | 'Manage Trending News' | 'User Management' | 'Manage Media' | 'League Settings';
 
 interface AdminDashboardProps {
     matches: Match[];
@@ -525,6 +525,60 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
     const [isSubmittingTrendingNews, setIsSubmittingTrendingNews] = useState(false);
     const [editingTrendingNews, setEditingTrendingNews] = useState<any>(null);
 
+    // Media management state
+    const [mediaForm, setMediaForm] = useState({ title: '', youtubeUrl: '', category: 'Match Highlights' });
+    const [mediaThumbnailFile, setMediaThumbnailFile] = useState<File | null>(null);
+    const [mediaThumbnailPreview, setMediaThumbnailPreview] = useState<string>('');
+    const [isSubmittingMedia, setIsSubmittingMedia] = useState(false);
+
+    const handleMediaThumbnailUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0] || null;
+        if (!file) {
+            setMediaThumbnailFile(null);
+            setMediaThumbnailPreview('');
+            return;
+        }
+        if (!file.type.startsWith('image/')) {
+            toast.error('Please select a valid image file.');
+            return;
+        }
+        if (file.size > 5 * 1024 * 1024) {
+            toast.error('File size too large. Please upload an image smaller than 5MB.');
+            return;
+        }
+        setMediaThumbnailFile(file);
+        setMediaThumbnailPreview(URL.createObjectURL(file));
+    };
+
+    const handleAddMedia = async (e: React.FormEvent) => {
+        e.preventDefault();
+        
+        if (!mediaThumbnailFile) {
+            toast.error('Please select a thumbnail image to upload.');
+            return;
+        }
+
+        setIsSubmittingMedia(true);
+        try {
+            const thumbnailUrl = await uploadMatchImage(mediaThumbnailFile, 'ml_default');
+            const { mediaService } = await import('../services/mediaService');
+            
+            await mediaService.addMedia({
+                ...mediaForm,
+                thumbnailUrl
+            });
+            
+            toast.success('Media added successfully!');
+            setMediaForm({ title: '', youtubeUrl: '', category: 'Match Highlights' });
+            setMediaThumbnailFile(null);
+            setMediaThumbnailPreview('');
+        } catch (error: any) {
+            toast.error(error.response?.data?.message || 'Failed to add media');
+        } finally {
+            setIsSubmittingMedia(false);
+        }
+    };
+
     // League configuration state
     const [leagueConfig, setLeagueConfig] = useState<LeagueConfigDTO | null>(null);
     const [isLoadingLeagueConfig, setIsLoadingLeagueConfig] = useState(false);
@@ -993,7 +1047,8 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
         setTrendingNewsForm({
             title: item.title,
             imageUrl: item.imageUrl,
-            icon: item.icon
+            icon: item.icon,
+            content: item.content || ''
         });
         setTrendingNewsImageFile(null);
         setTrendingNewsImagePreview('');
@@ -1043,7 +1098,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
             setTrendingNews(prev => prev.map(item => item.id === updated._id ? { ...item, title: updated.title, imageUrl: updated.imageUrl, icon: updated.icon } : item));
 
-            setTrendingNewsForm({ title: '', imageUrl: '', icon: '🔥' });
+            setTrendingNewsForm({ title: '', imageUrl: '', icon: '🔥', content: '' });
             setTrendingNewsImageFile(null);
             setTrendingNewsImagePreview('');
             setEditingTrendingNews(null);
@@ -1057,7 +1112,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
     };
 
     const resetTrendingNewsForm = () => {
-        setTrendingNewsForm({ title: '', imageUrl: '', icon: '🔥' });
+        setTrendingNewsForm({ title: '', imageUrl: '', icon: '🔥', content: '' });
         setTrendingNewsImageFile(null);
         setTrendingNewsImagePreview('');
         setEditingTrendingNews(null);
@@ -2209,35 +2264,6 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                                             <input type="checkbox" checked={!!eventInput.onTarget} onChange={e => setEventInput(prev => ({ ...prev, targetId: f._id, onTarget: e.target.checked }))} />
                                                         </div>
                                                     )}
-                                                    {f.status === 'finished' && (
-                                                        <div className="mt-3 bg-theme-secondary-bg p-3 rounded">
-                                                            <div className="flex items-center gap-3">
-                                                                <label className="text-xs text-theme-text-secondary">Possession Home (%)</label>
-                                                                <input type="number" min={0} max={100} value={possessionInputs[f._id]?.home || ''} onChange={e => setPossessionInputs(prev => ({ ...prev, [f._id]: { ...(prev[f._id] || { home: '', away: '' }), home: e.target.value } }))} className="w-20 bg-theme-page-bg border border-theme-border rounded px-2 py-1" />
-                                                                <label className="text-xs text-theme-text-secondary">Away (%)</label>
-                                                                <input type="number" min={0} max={100} value={possessionInputs[f._id]?.away || ''} onChange={e => setPossessionInputs(prev => ({ ...prev, [f._id]: { ...(prev[f._id] || { home: '', away: '' }), away: e.target.value } }))} className="w-20 bg-theme-page-bg border border-theme-border rounded px-2 py-1" />
-                                                                <button
-                                                                    onClick={async () => {
-                                                                        try {
-                                                                            const home = Math.min(100, Math.max(0, parseInt(possessionInputs[f._id]?.home || '50', 10)));
-                                                                            const away = Math.min(100, Math.max(0, parseInt(possessionInputs[f._id]?.away || String(100 - home), 10)));
-                                                                            const fix = (home > 100 ? 100 : home);
-                                                                            const adjAway = Math.max(0, Math.min(100, away));
-                                                                            // Update MatchData possession after finish via API
-                                                                            // get by fixture id then update
-                                                                            try {
-                                                                                const { default: matchDataService } = await import('../services/matchDataService');
-                                                                                const md = await matchDataService.getMatchDataByFixture(f._id);
-                                                                                await matchDataService.updateMatchData(md.data._id, { homeTeamStats: { ...md.data.homeTeamStats, possession: fix }, awayTeamStats: { ...md.data.awayTeamStats, possession: adjAway } });
-                                                                                toast.success('Possession saved to report');
-                                                                            } catch (e) { toast.error('Failed to save possession'); }
-                                                                        } catch { }
-                                                                    }}
-                                                                    className="h-8 px-3 rounded bg-green-600 text-white text-xs"
-                                                                >Save Possession</button>
-                                                            </div>
-                                                        </div>
-                                                    )}
 
                                                     <button onClick={async () => {
                                                         if (eventInput.targetId !== f._id) return;
@@ -2292,6 +2318,35 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                                             });
                                                         } catch { toast.error('Failed to add event'); }
                                                     }} className="bg-theme-primary text-theme-dark font-bold px-3 py-1 rounded">Add Event</button>
+                                                </div>
+                                            </div>
+                                        )}
+                                        {f.status === 'finished' && (
+                                            <div className="mt-3 bg-theme-secondary-bg p-3 rounded">
+                                                <div className="flex items-center gap-3">
+                                                    <label className="text-xs text-theme-text-secondary">Possession Home (%)</label>
+                                                    <input type="number" min={0} max={100} value={possessionInputs[f._id]?.home || ''} onChange={e => setPossessionInputs(prev => ({ ...prev, [f._id]: { ...(prev[f._id] || { home: '', away: '' }), home: e.target.value } }))} className="w-20 bg-theme-page-bg border border-theme-border rounded px-2 py-1" />
+                                                    <label className="text-xs text-theme-text-secondary">Away (%)</label>
+                                                    <input type="number" min={0} max={100} value={possessionInputs[f._id]?.away || ''} onChange={e => setPossessionInputs(prev => ({ ...prev, [f._id]: { ...(prev[f._id] || { home: '', away: '' }), away: e.target.value } }))} className="w-20 bg-theme-page-bg border border-theme-border rounded px-2 py-1" />
+                                                    <button
+                                                        onClick={async () => {
+                                                            try {
+                                                                const home = Math.min(100, Math.max(0, parseInt(possessionInputs[f._id]?.home || '50', 10)));
+                                                                const away = Math.min(100, Math.max(0, parseInt(possessionInputs[f._id]?.away || String(100 - home), 10)));
+                                                                const fix = (home > 100 ? 100 : home);
+                                                                const adjAway = Math.max(0, Math.min(100, away));
+                                                                // Update MatchData possession after finish via API
+                                                                // get by fixture id then update
+                                                                try {
+                                                                    const { default: matchDataService } = await import('../services/matchDataService');
+                                                                    const md = await matchDataService.getMatchDataByFixture(f._id);
+                                                                    await matchDataService.updateMatchData(md.data._id, { homeTeamStats: { ...md.data.homeTeamStats, possession: fix }, awayTeamStats: { ...md.data.awayTeamStats, possession: adjAway } });
+                                                                    toast.success('Possession saved to report');
+                                                                } catch (e) { toast.error('Failed to save possession'); }
+                                                            } catch { }
+                                                        }}
+                                                        className="h-8 px-3 rounded bg-green-600 text-white text-xs"
+                                                    >Save Possession</button>
                                                 </div>
                                             </div>
                                         )}
@@ -3621,12 +3676,63 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                         )}
                     </div>
                 );
+            case 'Manage Media':
+                return (
+                    <div>
+                        <h2 className="text-3xl font-bold mb-6 text-theme-dark">Manage Media Hub</h2>
+                        <div className="bg-theme-secondary-bg p-6 rounded-lg">
+                            <form onSubmit={handleAddMedia} className="space-y-4 max-w-2xl">
+                                <div>
+                                    <label className="block text-sm font-medium text-theme-text-secondary mb-1">Video Title</label>
+                                    <input type="text" required value={mediaForm.title} onChange={e => setMediaForm(p => ({ ...p, title: e.target.value }))} className="w-full bg-theme-page-bg border border-theme-border rounded px-2 py-2" />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-theme-text-secondary mb-1">YouTube URL</label>
+                                    <input type="url" required value={mediaForm.youtubeUrl} onChange={e => setMediaForm(p => ({ ...p, youtubeUrl: e.target.value }))} className="w-full bg-theme-page-bg border border-theme-border rounded px-2 py-2" placeholder="https://youtube.com/..." />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-theme-text-secondary mb-1">Thumbnail Upload</label>
+                                    <input 
+                                        type="file" 
+                                        accept="image/jpeg, image/png, image/webp" 
+                                        onChange={handleMediaThumbnailUpload} 
+                                        className="w-full bg-theme-page-bg border border-theme-border rounded px-2 py-2" 
+                                    />
+                                    {mediaThumbnailPreview && (
+                                        <div className="mt-4 relative inline-block">
+                                            <img src={mediaThumbnailPreview} alt="Thumbnail Preview" className="h-32 w-auto rounded object-cover shadow border border-theme-border" />
+                                            <button 
+                                                type="button" 
+                                                onClick={() => { setMediaThumbnailFile(null); setMediaThumbnailPreview(''); }} 
+                                                className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center hover:bg-red-600 shadow-md transition-colors"
+                                            >
+                                                ×
+                                            </button>
+                                        </div>
+                                    )}
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-theme-text-secondary mb-1">Category</label>
+                                    <select value={mediaForm.category} onChange={e => setMediaForm(p => ({ ...p, category: e.target.value }))} className="w-full bg-theme-page-bg border border-theme-border rounded px-2 py-2">
+                                        <option value="Match Highlights">Match Highlights</option>
+                                        <option value="Player Interviews">Player Interviews</option>
+                                        <option value="Behind the Scenes">Behind the Scenes</option>
+                                        <option value="Manager Press Conferences">Manager Press Conferences</option>
+                                    </select>
+                                </div>
+                                <button type="submit" disabled={isSubmittingMedia} className="bg-theme-primary text-theme-dark font-bold py-2 px-6 rounded-md hover:opacity-90 transition-opacity disabled:opacity-50">
+                                    {isSubmittingMedia ? 'Adding...' : 'Add Media'}
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+                );
             default:
                 return null;
         }
     };
 
-    const sections: AdminSection[] = ['Dashboard', 'Manage Clubs', 'Manage Fixtures', 'Manage Store', 'Manage News', 'Latest News & Features', 'Manage Match Reports', 'Manage Trending News', 'User Management', 'League Settings'];
+    const sections: AdminSection[] = ['Dashboard', 'Manage Clubs', 'Manage Fixtures', 'Manage Store', 'Manage News', 'Latest News & Features', 'Manage Match Reports', 'Manage Trending News', 'Manage Media', 'User Management', 'League Settings'];
 
     return (
         <div className="flex min-h-screen bg-theme-light">

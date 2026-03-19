@@ -5,9 +5,9 @@ const path = require('path');
 class EmailService {
   constructor() {
     // Check if Brevo API key is configured (primary email service)
-    const brevoApiKey = process.env.BREVO_API_KEY;
-    const emailUser = process.env.EMAIL_USER || 'justinsony2000@gmail.com';
-    const emailPassword = process.env.EMAIL_PASSWORD || 'your-app-password';
+    const brevoApiKey = (process.env.BREVO_API_KEY || '').trim();
+    const emailUser = (process.env.EMAIL_USER || 'justinsony2002@gmail.com').trim();
+    const emailPassword = (process.env.EMAIL_PASSWORD || 'your-app-password').trim();
 
     console.log('🔧 Email Configuration Check:');
     console.log('BREVO_API_KEY:', brevoApiKey ? '***configured***' : 'NOT CONFIGURED');
@@ -30,8 +30,10 @@ class EmailService {
     }
 
     // Initialize Brevo if API key is available
-    if (brevoApiKey && brevoApiKey !== 'xkeysib-your-brevo-api-key-here' && brevoApiKey !== 'your-brevo-api-key') {
+    console.log('🔍 Checking Brevo API Key:', brevoApiKey);
+    if (brevoApiKey && brevoApiKey !== 'xkeysib-your-brevo-api-key-here' && brevoApiKey !== 'your-brevo-api-key' && brevoApiKey.startsWith('xkeysib-')) {
       try {
+        console.log('🚀 Initializing Brevo TransactionalEmailsApi...');
         const brevo = require('@getbrevo/brevo');
         let defaultClient = brevo.ApiClient.instance;
         let apiKey = defaultClient.authentications['api-key'];
@@ -43,7 +45,7 @@ class EmailService {
         this.brevoApi = null;
       }
     } else {
-      console.log('⚠️ Brevo API key not configured. Please set BREVO_API_KEY in .env file');
+      console.log('⚠️ Brevo API key not configured correctly or invalid prefix.');
       this.brevoApi = null;
     }
 
@@ -191,7 +193,7 @@ NGL Administration Team
           name: managerName
         }];
         sendSmtpEmail.sender = {
-          email: process.env.BREVO_SENDER_EMAIL || 'justinsony2000@gmail.com',
+          email: process.env.BREVO_SENDER_EMAIL || 'justinsony2002@gmail.com',
           name: 'NGL Administration Team'
         };
         sendSmtpEmail.subject = subject;
@@ -203,7 +205,19 @@ NGL Administration Team
         return { success: true, messageId: result.body?.messageId || result.messageId, provider: 'brevo' };
       } catch (error) {
         console.error('❌ Brevo email sending failed:', error.message);
-        this.lastError = error.response && error.response.body ? JSON.stringify(error.response.body) : error.message;
+
+        // Detailed error logging for diagnostics
+        const errorDetail = error.response && error.response.body
+          ? JSON.stringify(error.response.body)
+          : (error.response?.text || error.message);
+
+        console.error('Brevo error detail:', errorDetail);
+        this.lastError = errorDetail;
+
+        // Check for common authorization issues
+        if (error.message.includes('Unauthorized') || errorDetail.includes('unauthorized')) {
+          console.error('💡 TIP: This usually means the BREVO_API_KEY is invalid or "Transactional emails" are not enabled in your Brevo account.');
+        }
         // Fall back to Gmail if Brevo fails
       }
     }
@@ -212,7 +226,7 @@ NGL Administration Team
     if (this.transporter) {
       try {
         const mailOptions = {
-          from: process.env.EMAIL_USER || 'justinsony2000@gmail.com',
+          from: process.env.EMAIL_USER || 'justinsony2002@gmail.com',
           to: managerEmail,
           subject: subject,
           html: htmlBody,
@@ -330,7 +344,7 @@ NGL Administration Team
             name: coachName
           }],
           sender: {
-            email: process.env.BREVO_SENDER_EMAIL || 'justinsony2000@gmail.com',
+            email: process.env.BREVO_SENDER_EMAIL || 'justinsony2002@gmail.com',
             name: 'NGL Administration Team'
           },
           subject: subject,
@@ -342,6 +356,15 @@ NGL Administration Team
         return { success: true, messageId: result.messageId, provider: 'brevo' };
       } catch (error) {
         console.error('❌ Brevo email sending failed:', error.message);
+        const errorDetail = error.response && error.response.body
+          ? JSON.stringify(error.response.body)
+          : (error.response?.text || error.message);
+
+        console.error('Brevo error detail:', errorDetail);
+
+        if (error.message.includes('Unauthorized') || errorDetail.includes('unauthorized')) {
+          console.error('💡 TIP: Check BREVO_API_KEY and if Transactional emails are enabled.');
+        }
         // Fall back to Gmail if Brevo fails
       }
     }
@@ -350,7 +373,7 @@ NGL Administration Team
     if (this.transporter) {
       try {
         const mailOptions = {
-          from: process.env.EMAIL_USER || 'justinsony2000@gmail.com',
+          from: process.env.EMAIL_USER || 'justinsony2002@gmail.com',
           to: coachEmail,
           subject: subject,
           html: htmlBody
@@ -499,7 +522,7 @@ This email was sent automatically. Please do not reply to this email.
             name: coachName
           }],
           sender: {
-            email: process.env.BREVO_SENDER_EMAIL || 'justinsony2000@gmail.com',
+            email: process.env.BREVO_SENDER_EMAIL || 'justinsony2002@gmail.com',
             name: 'NGL Administration Team'
           },
           subject: subject,
@@ -512,6 +535,15 @@ This email was sent automatically. Please do not reply to this email.
         return { success: true, messageId: result.body?.messageId || result.messageId, provider: 'brevo' };
       } catch (error) {
         console.error('❌ Brevo coach welcome email sending failed:', error.message);
+        const errorDetail = error.response && error.response.body
+          ? JSON.stringify(error.response.body)
+          : (error.response?.text || error.message);
+
+        console.error('Brevo error detail:', errorDetail);
+
+        if (error.message.includes('Unauthorized') || errorDetail.includes('unauthorized')) {
+          console.error('💡 TIP: Check BREVO_API_KEY and if Transactional emails are enabled.');
+        }
         // Fall back to Gmail if Brevo fails
       }
     }
@@ -520,7 +552,7 @@ This email was sent automatically. Please do not reply to this email.
     if (this.transporter) {
       try {
         const mailOptions = {
-          from: process.env.EMAIL_USER || 'justinsony2000@gmail.com',
+          from: process.env.EMAIL_USER || 'justinsony2002@gmail.com',
           to: coachEmail,
           subject: subject,
           html: htmlBody,

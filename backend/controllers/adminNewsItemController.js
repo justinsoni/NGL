@@ -25,7 +25,8 @@ const createNewsItem = async (req, res) => {
     console.error('Create news item error:', error);
     res.status(500).json({
       success: false,
-      message: 'Failed to create news item'
+      message: 'Failed to create news item',
+      error: error.message
     });
   }
 };
