@@ -516,8 +516,8 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
     const [matchReportImagePreview, setMatchReportImagePreview] = useState<string>('');
 
     // Trending News management state
-    type TrendingNewsItem = { id: string; title: string; imageUrl: string; icon: string; content: string; createdAt: string };
-    const [trendingNewsForm, setTrendingNewsForm] = useState<{ title: string; imageUrl: string; icon: string; content: string }>({ title: '', imageUrl: '', icon: '🔥', content: '' });
+    type TrendingNewsItem = { id: string; title: string; imageUrl: string; content: string; createdAt: string };
+    const [trendingNewsForm, setTrendingNewsForm] = useState<{ title: string; imageUrl: string; content: string }>({ title: '', imageUrl: '', content: '' });
     const [trendingNews, setTrendingNews] = useState<TrendingNewsItem[]>([]);
     const [trendingNewsImageFile, setTrendingNewsImageFile] = useState<File | null>(null);
     const [trendingNewsImagePreview, setTrendingNewsImagePreview] = useState<string>('');
@@ -550,30 +550,88 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
         setMediaThumbnailPreview(URL.createObjectURL(file));
     };
 
+    const [mediaList, setMediaList] = useState<any[]>([]);
+    const [editingMediaId, setEditingMediaId] = useState<string | null>(null);
+    const [isLoadingMedia, setIsLoadingMedia] = useState(false);
+
+    const fetchMediaHubList = async () => {
+        setIsLoadingMedia(true);
+        try {
+            const { mediaService } = await import('../services/mediaService');
+            const response = await mediaService.getMedia();
+            const fetched = (response as any).data || response;
+            setMediaList(Array.isArray(fetched) ? fetched : []);
+        } catch (err) {
+            console.error(err);
+        } finally {
+            setIsLoadingMedia(false);
+        }
+    };
+
+    useEffect(() => {
+        if (activeSection === 'Manage Media') {
+            fetchMediaHubList();
+        }
+    }, [activeSection]);
+
+    const handleEditMedia = (mediaItem: any) => {
+        setEditingMediaId(mediaItem._id);
+        setMediaForm({ title: mediaItem.title, youtubeUrl: mediaItem.youtubeUrl, category: mediaItem.category });
+        setMediaThumbnailPreview(mediaItem.thumbnailUrl);
+        setMediaThumbnailFile(null);
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+    };
+
+    const handleDeleteMedia = async (id: string) => {
+        if (!window.confirm('Are you sure you want to delete this media?')) return;
+        try {
+            const { mediaService } = await import('../services/mediaService');
+            await mediaService.deleteMedia(id);
+            toast.success('Media deleted successfully!');
+            fetchMediaHubList();
+        } catch (error: any) {
+            toast.error(error.response?.data?.message || 'Failed to delete media');
+        }
+    };
+
     const handleAddMedia = async (e: React.FormEvent) => {
         e.preventDefault();
         
-        if (!mediaThumbnailFile) {
+        if (!editingMediaId && !mediaThumbnailFile && !mediaThumbnailPreview) {
             toast.error('Please select a thumbnail image to upload.');
             return;
         }
 
         setIsSubmittingMedia(true);
         try {
-            const thumbnailUrl = await uploadMatchImage(mediaThumbnailFile, 'ml_default');
+            let thumbnailUrl = editingMediaId ? mediaThumbnailPreview : '';
+            if (mediaThumbnailFile) {
+                thumbnailUrl = await uploadMatchImage(mediaThumbnailFile, 'ml_default');
+            }
+            
             const { mediaService } = await import('../services/mediaService');
             
-            await mediaService.addMedia({
-                ...mediaForm,
-                thumbnailUrl
-            });
+            if (editingMediaId) {
+                await mediaService.updateMedia(editingMediaId, {
+                    ...mediaForm,
+                    ...(thumbnailUrl ? { thumbnailUrl } : {})
+                });
+                toast.success('Media updated successfully!');
+            } else {
+                await mediaService.addMedia({
+                    ...mediaForm,
+                    thumbnailUrl
+                });
+                toast.success('Media added successfully!');
+            }
             
-            toast.success('Media added successfully!');
             setMediaForm({ title: '', youtubeUrl: '', category: 'Match Highlights' });
             setMediaThumbnailFile(null);
             setMediaThumbnailPreview('');
+            setEditingMediaId(null);
+            fetchMediaHubList();
         } catch (error: any) {
-            toast.error(error.response?.data?.message || 'Failed to add media');
+            toast.error(error.response?.data?.message || 'Failed to save media');
         } finally {
             setIsSubmittingMedia(false);
         }
@@ -979,7 +1037,6 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
     // Trending News handler functions
     const addTrendingNews = async () => {
         const title = trendingNewsForm.title.trim();
-        const icon = trendingNewsForm.icon.trim();
         if (!title) { toast.error('Please enter a trending news title'); return; }
         if (!trendingNewsImageFile) { toast.error('Please select an image to upload'); return; }
 
@@ -1005,7 +1062,6 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
             const trendingData = {
                 title,
                 imageUrl,
-                icon,
                 category: 'Trending',
                 type: 'trending',
                 content: trendingNewsForm.content || title,
@@ -1013,8 +1069,8 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
             };
 
             const created = await createNews(trendingData, idToken);
-            setTrendingNews(prev => [{ id: created._id, title: created.title, imageUrl: created.imageUrl, icon: created.icon, content: created.content || '', createdAt: created.createdAt }, ...prev]);
-            setTrendingNewsForm({ title: '', imageUrl: '', icon: '🔥', content: '' });
+            setTrendingNews(prev => [{ id: created._id, title: created.title, imageUrl: created.imageUrl, content: created.content || '', createdAt: created.createdAt }, ...prev]);
+            setTrendingNewsForm({ title: '', imageUrl: '', content: '' });
             setTrendingNewsImageFile(null);
             setTrendingNewsImagePreview('');
             toast.success('Trending news published to homepage');
@@ -1047,7 +1103,6 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
         setTrendingNewsForm({
             title: item.title,
             imageUrl: item.imageUrl,
-            icon: item.icon,
             content: item.content || ''
         });
         setTrendingNewsImageFile(null);
@@ -1082,7 +1137,6 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 ...editingTrendingNews,
                 title: trendingNewsForm.title,
                 imageUrl: imageUrl,
-                icon: trendingNewsForm.icon,
                 updatedAt: new Date().toISOString()
             };
 
@@ -1096,9 +1150,9 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
             const updated = await updateNewsById(editingTrendingNews._id, updatedTrendingNews, idToken);
 
-            setTrendingNews(prev => prev.map(item => item.id === updated._id ? { ...item, title: updated.title, imageUrl: updated.imageUrl, icon: updated.icon } : item));
+            setTrendingNews(prev => prev.map(item => item.id === updated._id ? { ...item, title: updated.title, imageUrl: updated.imageUrl } : item));
 
-            setTrendingNewsForm({ title: '', imageUrl: '', icon: '🔥', content: '' });
+            setTrendingNewsForm({ title: '', imageUrl: '', content: '' });
             setTrendingNewsImageFile(null);
             setTrendingNewsImagePreview('');
             setEditingTrendingNews(null);
@@ -1112,7 +1166,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
     };
 
     const resetTrendingNewsForm = () => {
-        setTrendingNewsForm({ title: '', imageUrl: '', icon: '🔥', content: '' });
+        setTrendingNewsForm({ title: '', imageUrl: '', content: '' });
         setTrendingNewsImageFile(null);
         setTrendingNewsImagePreview('');
         setEditingTrendingNews(null);
@@ -3184,7 +3238,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                 </h3>
 
                                 <form onSubmit={editingTrendingNews ? handleUpdateTrendingNews : (e) => { e.preventDefault(); addTrendingNews(); }} className="space-y-4">
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div className="grid grid-cols-1 gap-4">
                                         <div>
                                             <label htmlFor="trendingTitle" className="block text-sm font-medium text-theme-text-secondary mb-1">Title *</label>
                                             <input
@@ -3196,26 +3250,6 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                                 className="w-full bg-theme-page-bg border border-theme-border rounded-md shadow-sm py-2 px-3 text-theme-dark focus:outline-none focus:ring-theme-primary focus:border-theme-primary"
                                                 placeholder="e.g., Best of Madueke 24/25"
                                             />
-                                        </div>
-                                        <div>
-                                            <label htmlFor="trendingIcon" className="block text-sm font-medium text-theme-text-secondary mb-1">Icon *</label>
-                                            <select
-                                                id="trendingIcon"
-                                                value={trendingNewsForm.icon}
-                                                onChange={e => setTrendingNewsForm(prev => ({ ...prev, icon: e.target.value }))}
-                                                className="w-full bg-theme-page-bg border border-theme-border rounded-md shadow-sm py-2 px-3 text-theme-dark focus:outline-none focus:ring-theme-primary focus:border-theme-primary"
-                                            >
-                                                <option value="🔥">🔥 Fire</option>
-                                                <option value="⚡️">⚡️ Lightning</option>
-                                                <option value="✨">✨ Sparkles</option>
-                                                <option value="⚽️">⚽️ Football</option>
-                                                <option value="💪">💪 Flex</option>
-                                                <option value="🧤">🧤 Gloves</option>
-                                                <option value="🟣">🟣 Purple</option>
-                                                <option value="🏃‍♂️">🏃‍♂️ Running</option>
-                                                <option value="⭐">⭐ Star</option>
-                                                <option value="🎯">🎯 Target</option>
-                                            </select>
                                         </div>
                                     </div>
 
@@ -3305,7 +3339,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                                 />
                                                 <div className="absolute top-2 left-2">
                                                     <span className="bg-theme-primary text-theme-dark text-xs font-bold px-2 py-1 rounded">
-                                                        {item.icon} Trending
+                                                        Trending
                                                     </span>
                                                 </div>
                                             </div>
@@ -3680,7 +3714,13 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 return (
                     <div>
                         <h2 className="text-3xl font-bold mb-6 text-theme-dark">Manage Media Hub</h2>
-                        <div className="bg-theme-secondary-bg p-6 rounded-lg">
+                        <div className="bg-theme-secondary-bg p-6 rounded-lg mb-8">
+                            <h3 className="text-xl font-bold mb-4">{editingMediaId ? 'Edit Media' : 'Add New Media'}</h3>
+                            {editingMediaId && (
+                                <button type="button" onClick={() => { setEditingMediaId(null); setMediaForm({ title: '', youtubeUrl: '', category: 'Match Highlights' }); setMediaThumbnailPreview(''); setMediaThumbnailFile(null); }} className="mb-4 text-theme-primary font-semibold hover:underline text-sm">
+                                    Cancel Editing
+                                </button>
+                            )}
                             <form onSubmit={handleAddMedia} className="space-y-4 max-w-2xl">
                                 <div>
                                     <label className="block text-sm font-medium text-theme-text-secondary mb-1">Video Title</label>
@@ -3721,9 +3761,61 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                     </select>
                                 </div>
                                 <button type="submit" disabled={isSubmittingMedia} className="bg-theme-primary text-theme-dark font-bold py-2 px-6 rounded-md hover:opacity-90 transition-opacity disabled:opacity-50">
-                                    {isSubmittingMedia ? 'Adding...' : 'Add Media'}
+                                    {isSubmittingMedia ? (editingMediaId ? 'Updating...' : 'Adding...') : (editingMediaId ? 'Update Media' : 'Add Media')}
                                 </button>
                             </form>
+                        </div>
+
+                        {/* Media List View */}
+                        <div className="bg-theme-secondary-bg p-6 rounded-lg shadow">
+                            <h3 className="text-xl font-bold mb-4 text-theme-dark">Existing Media</h3>
+                            {isLoadingMedia ? (
+                                <div className="text-center py-4 text-theme-text-secondary">Loading media...</div>
+                            ) : mediaList.length === 0 ? (
+                                <div className="text-center py-4 text-theme-text-secondary">No media items found.</div>
+                            ) : (
+                                <div className="overflow-x-auto">
+                                    <table className="w-full text-left">
+                                        <thead className="bg-[#e4ece9] text-theme-text-secondary font-bold uppercase text-xs">
+                                            <tr>
+                                                <th className="p-3">Thumbnail</th>
+                                                <th className="p-3">Title</th>
+                                                <th className="p-3">Category</th>
+                                                <th className="p-3 text-right">Actions</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {mediaList.map((media) => (
+                                                <tr key={media._id} className="border-b border-theme-border hover:bg-[#ebf0ee] transition-colors">
+                                                    <td className="p-3">
+                                                        <img src={media.thumbnailUrl} alt={media.title} className="w-20 h-12 object-cover rounded border border-theme-border shadow-sm" />
+                                                    </td>
+                                                    <td className="p-3 font-semibold text-theme-dark">{media.title}</td>
+                                                    <td className="p-3">
+                                                        <span className="px-2 py-1 bg-theme-primary/30 text-theme-dark rounded text-xs font-bold">
+                                                            {media.category}
+                                                        </span>
+                                                    </td>
+                                                    <td className="p-3 text-right space-x-4">
+                                                        <button 
+                                                            onClick={() => handleEditMedia(media)}
+                                                            className="text-blue-600 flex-inline items-center hover:text-blue-800 font-semibold text-sm transition-colors"
+                                                        >
+                                                            ✏️ Edit
+                                                        </button>
+                                                        <button 
+                                                            onClick={() => handleDeleteMedia(media._id)}
+                                                            className="text-red-500 hover:text-red-700 font-semibold text-sm transition-colors"
+                                                        >
+                                                            🗑️ Delete
+                                                        </button>
+                                                    </td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            )}
                         </div>
                     </div>
                 );

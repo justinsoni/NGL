@@ -44,11 +44,16 @@ const TablePage: React.FC<TablePageProps> = ({ tableData }) => {
 
   useEffect(() => {
     const mapStandingsToTeams = (standings: any[]): TableEntry[] => {
-      return (standings || []).map((s: any) => {
+      const teamMap = new Map<string, TableEntry>();
+
+      (standings || []).forEach((s: any) => {
         const isStringClub = typeof s.club === 'string';
         const clubId = isStringClub ? s.club : (s.club?._id ?? s.club?.id ?? s.club?.name);
+        if (!clubId) return;
+
         const clubName = isStringClub ? s.club : (s.club?.name ?? 'Team');
         const logo = isStringClub ? '' : (s.club?.logo ?? '');
+
         const entry: TableEntry = {
           id: clubId,
           pos: 0,
@@ -63,8 +68,19 @@ const TablePage: React.FC<TablePageProps> = ({ tableData }) => {
           gd: s.gd ?? ((s.gf ?? 0) - (s.ga ?? 0)),
           pts: s.points ?? s.pts ?? 0,
         };
-        return entry;
+
+        // Deduplicate: If club already exists, keep the one with the most matches played
+        if (teamMap.has(clubId)) {
+           const existing = teamMap.get(clubId)!;
+           if (entry.p > existing.p) {
+               teamMap.set(clubId, entry);
+           }
+        } else {
+           teamMap.set(clubId, entry);
+        }
       });
+
+      return Array.from(teamMap.values());
     };
 
     // Initial load - automatically initialize if empty
@@ -205,7 +221,7 @@ const TablePage: React.FC<TablePageProps> = ({ tableData }) => {
             </thead>
             <tbody className="text-sm">
               {sortedTeams.map((team, index) => (
-                <tr key={team.club} className={`border-t border-theme-border ${index % 2 === 0 ? 'bg-theme-page-bg' : 'bg-theme-secondary-bg'}`}>
+                <tr key={`${team.club}-${index}`} className={`border-t border-theme-border ${index % 2 === 0 ? 'bg-theme-page-bg' : 'bg-theme-secondary-bg'}`}>
                   <td className="py-3 px-2 md:px-4 whitespace-nowrap">
                     <div className="flex items-center">
                         <span className={`w-6 text-center font-semibold`}>{index + 1}</span>

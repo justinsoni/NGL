@@ -54,3 +54,42 @@ exports.addMedia = async (req, res) => {
     });
   }
 };
+
+// @desc    Update media
+// @route   PUT /api/media/:id
+// @access  Private/Admin
+exports.updateMedia = async (req, res) => {
+  try {
+    const media = await Media.findByIdAndUpdate(req.params.id, req.body, {
+      new: true,
+      runValidators: true
+    });
+
+    if (!media) {
+      return res.status(404).json({ success: false, message: 'Media not found' });
+    }
+
+    res.status(200).json({ success: true, data: media });
+  } catch (error) {
+    console.error('Error updating media:', error);
+    res.status(500).json({ success: false, message: 'Server Error' });
+  }
+};
+
+// @desc    Delete media
+// @route   DELETE /api/media/:id
+// @access  Private/Admin
+exports.deleteMedia = async (req, res) => {
+  try {
+    const media = await Media.findByIdAndDelete(req.params.id);
+
+    if (!media) {
+      return res.status(404).json({ success: false, message: 'Media not found' });
+    }
+
+    res.status(200).json({ success: true, data: {} });
+  } catch (error) {
+    console.error('Error deleting media:', error);
+    res.status(500).json({ success: false, message: 'Server Error' });
+  }
+};

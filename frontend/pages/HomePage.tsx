@@ -142,8 +142,8 @@ const HomePage: React.FC<HomePageProps> = ({ matchesData, tableData, competition
   const [activeStat, setActiveStat] = useState<string>(leaderStats.length > 0 ? leaderStats[0].statUnit : '');
   const activeLeaderStat = leaderStats.find(stat => stat.statUnit === activeStat);
 
-  const [newsArticles, setNewsArticles] = useState<Array<{ _id: string; title: string; imageUrl: string, summary: string, content: string, createdAt: string }>>([]);
-  const [trendingNews, setTrendingNews] = useState<Array<{ _id: string; title: string; imageUrl: string, icon: string, content: string, createdAt: string }>>([]);
+  const [newsArticles, setNewsArticles] = useState<Array<{ _id: string; title: string; imageUrl: string, summary: string, content: string, createdAt: string, category?: string }>>([]);
+  const [trendingNews, setTrendingNews] = useState<Array<{ _id: string; title: string; imageUrl: string, content: string, createdAt: string }>>([]);
   
   // State for real fixtures from API
   const [fixtures, setFixtures] = useState<FixtureDTO[]>([]);
@@ -161,7 +161,6 @@ const HomePage: React.FC<HomePageProps> = ({ matchesData, tableData, competition
               _id: item._id,
               title: item.title,
               imageUrl: item.imageUrl,
-              icon: item.icon || '🔥',
               content: item.content || '',
               createdAt: item.createdAt
             }));
@@ -293,7 +292,7 @@ const HomePage: React.FC<HomePageProps> = ({ matchesData, tableData, competition
                         <div className="relative rounded-lg overflow-hidden h-72 shadow-lg">
                             <img src={item.imageUrl} alt={item.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
                             <div className="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent"></div>
-                            <span className="absolute top-2 left-2 bg-theme-accent text-white text-xs font-bold px-2 py-1 rounded">{item.icon} Trending</span>
+                            <span className="absolute top-2 left-2 bg-theme-accent text-white text-xs font-bold px-2 py-1 rounded">Trending</span>
                             <div className="absolute bottom-0 left-0 p-3 text-white">
                                 <h3 className="font-semibold leading-tight">{item.title}</h3>
                             </div>
@@ -579,8 +578,8 @@ const HomePage: React.FC<HomePageProps> = ({ matchesData, tableData, competition
                 .filter(fixture => fixture.status === 'scheduled')
                 .slice(0, 6)
                 .map(fixture => {
-                  const homeTeam = typeof fixture.homeTeam === 'string' ? { name: 'Home Team' } : fixture.homeTeam;
-                  const awayTeam = typeof fixture.awayTeam === 'string' ? { name: 'Away Team' } : fixture.awayTeam;
+                  const homeTeam = typeof fixture.homeTeam === 'string' ? { name: 'Home Team', logo: undefined } : fixture.homeTeam;
+                  const awayTeam = typeof fixture.awayTeam === 'string' ? { name: 'Away Team', logo: undefined } : fixture.awayTeam;
                   
                   return (
                     <div key={fixture._id} className="bg-white rounded-lg shadow-lg p-6 hover:shadow-xl transition-shadow">

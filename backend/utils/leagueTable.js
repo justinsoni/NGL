@@ -75,6 +75,22 @@ async function sortTable(tableId) {
   const table = await LeagueTable.findById(tableId).populate('standings.club', 'name logo');
   // Remove any corrupt entries without a club reference
   table.standings = table.standings.filter(s => !!s.club);
+
+  // Self-heal: Deduplicate standings by taking the entry with most played matches
+  const uniqueStandingsMap = new Map();
+  table.standings.forEach(s => {
+    const clubId = s.club._id ? s.club._id.toString() : s.club.toString();
+    if (uniqueStandingsMap.has(clubId)) {
+      const existing = uniqueStandingsMap.get(clubId);
+      if (s.played > existing.played) {
+        uniqueStandingsMap.set(clubId, s);
+      }
+    } else {
+      uniqueStandingsMap.set(clubId, s);
+    }
+  });
+  table.standings = Array.from(uniqueStandingsMap.values());
+
   table.standings.sort((a, b) => {
     if (b.points !== a.points) return b.points - a.points;
     if (b.gd !== a.gd) return b.gd - a.gd;

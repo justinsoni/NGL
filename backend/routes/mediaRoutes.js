@@ -1,10 +1,14 @@
 const express = require('express');
 const router = express.Router();
-const { getMedia, addMedia } = require('../controllers/mediaController');
-const { verifyFirebaseToken, requireAdmin } = require('../middleware/auth');
+const { getMedia, addMedia, updateMedia, deleteMedia } = require('../controllers/mediaController');
+const { authenticateToken, requireAdmin } = require('../middleware/auth');
 
 router.route('/')
   .get(getMedia)
-  .post(verifyFirebaseToken, requireAdmin, addMedia);
+  .post(authenticateToken, requireAdmin, addMedia);
+
+router.route('/:id')
+  .put(authenticateToken, requireAdmin, updateMedia)
+  .delete(authenticateToken, requireAdmin, deleteMedia);
 
 module.exports = router;
