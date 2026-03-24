@@ -4,32 +4,28 @@ const { generateScoutResponse } = require('../utils/aiAssistant');
 
 /**
  * Handles natural language scouting queries.
- * 1. Fetches players from the DB.
- * 2. Sends them along with the query to the AI Assistant.
  */
 exports.askScoutAdvisor = async (req, res) => {
     try {
         const { query } = req.body;
-
         if (!query) {
             return res.status(400).json({ message: "Please provide a scouting query." });
         }
 
-        // AI Advisor uses the Prospect (mock) pool for simulation
         const filter = {};
         if (req.user) {
             filter.rejectedBy = { $ne: req.user._id };
         }
-        const players = await Prospect.find(filter).limit(50).lean();
 
+        // Fetch full data including career history & media
+        const players = await Prospect.find(filter).limit(50).lean();
         if (!players || players.length === 0) {
             return res.status(404).json({ message: "No prospects found to analyze." });
         }
 
-        // Step 2: Get AI response
         const aiResponse = await generateScoutResponse(query, players);
 
-        // Step 3: Extract recommended players
+        // Extract recommended players by matching names from AI output
         const recommendedPlayers = [];
         const lines = aiResponse.split('\n');
 
@@ -41,19 +37,30 @@ exports.askScoutAdvisor = async (req, res) => {
                         nameMatch.toLowerCase().includes(p.name.toLowerCase()) ||
                         p.name.toLowerCase().includes(nameMatch.toLowerCase())
                     );
-                    if (foundPlayer && !recommendedPlayers.find(rp => rp._id.toString() === foundPlayer._id.toString())) {
+                    if (
+                        foundPlayer &&
+                        !recommendedPlayers.find(rp => rp._id.toString() === foundPlayer._id.toString())
+                    ) {
                         recommendedPlayers.push(foundPlayer);
                     }
                 }
             }
         }
 
+        // Clean up the AI text (remove RECOMMENDED_PLAYER: tags and redundant empty lines)
+        const cleanAnswer = aiResponse
+            .split('\n')
+            .filter(l => !l.trim().startsWith('RECOMMENDED_PLAYER:'))
+            .join('\n')
+            .replace(/\n{3,}/g, '\n\n') // Collapse 3+ newlines to 2
+            .trim();
+
         res.status(200).json({
             success: true,
             data: {
-                answer: aiResponse,
-                recommendedPlayers: recommendedPlayers,
-                query: query
+                answer: cleanAnswer,
+                recommendedPlayers,
+                query
             },
             timestamp: new Date()
         });
@@ -64,25 +71,54 @@ exports.askScoutAdvisor = async (req, res) => {
 };
 
 /**
+ * Get full detailed profile of a single prospect/player.
+ * Includes career history, videos, gallery images, and all stats.
+ */
+exports.getPlayerDetail = async (req, res) => {
+    try {
+        const { id } = req.params;
+
+        // Try Prospect first, then registered Player
+        let player = await Prospect.findById(id).lean();
+        if (!player) {
+            player = await Player.findById(id).lean();
+        }
+        if (!player) {
+            return res.status(404).json({ success: false, message: "Player not found." });
+        }
+
+        // Ensure avatarUrl is populated
+        if (!player.avatarUrl && player.imageUrl) {
+            player.avatarUrl = player.imageUrl;
+        }
+
+        res.status(200).json({ success: true, data: player });
+    } catch (error) {
+        console.error("Error fetching player detail:", error);
+        res.status(500).json({ success: false, message: "Error fetching player detail." });
+    }
+};
+
+/**
  * Gets registered players without a club for the scouting pool.
  */
 exports.getScoutPlayers = async (req, res) => {
     try {
         const filter = {
             clubId: null,
-            status: 'pending' // Only show those awaiting a club/approval
+            status: 'pending'
         };
 
         if (req.user) {
             filter.rejectedBy = { $ne: req.user._id };
         }
 
-        const players = await Player.find(filter)
-            .sort({ createdAt: -1 })
-            .lean();
-
-        // Add source field for frontend/recruitment compatibility
-        const playersWithSource = players.map(p => ({ ...p, source: 'player' }));
+        const players = await Player.find(filter).sort({ createdAt: -1 }).lean();
+        const playersWithSource = players.map(p => ({
+            ...p,
+            source: 'player',
+            avatarUrl: p.avatarUrl || p.imageUrl
+        }));
 
         res.status(200).json({ success: true, data: playersWithSource });
     } catch (error) {
@@ -101,14 +137,12 @@ exports.rejectProspect = async (req, res) => {
             return res.status(401).json({ success: false, message: "Authentication required." });
         }
 
-        // Check Prospect first
         let result = await Prospect.findByIdAndUpdate(
             id,
             { $addToSet: { rejectedBy: req.user._id } },
             { new: true }
         );
 
-        // Then Player
         if (!result) {
             result = await Player.findByIdAndUpdate(
                 id,

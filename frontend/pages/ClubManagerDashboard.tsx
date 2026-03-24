@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { Bot, Trophy, Sparkles, ChevronRight, MapPin, Calendar, Navigation, X } from 'lucide-react';
 import { Club, Player, ClubVideo, Position, CreatedUser, PlayerRegistration, UserRole } from '../types';
 import { POSITIONS, CLUBS, LEAGUES } from '../constants';
 import { EmailService } from '../utils/emailService';
@@ -30,7 +31,7 @@ interface ClubManagerDashboardProps {
     onRejectPlayerRegistration: (registrationId: number, reason: string) => void;
 }
 
-type ManagerSection = 'Dashboard' | 'Manage Players' | 'Player Scouting' | 'AI Scout Advisor' | 'Direct Recruitment' | 'Manage Coaches' | 'Manage Transfers' | 'Manage Best Goals' | 'Manage News' | 'Profile';
+type ManagerSection = 'Dashboard' | 'Manage Players' | 'Player Scouting' | 'AI Scout Advisor' | 'AI Scouted Players' | 'Direct Recruitment' | 'Manage Coaches' | 'Manage Transfers' | 'Manage Best Goals' | 'Manage News' | 'Profile';
 
 const ClubManagerDashboard: React.FC<ClubManagerDashboardProps> = ({
     club,
@@ -257,7 +258,12 @@ const ClubManagerDashboard: React.FC<ClubManagerDashboardProps> = ({
                     bio: p.bio || '',
                     isVerified: true,
                     addedBy: 0,
-                    stats: { matches: 0, goals: 0, assists: 0, yellowCards: 0, redCards: 0 }
+                    stats: p.stats || { matches: 0, goals: 0, assists: 0, yellowCards: 0, redCards: 0 },
+                    documentVerification: p.documentVerification,
+                    scoutReport: p.scoutReport,
+                    strengths: p.strengths,
+                    weaknesses: p.weaknesses,
+                    potentialScore: p.potentialScore
                 }));
                 setApprovedPlayers(normalized as any);
             }
@@ -3103,6 +3109,98 @@ const ClubManagerDashboard: React.FC<ClubManagerDashboardProps> = ({
         </div>
     );
 
+    const renderAIScoutedPlayers = () => {
+        const scoutedPlayers = approvedPlayers.filter(p => p.documentVerification?.method === 'scouted');
+
+        return (
+            <div>
+                <div className="flex items-center justify-between mb-8">
+                    <div>
+                        <h2 className="text-3xl font-black text-gray-900 flex items-center gap-3">
+                            <Bot className="text-blue-600" size={32} />
+                            AI Scouted Talent
+                        </h2>
+                        <p className="text-gray-500 mt-1 font-medium italic">Players recruited via the AI Scout Advisor recommendation system</p>
+                    </div>
+                    <div className="bg-blue-50 text-blue-700 px-4 py-2 rounded-2xl border border-blue-100 font-bold text-sm shadow-sm flex items-center gap-2">
+                        <Trophy size={16} /> {scoutedPlayers.length} Elite Prospects
+                    </div>
+                </div>
+
+                {scoutedPlayers.length === 0 ? (
+                    <div className="text-center py-20 bg-white rounded-3xl border-2 border-dashed border-gray-100 shadow-sm">
+                        <div className="w-20 h-20 bg-blue-50 rounded-full flex items-center justify-center mx-auto mb-6">
+                            <Bot size={40} className="text-blue-200" />
+                        </div>
+                        <h3 className="text-xl font-bold text-gray-800 mb-2">No AI Scouted Players Yet</h3>
+                        <p className="text-gray-500 max-w-sm mx-auto mb-8">
+                            Use the **AI Scout Advisor** to discover top-tier talent and invite them to your squad.
+                        </p>
+                        <button
+                            onClick={() => setActiveSection('AI Scout Advisor')}
+                            className="bg-blue-600 text-white px-8 py-3 rounded-2xl font-black hover:bg-blue-700 transition-all shadow-lg shadow-blue-200 active:scale-95"
+                        >
+                            Start AI Scouting
+                        </button>
+                    </div>
+                ) : (
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                        {scoutedPlayers.map(player => (
+                            <div key={player.id} className="group bg-white rounded-3xl border border-gray-100 shadow-sm hover:shadow-2xl transition-all duration-500 overflow-hidden flex flex-col h-full border-b-4 border-b-blue-600">
+                                {/* Player Header */}
+                                <div className="relative h-48 bg-gray-900 overflow-hidden">
+                                    <img
+                                        src={player.imageUrl}
+                                        alt={player.name}
+                                        className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700 opacity-80"
+                                    />
+                                    <div className="absolute inset-0 bg-gradient-to-t from-gray-900 via-transparent to-transparent" />
+
+                                    {/* AI Badge Overlay */}
+                                    <div className="absolute top-4 left-4 flex flex-col gap-2">
+                                        <div className="bg-blue-600 text-white text-[10px] font-black px-3 py-1 rounded-full flex items-center gap-1.5 shadow-xl border border-white/20">
+                                            <Sparkles size={10} className="fill-white" />
+                                            {player.potentialScore || 85}% MATCH
+                                        </div>
+                                    </div>
+
+                                    <div className="absolute bottom-4 left-6 right-6 text-white ">
+                                        <h4 className="text-2xl font-black leading-tight truncate drop-shadow-lg">{player.name}</h4>
+                                        <div className="flex items-center gap-2 mt-1 opacity-90">
+                                            <span className="text-[10px] bg-white/20 backdrop-blur-md px-2 py-0.5 rounded-lg border border-white/10">{player.position}</span>
+                                            <span className="text-[10px] font-bold text-blue-300">{player.nationality}</span>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Body */}
+                                <div className="p-6 flex-1 space-y-6">
+                                    <div className="flex flex-wrap gap-2">
+                                        {(player.strengths || []).slice(0, 3).map((s, i) => (
+                                            <span key={i} className="text-[10px] bg-blue-50 text-blue-700 px-3 py-1 rounded-full font-black uppercase tracking-tight border border-blue-100">
+                                                {s}
+                                            </span>
+                                        ))}
+                                    </div>
+
+                                    <div className="bg-gray-50 rounded-2xl p-4 border border-gray-100">
+                                        <div className="flex items-center gap-2 mb-3">
+                                            <Bot size={16} className="text-blue-600" />
+                                            <span className="text-[11px] font-black text-gray-400 uppercase tracking-widest">Scouting insight</span>
+                                        </div>
+                                        <p className="text-xs text-gray-600 leading-relaxed italic line-clamp-3">
+                                            "{player.scoutReport || 'Recruited following heavy recommendation from our AI Scouts. Displays high tactical flexibility and consistent peak performance metrics.'}"
+                                        </p>
+                                    </div>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                )}
+            </div>
+        );
+    };
+
     const renderSection = () => {
         switch (activeSection) {
             case 'Dashboard':
@@ -3124,7 +3222,9 @@ const ClubManagerDashboard: React.FC<ClubManagerDashboardProps> = ({
             case 'Player Scouting':
                 return renderPlayerScouting();
             case 'AI Scout Advisor':
-                return <ScoutAdvisor />;
+                return <ScoutAdvisor club={club} onScoutSuccess={fetchApprovedPlayers} />;
+            case 'AI Scouted Players':
+                return renderAIScoutedPlayers();
             case 'Direct Recruitment':
                 return renderDirectRecruitment();
             case 'Manage Coaches':
@@ -3247,7 +3347,7 @@ const ClubManagerDashboard: React.FC<ClubManagerDashboardProps> = ({
         </div>
     );
 
-    const sections: ManagerSection[] = ['Dashboard', 'Manage Players', 'Player Scouting', 'AI Scout Advisor', 'Direct Recruitment', 'Manage Coaches', 'Manage Transfers', 'Manage Best Goals', 'Manage News', 'Profile'];
+    const sections: ManagerSection[] = ['Dashboard', 'Manage Players', 'Player Scouting', 'AI Scout Advisor', 'AI Scouted Players', 'Direct Recruitment', 'Manage Coaches', 'Manage Transfers', 'Manage Best Goals', 'Manage News', 'Profile'];
 
     return (
         <div className="flex min-h-screen bg-theme-light">
