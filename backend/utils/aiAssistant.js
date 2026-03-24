@@ -1,6 +1,5 @@
 const Groq = require('groq-sdk');
 const dotenv = require('dotenv');
-
 dotenv.config();
 
 const groq = new Groq({
@@ -9,7 +8,7 @@ const groq = new Groq({
 
 /**
  * Generates an AI response based on a user query and a set of player data.
- * This is a RAG (Retrieval-Augmented Generation) implementation for the Scout Advisor.
+ * RAG (Retrieval-Augmented Generation) implementation for the Scout Advisor.
  */
 const generateScoutResponse = async (userQuery, playerData) => {
     try {
@@ -17,8 +16,11 @@ const generateScoutResponse = async (userQuery, playerData) => {
             return "AI Scout Advisor is currently in offline mode. Please add your GROQ_API_KEY to the .env file to enable the brain.";
         }
 
-        // Prepare the context from player data
         const playersContext = playerData.map(p => {
+            const careerSummary = p.careerHistory?.map(c =>
+                `${c.club} (${c.season}): ${c.appearances} apps, ${c.goals} goals, ${c.assists} assists`
+            ).join(' | ') || 'No career history available';
+
             return `
 Name: ${p.name}
 Position: ${p.position}
@@ -26,10 +28,12 @@ Age: ${p.age}
 Nationality: ${p.nationality}
 Current Fitness: ${p.fitnessStatus}
 Scout Opinion: ${p.scoutReport}
-Key Strengths: ${p.strengths.join(', ')}
-Key Weaknesses: ${p.weaknesses.join(', ')}
+Key Strengths: ${(p.strengths || []).join(', ')}
+Key Weaknesses: ${(p.weaknesses || []).join(', ')}
 Potential: ${p.potentialScore}/100
 Stats -> Pace: ${p.pace}, Shooting: ${p.shooting}, Passing: ${p.passing}, Dribbling: ${p.dribbling}, Defending: ${p.defending}, Physicality: ${p.physicality}
+Career: ${careerSummary}
+Total Goals: ${p.totalGoals || 0} | Total Assists: ${p.totalAssists || 0} | Total Appearances: ${p.totalAppearances || 0}
 ---`;
         }).join('\n');
 
@@ -38,11 +42,11 @@ You are the "NGL Scout Advisor", a professional football (soccer) scouting assis
 Your goal is to help Club Managers find the best players from their database.
 
 Instructions:
-1. Analyze the manager's query.
+1. Analyze the manager's query carefully.
 2. Review the provided player data context.
 3. Recommend the best fits (maximum 3 players).
-4. For each recommended player, START their description with "RECOMMENDED_PLAYER: [Player Name]". This is critical for our system to identify them.
-5. Explain WHY they are recommended based on their scout reports and stats.
+4. For each recommended player, START their description with "RECOMMENDED_PLAYER: [Player Name]". This is CRITICAL.
+5. Explain WHY they are recommended based on their scout reports, stats, and career history.
 6. Be professional, concise, and insightful.
 7. If no players match well, suggest the closest options but be honest.
 
@@ -55,7 +59,7 @@ ${playersContext}
                 { role: 'system', content: systemPrompt },
                 { role: 'user', content: userQuery }
             ],
-            model: 'llama-3.3-70b-versatile', // Updated model
+            model: 'llama-3.3-70b-versatile',
             temperature: 0.7,
             max_tokens: 1024,
         });

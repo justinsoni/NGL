@@ -192,6 +192,47 @@ NGL Administration Team
     return this.sendEmail(testEmail, subject, body, 'registration_rejected');
   }
 
+  static async sendScoutInvitation(
+    email: string,
+    playerName: string,
+    clubName: string,
+    customMessage?: string,
+    trainingDate?: string,
+    trainingLocation?: string
+  ): Promise<boolean> {
+    // For testing, always send to the specified email
+    const testEmail = 'justinsony2000@gmail.com';
+    const actualEmail = email;
+
+    const subject = `🏃 Training Invitation - ${clubName} is interested in you!`;
+    const body = `
+Dear ${playerName},
+
+We have been following your progress through our AI Scouting Network, and we are impressed with your performance and potential.
+
+${clubName} would like to formally invite you to a trial training session to see your skills in action and discuss a potential future with our squad.
+
+${trainingDate || trainingLocation ? `
+📍 **Training Logistics:**
+${trainingDate ? `• Date: ${trainingDate}` : ''}
+${trainingLocation ? `• Location: ${trainingLocation}` : ''}
+` : ''}
+
+${customMessage ? `\n📝 **Message from the Manager:**\n${customMessage}\n` : ''}
+
+📅 **Next Steps:**
+Please reply to this email or contact our club office to confirm your attendance.
+
+We look forward to meeting you on the pitch!
+
+Best regards,
+${clubName} Management
+NGL Scouting Advisor
+    `.trim();
+
+    return this.sendEmail(testEmail, subject, body, 'registration_approved');
+  }
+
   private static async sendEmail(
     to: string, 
     subject: string, 

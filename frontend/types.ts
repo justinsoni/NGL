@@ -40,6 +40,13 @@ export interface Player {
   lastInjuryDate?: string;
   minimumSalary?: number;
   clubId?: any;
+  documentVerification?: {
+    status: string;
+    method: string;
+    verifiedAt?: string | Date;
+    verifiedBy?: string;
+    notes?: string;
+  };
   // Scouting Advisor fields
   scoutReport?: string;
   strengths?: string[];
