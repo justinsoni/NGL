@@ -12,12 +12,12 @@ const newsItemSchema = new mongoose.Schema({
     trim: true,
     maxlength: 50,
     default: 'Features',
-    enum: ['Features', 'News', 'Analysis', 'Transfers', 'Match Reports', 'Best Goals', 'Transfer News', 'Trending']
+    enum: ['Features', 'News', 'Analysis', 'Transfers', 'Match Reports', 'Best Goals', 'Transfer News', 'Trending', 'Interviews']
   },
   type: {
     type: String,
     trim: true,
-    enum: ['article', 'transfer', 'best-goal', 'match-report', 'trending'],
+    enum: ['article', 'transfer', 'best-goal', 'match-report', 'trending', 'interview'],
     default: 'article'
   },
   imageUrl: {

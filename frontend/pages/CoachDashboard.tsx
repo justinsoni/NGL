@@ -5,8 +5,11 @@ import toast from 'react-hot-toast';
 
 import { playerService } from '../services/playerService';
 import PlayerProfileModal from '../components/PlayerProfileModal';
+import { createNews } from '@/api/news/createNews';
+import { fetchNews } from '@/api/news/fetchNews';
+import { deleteNewsById } from '@/api/news/deleteNewsItemById';
 
-type CoachSection = 'Players' | 'Player Performance' | 'Training Materials' | 'AI Tools' | 'Player Scouting' | 'Account Settings';
+type CoachSection = 'Players' | 'Player Performance' | 'Training Materials' | 'AI Tools' | 'Player Scouting' | 'Manage Interviews' | 'Account Settings';
 
 interface CoachDashboardProps {
     club: Club;
@@ -46,6 +49,35 @@ const CoachDashboard: React.FC<CoachDashboardProps> = ({ club, players }) => {
     const [confirmPassword, setConfirmPassword] = useState('');
     const [isChangingPassword, setIsChangingPassword] = useState(false);
     const [isResettingPassword, setIsResettingPassword] = useState(false);
+
+    // Interviews state
+    type InterviewItem = { id: string; title: string; imageUrl: string; clubName: string; createdAt: string };
+    const [interviewForm, setInterviewForm] = useState<{ title: string; imageUrl: string; videoUrl: string }>({ title: '', imageUrl: '', videoUrl: '' });
+    const [interviews, setInterviews] = useState<InterviewItem[]>([]);
+    const [interviewImageFile, setInterviewImageFile] = useState<File | null>(null);
+    const [interviewImagePreview, setInterviewImagePreview] = useState<string>('');
+
+    React.useEffect(() => {
+        async function loadInterviews() {
+            try {
+                const data = await fetchNews();
+                const filteredInterviews = data
+                    .filter((item: any) => item.type === 'interview' && item.club === club.name)
+                    .map((item: any) => ({
+                        id: item._id,
+                        title: item.title,
+                        imageUrl: item.imageUrl,
+                        clubName: item.club,
+                        createdAt: item.createdAt
+                    }));
+                setInterviews(filteredInterviews);
+            } catch (error) {
+                console.error('Failed to load interviews:', error);
+                setInterviews([]);
+            }
+        }
+        loadInterviews();
+    }, [club.name]);
 
     // Password change handlers
     const handlePasswordChange = async (e: React.FormEvent) => {
@@ -298,6 +330,158 @@ const CoachDashboard: React.FC<CoachDashboardProps> = ({ club, players }) => {
                         )}
                     </div>
                 );
+            case 'Manage Interviews':
+                const uploadToCloudinary = async (file: File): Promise<string> => {
+                    const url = `${(import.meta as any).env.VITE_CLOUDINARY_URL || 'https://api.cloudinary.com/v1_1/dmuilu78u/auto/upload'}`;
+                    const data = new FormData();
+                    data.append("file", file);
+                    data.append("upload_preset", 'ml_default');
+                    const res = await fetch(url, { method: "POST", body: data });
+                    if (!res.ok) throw new Error("Upload failed");
+                    const result = await res.json();
+                    return result.secure_url;
+                };
+
+                const addInterview = async () => {
+                    const title = interviewForm.title.trim();
+                    let imageUrl = interviewForm.imageUrl.trim();
+                    if (!title) { toast.error('Please enter an interview title'); return; }
+
+                    try {
+                        if (interviewImageFile) {
+                            const allowed = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
+                            if (!allowed.includes(interviewImageFile.type)) { toast.error('Invalid image type.'); return; }
+                            imageUrl = await uploadToCloudinary(interviewImageFile);
+                        } else {
+                            if (!/^https?:\/\//i.test(imageUrl)) { toast.error('Please provide a valid image URL'); return; }
+                        }
+                    } catch (e: any) {
+                        toast.error(e.message || 'Upload failed');
+                        return;
+                    }
+
+                    try {
+                        const idToken = await user?.firebaseUser?.getIdToken();
+                        if (!idToken) { toast.error('Authentication required'); return; }
+
+                        const interviewData = {
+                            title,
+                            imageUrl,
+                            category: 'Interviews',
+                            type: 'interview',
+                            content: interviewForm.videoUrl.trim() || title,
+                            summary: title,
+                            createdAt: new Date().toISOString()
+                        };
+
+                        const created = await createNews(interviewData, idToken);
+                        setInterviews(prev => [{ id: created._id, title: created.title, imageUrl: created.imageUrl, clubName: club.name, createdAt: created.createdAt }, ...prev]);
+                        setInterviewForm({ title: '', imageUrl: '', videoUrl: '' });
+                        setInterviewImageFile(null);
+                        setInterviewImagePreview('');
+                        toast.success('Interview added to homepage');
+                    } catch (error: any) {
+                        toast.error('Failed to save interview');
+                    }
+                };
+
+                const removeInterview = async (id: string) => {
+                    if (!confirm('Remove this interview?')) return;
+                    try {
+                        const idToken = await user?.firebaseUser?.getIdToken();
+                        if (!idToken) return;
+                        await deleteNewsById(id, idToken);
+                        setInterviews(prev => prev.filter(g => g.id !== id));
+                        toast.success('Interview removed successfully');
+                    } catch (error: any) {
+                        toast.error('Failed to remove interview');
+                    }
+                };
+
+                return (
+                    <div>
+                        <h2 className="text-2xl font-bold mb-4 text-theme-dark">Manage Interviews</h2>
+                        <p className="mb-6 text-theme-text-secondary">Add exclusive interviews that will be displayed on the NGL home page.</p>
+
+                        <div className="max-w-4xl mx-auto bg-theme-secondary-bg p-6 rounded-xl shadow-lg border border-theme-border">
+                            <h3 className="text-xl font-semibold text-theme-dark mb-4">Add Exclusive Interview</h3>
+                            <div className="grid grid-cols-1 md:grid-cols-5 gap-3 items-end">
+                                <div className="md:col-span-3">
+                                    <label className="block text-sm font-medium text-theme-text-secondary mb-1">Title</label>
+                                    <input
+                                        type="text"
+                                        value={interviewForm.title}
+                                        onChange={e => setInterviewForm(prev => ({ ...prev, title: e.target.value }))}
+                                        placeholder="e.g., Coach speaks on latest match..."
+                                        className="w-full bg-theme-page-bg border border-theme-border rounded-md py-2 px-3 focus:ring-2 focus:ring-theme-primary"
+                                    />
+                                    <label className="block text-sm font-medium text-theme-text-secondary mt-3 mb-1">Video / YouTube URL (Required for playback)</label>
+                                    <input
+                                        type="url"
+                                        value={interviewForm.videoUrl}
+                                        onChange={e => setInterviewForm(prev => ({ ...prev, videoUrl: e.target.value }))}
+                                        placeholder="e.g., https://youtu.be/..."
+                                        className="w-full bg-theme-page-bg border border-theme-border rounded-md py-2 px-3 focus:ring-2 focus:ring-theme-primary"
+                                    />
+                                </div>
+                                <div className="md:col-span-2">
+                                    <label className="block text-sm font-medium text-theme-text-secondary mb-1">Image Thumbnail</label>
+                                    <input
+                                        type="file"
+                                        accept="image/jpeg,image/jpg,image/png,image/webp"
+                                        onChange={(e) => {
+                                            const f = e.target.files?.[0] || null;
+                                            setInterviewImageFile(f);
+                                            if (f && f.type.startsWith('image/')) setInterviewImagePreview(URL.createObjectURL(f)); else setInterviewImagePreview('');
+                                        }}
+                                        className="w-full text-sm"
+                                    />
+                                    {!interviewImageFile && (
+                                        <input
+                                            type="url"
+                                            value={interviewForm.imageUrl}
+                                            onChange={e => setInterviewForm(prev => ({ ...prev, imageUrl: e.target.value }))}
+                                            placeholder="or paste an image URL"
+                                            className="mt-2 w-full bg-theme-page-bg border border-theme-border rounded-md py-2 px-3 text-sm focus:ring-2 focus:ring-theme-primary"
+                                        />
+                                    )}
+                                    {interviewImagePreview && (
+                                        <img src={interviewImagePreview} alt="Preview" className="mt-2 h-16 w-full object-cover rounded" />
+                                    )}
+                                </div>
+                            </div>
+                            <div className="mt-4 flex items-center justify-between">
+                                <p className="text-xs text-theme-text-secondary">Tip: This is displayed in the Exclusive Interviews section.</p>
+                                <button onClick={addInterview} className="bg-theme-primary hover:bg-theme-primary/80 text-theme-dark font-bold py-2 px-5 rounded-md transition-colors">Publish</button>
+                            </div>
+                        </div>
+
+                        <div className="mt-8">
+                            <h3 className="text-xl font-semibold text-theme-dark mb-3">Your Interviews</h3>
+                            {interviews.length === 0 ? (
+                                <div className="bg-theme-secondary-bg p-8 rounded-lg text-center text-theme-text-secondary border border-theme-border">No interviews yet. Add your first one above.</div>
+                            ) : (
+                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+                                    {interviews.map(g => (
+                                        <div key={g.id} className="bg-theme-secondary-bg rounded-lg overflow-hidden border border-theme-border hover:shadow-lg transition-shadow">
+                                            <div className="relative h-44">
+                                                <img src={g.imageUrl} alt={g.title} className="w-full h-full object-cover" />
+                                                <span className="absolute top-2 left-2 bg-theme-accent text-white text-xs font-bold px-2 py-1 rounded">Interview</span>
+                                            </div>
+                                            <div className="p-4">
+                                                <h4 className="font-semibold text-theme-dark mb-1 line-clamp-2">{g.title}</h4>
+                                                <p className="text-xs text-theme-text-secondary">{new Date(g.createdAt).toLocaleDateString()} • {g.clubName}</p>
+                                                <div className="mt-3 flex justify-end">
+                                                    <button onClick={() => removeInterview(g.id)} className="text-red-500 hover:text-red-700 text-sm font-medium">Remove</button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                );
             case 'Account Settings':
                 return (
                     <div>
@@ -425,7 +609,7 @@ const CoachDashboard: React.FC<CoachDashboardProps> = ({ club, players }) => {
         }
     };
 
-    const sections: CoachSection[] = ['Players', 'Player Performance', 'Training Materials', 'AI Tools', 'Player Scouting', 'Account Settings'];
+    const sections: CoachSection[] = ['Players', 'Player Performance', 'Training Materials', 'AI Tools', 'Player Scouting', 'Manage Interviews', 'Account Settings'];
 
     return (
         <div className="flex min-h-screen bg-theme-light">

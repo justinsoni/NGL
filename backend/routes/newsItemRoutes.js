@@ -10,7 +10,7 @@ const router = express.Router();
 // @access  Private (Admin and Club Manager)
 router.post('/',
   authenticateToken,
-  requireRole(['admin', 'clubManager']),
+  requireRole(['admin', 'clubManager', 'coach']),
   [
     body('title').notEmpty().withMessage('Title is required'),
     body('category').optional().isString(),
@@ -30,13 +30,13 @@ router.get('/:id', getNewsItemById);
 
 router.put('/:id',
   authenticateToken,
-  requireRole(['admin', 'clubManager']),
+  requireRole(['admin', 'clubManager', 'coach']),
   updateNewsItem
 );
 
 router.delete('/:id',
   authenticateToken,
-  requireRole(['admin', 'clubManager']),
+  requireRole(['admin', 'clubManager', 'coach']),
   deleteNewsItem
 );
 

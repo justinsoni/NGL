@@ -728,17 +728,7 @@ const ScoutAdvisor: React.FC<ScoutAdvisorProps> = ({ club, onScoutSuccess }) => 
                             <p className="text-blue-100 text-sm opacity-90">Powered by Llama 3 • Generative Scouting</p>
                         </div>
                     </div>
-                    <div className="hidden md:flex items-center gap-6">
-                        <div className="text-right">
-                            <p className="text-xs text-blue-200 uppercase font-bold tracking-wider">Reports Analyzed</p>
-                            <p className="text-lg font-bold">300,000+</p>
-                        </div>
-                        <div className="h-10 w-px bg-white/20" />
-                        <div className="text-right">
-                            <p className="text-xs text-blue-200 uppercase font-bold tracking-wider">Response Time</p>
-                            <p className="text-lg font-bold">~0.8s</p>
-                        </div>
-                    </div>
+
                 </div>
 
                 {/* Chat area */}

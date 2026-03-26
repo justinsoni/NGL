@@ -11,6 +11,7 @@ import RoadToFinal from '../components/RoadToFinal';
 import MatchTicker from '../components/MatchTicker';
 // News feed replaced by new Latest News grid
 import SectionHeader from '../components/SectionHeader';
+import VideoModal from '../components/VideoModal';
 import { GROUPS } from '../constants';
 import { fetchNews } from '@/api/news/fetchNews';
 import { listFixtures, FixtureDTO } from '../services/fixturesService';
@@ -30,63 +31,63 @@ interface HomePageProps {
 }
 
 const heroImages = [
-    // Using local images from assets folder
-    image103,
-    footballStadium,
-    pexelsImage
+  // Using local images from assets folder
+  image103,
+  footballStadium,
+  pexelsImage
 ];
 
 const HeroSection = () => {
-    const [currentImageIndex, setCurrentImageIndex] = useState(0);
+  const [currentImageIndex, setCurrentImageIndex] = useState(0);
 
-    useEffect(() => {
-        const slideshowInterval = setInterval(() => {
-            setCurrentImageIndex(prevIndex => (prevIndex + 1) % heroImages.length);
-        }, 3000);
+  useEffect(() => {
+    const slideshowInterval = setInterval(() => {
+      setCurrentImageIndex(prevIndex => (prevIndex + 1) % heroImages.length);
+    }, 3000);
 
-        return () => clearInterval(slideshowInterval);
-    }, []);
+    return () => clearInterval(slideshowInterval);
+  }, []);
 
-    return (
-       <section className="relative h-[80vh] text-theme-dark overflow-hidden">
-            <div className="absolute inset-0">
-                {heroImages.map((src, index) => (
-                    <div
-                        key={index}
-                        className="absolute inset-0 w-full h-full bg-cover bg-center transition-opacity duration-1000 ease-in-out"
-                        style={{
-                            backgroundImage: `url(${src})`,
-                            opacity: index === currentImageIndex ? 1 : 0
-                        }}
-                    ></div>
-                ))}
-                <div className="absolute inset-0 bg-gradient-to-t from-theme-primary/80 via-theme-primary-dark/40 to-transparent"></div>
-            </div>
-            <div className="relative z-10 h-full flex flex-col justify-center items-center text-center p-4">
-                <div className="opacity-0 animate-fadeInUp">
-                    <LeagueLogoIcon className="h-24 w-24 text-theme-dark mx-auto mb-4" />
-                </div>
-                <div className="overflow-hidden">
-                    <h1 className="text-5xl md:text-7xl font-extrabold uppercase tracking-tight drop-shadow-2xl opacity-0 animate-fadeInUp animation-delay-200">
-                        The Heart of Football
-                    </h1>
-                </div>
-                <div className="overflow-hidden">
-                    <p className="mt-4 text-lg md:text-xl max-w-2xl mx-auto drop-shadow-lg opacity-0 animate-fadeInUp animation-delay-400">
-                        All the fixtures, results, and stories from the NGL. Welcome to the official home of the league.
-                    </p>
-                </div>
-                <div className="mt-8 flex flex-wrap justify-center gap-4 opacity-0 animate-fadeInUp animation-delay-600">
-                    <Link to="/matches" className="bg-theme-primary hover:bg-theme-primary-dark text-theme-dark font-bold py-3 px-8 rounded-lg transition-transform duration-300 hover:scale-105 shadow-lg">
-                        View Fixtures
-                    </Link>
-                    <Link to="/table" className="bg-white/10 backdrop-blur-sm hover:bg-white/20 text-theme-dark font-bold py-3 px-8 rounded-lg transition-all duration-300 hover:scale-105 shadow-lg">
-                        League Table
-                    </Link>
-                </div>
-            </div>
-        </section>
-    );
+  return (
+    <section className="relative h-[80vh] text-theme-dark overflow-hidden">
+      <div className="absolute inset-0">
+        {heroImages.map((src, index) => (
+          <div
+            key={index}
+            className="absolute inset-0 w-full h-full bg-cover bg-center transition-opacity duration-1000 ease-in-out"
+            style={{
+              backgroundImage: `url(${src})`,
+              opacity: index === currentImageIndex ? 1 : 0
+            }}
+          ></div>
+        ))}
+        <div className="absolute inset-0 bg-gradient-to-t from-theme-primary/80 via-theme-primary-dark/40 to-transparent"></div>
+      </div>
+      <div className="relative z-10 h-full flex flex-col justify-center items-center text-center p-4">
+        <div className="opacity-0 animate-fadeInUp">
+          <LeagueLogoIcon className="h-24 w-24 text-theme-dark mx-auto mb-4" />
+        </div>
+        <div className="overflow-hidden">
+          <h1 className="text-5xl md:text-7xl font-extrabold uppercase tracking-tight drop-shadow-2xl opacity-0 animate-fadeInUp animation-delay-200">
+            The Heart of Football
+          </h1>
+        </div>
+        <div className="overflow-hidden">
+          <p className="mt-4 text-lg md:text-xl max-w-2xl mx-auto drop-shadow-lg opacity-0 animate-fadeInUp animation-delay-400">
+            All the fixtures, results, and stories from the NGL. Welcome to the official home of the league.
+          </p>
+        </div>
+        <div className="mt-8 flex flex-wrap justify-center gap-4 opacity-0 animate-fadeInUp animation-delay-600">
+          <Link to="/matches" className="bg-theme-primary hover:bg-theme-primary-dark text-theme-dark font-bold py-3 px-8 rounded-lg transition-transform duration-300 hover:scale-105 shadow-lg">
+            View Fixtures
+          </Link>
+          <Link to="/table" className="bg-white/10 backdrop-blur-sm hover:bg-white/20 text-theme-dark font-bold py-3 px-8 rounded-lg transition-all duration-300 hover:scale-105 shadow-lg">
+            League Table
+          </Link>
+        </div>
+      </div>
+    </section>
+  );
 };
 
 // LeagueTable component for single league standings
@@ -144,69 +145,83 @@ const HomePage: React.FC<HomePageProps> = ({ matchesData, tableData, competition
 
   const [newsArticles, setNewsArticles] = useState<Array<{ _id: string; title: string; imageUrl: string, summary: string, content: string, createdAt: string, category?: string }>>([]);
   const [trendingNews, setTrendingNews] = useState<Array<{ _id: string; title: string; imageUrl: string, content: string, createdAt: string }>>([]);
-  
+  const [interviews, setInterviews] = useState<Array<{ id: string; title: string; imageUrl: string; videoUrl: string }>>([]);
+  const [activeVideoUrl, setActiveVideoUrl] = useState<string | null>(null);
+
   // State for real fixtures from API
   const [fixtures, setFixtures] = useState<FixtureDTO[]>([]);
-    
-    useEffect(() => {
-      async function getNews() {
-        try {
-          const data = await fetchNews();
-          setNewsArticles(data);
-          
-          // Filter trending news from the data
-          const trending = data
-            .filter((item: any) => item.type === 'trending')
-            .map((item: any) => ({
-              _id: item._id,
-              title: item.title,
-              imageUrl: item.imageUrl,
-              content: item.content || '',
-              createdAt: item.createdAt
-            }));
-          setTrendingNews(trending);
-        } catch (err) {
-          setNewsArticles([]);
-          setTrendingNews([]);
-        }
+
+  useEffect(() => {
+    async function getNews() {
+      try {
+        const data = await fetchNews();
+        setNewsArticles(data);
+
+        // Filter trending news from the data
+        const trending = data
+          .filter((item: any) => item.type === 'trending')
+          .map((item: any) => ({
+            _id: item._id,
+            title: item.title,
+            imageUrl: item.imageUrl,
+            content: item.content || '',
+            createdAt: item.createdAt
+          }));
+        setTrendingNews(trending);
+
+        // Filter interviews from the data
+        const fetchedInterviews = data
+          .filter((item: any) => item.type === 'interview')
+          .map((item: any) => ({
+            id: item._id,
+            title: item.title,
+            imageUrl: item.imageUrl,
+            videoUrl: item.content || ''
+          }));
+        setInterviews(fetchedInterviews);
+      } catch (err) {
+        setNewsArticles([]);
+        setTrendingNews([]);
+        setInterviews([]);
       }
-      getNews();
-    }, []);
+    }
+    getNews();
+  }, []);
 
-    // Fetch fixtures from API
-    useEffect(() => {
-      const loadFixtures = async () => {
-        try {
-          const fixturesData = await listFixtures();
-          setFixtures(fixturesData);
-        } catch (error) {
-          console.error('Failed to load fixtures:', error);
-          setFixtures([]);
-        }
-      };
+  // Fetch fixtures from API
+  useEffect(() => {
+    const loadFixtures = async () => {
+      try {
+        const fixturesData = await listFixtures();
+        setFixtures(fixturesData);
+      } catch (error) {
+        console.error('Failed to load fixtures:', error);
+        setFixtures([]);
+      }
+    };
 
-      loadFixtures();
+    loadFixtures();
 
-      // Listen for fixture updates via WebSocket
-      const socket = getSocket();
-      const refreshFixtures = () => loadFixtures();
-      
-      socket.on('match:started', refreshFixtures);
-      socket.on('match:event', refreshFixtures);
-      socket.on('match:finished', refreshFixtures);
-      socket.on('semi:created', refreshFixtures);
-      socket.on('final:created', refreshFixtures);
-      socket.on('final:finished', refreshFixtures);
+    // Listen for fixture updates via WebSocket
+    const socket = getSocket();
+    const refreshFixtures = () => loadFixtures();
 
-      return () => {
-        socket.off('match:started', refreshFixtures);
-        socket.off('match:event', refreshFixtures);
-        socket.off('match:finished', refreshFixtures);
-        socket.off('semi:created', refreshFixtures);
-        socket.off('final:created', refreshFixtures);
-        socket.off('final:finished', refreshFixtures);
-      };
-    }, []);
+    socket.on('match:started', refreshFixtures);
+    socket.on('match:event', refreshFixtures);
+    socket.on('match:finished', refreshFixtures);
+    socket.on('semi:created', refreshFixtures);
+    socket.on('final:created', refreshFixtures);
+    socket.on('final:finished', refreshFixtures);
+
+    return () => {
+      socket.off('match:started', refreshFixtures);
+      socket.off('match:event', refreshFixtures);
+      socket.off('match:finished', refreshFixtures);
+      socket.off('semi:created', refreshFixtures);
+      socket.off('final:created', refreshFixtures);
+      socket.off('final:finished', refreshFixtures);
+    };
+  }, []);
 
 
   // Load transfers from MongoDB
@@ -283,158 +298,192 @@ const HomePage: React.FC<HomePageProps> = ({ matchesData, tableData, competition
 
   const TrendingNowSection = () => (
     <div className="py-10">
-        <h2 className="text-3xl font-bold text-theme-dark mb-6">Trending Now</h2>
-        {trendingNews.length > 0 ? (
-          <>
-            <div className="flex overflow-x-auto space-x-6 pb-4 -mx-4 px-4 scrollbar-hide">
-                {trendingNews.map(item => (
-                    <Link to={`/news/${item._id}`} key={item._id} className="group flex-shrink-0 w-52">
-                        <div className="relative rounded-lg overflow-hidden h-72 shadow-lg">
-                            <img src={item.imageUrl} alt={item.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
-                            <div className="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent"></div>
-                            <span className="absolute top-2 left-2 bg-theme-accent text-white text-xs font-bold px-2 py-1 rounded">Trending</span>
-                            <div className="absolute bottom-0 left-0 p-3 text-white">
-                                <h3 className="font-semibold leading-tight">{item.title}</h3>
-                            </div>
-                        </div>
-                    </Link>
-                ))}
-            </div>
-            <div className="flex justify-center mt-6">
-                <Link to="/media" className="inline-block bg-white text-theme-dark font-semibold px-6 py-3 rounded-full shadow hover:shadow-md transition-shadow">
-                    View More
-                </Link>
-            </div>
-          </>
-        ) : (
-          <div className="text-center py-12 bg-theme-secondary-bg rounded-lg">
-            <div className="text-6xl mb-4">🔥</div>
-            <h3 className="text-xl font-semibold text-theme-dark mb-2">No Trending News Yet</h3>
-            <p className="text-theme-text-secondary">Check back later for trending content!</p>
+      <h2 className="text-3xl font-bold text-theme-dark mb-6">Trending Now</h2>
+      {trendingNews.length > 0 ? (
+        <>
+          <div className="flex overflow-x-auto space-x-6 pb-4 -mx-4 px-4 scrollbar-hide">
+            {trendingNews.map(item => (
+              <Link to={`/news/${item._id}`} key={item._id} className="group flex-shrink-0 w-52">
+                <div className="relative rounded-lg overflow-hidden h-72 shadow-lg">
+                  <img src={item.imageUrl} alt={item.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent"></div>
+                  <span className="absolute top-2 left-2 bg-theme-accent text-white text-xs font-bold px-2 py-1 rounded">Trending</span>
+                  <div className="absolute bottom-0 left-0 p-3 text-white">
+                    <h3 className="font-semibold leading-tight">{item.title}</h3>
+                  </div>
+                </div>
+              </Link>
+            ))}
           </div>
-        )}
+          <div className="flex justify-center mt-6">
+            <Link to="/media" className="inline-block bg-white text-theme-dark font-semibold px-6 py-3 rounded-full shadow hover:shadow-md transition-shadow">
+              View More
+            </Link>
+          </div>
+        </>
+      ) : (
+        <div className="text-center py-12 bg-theme-secondary-bg rounded-lg">
+          <div className="text-6xl mb-4">🔥</div>
+          <h3 className="text-xl font-semibold text-theme-dark mb-2">No Trending News Yet</h3>
+          <p className="text-theme-text-secondary">Check back later for trending content!</p>
+        </div>
+      )}
     </div>
   );
 
   const KeyTransfersSection = () => (
     transfers.length > 0 ? (
       <div className="py-10">
-          <h2 className="text-3xl font-bold text-theme-dark mb-6">Key Summer 2025 Transfers</h2>
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-5">
-              {transfers.map(item => (
-                  <Link to="/media" key={item.id} className="group">
-                      <div className="rounded-lg overflow-hidden bg-transparent">
-                          {item.imageUrl && <img src={item.imageUrl} alt={item.title} className="w-full h-36 object-cover rounded-lg group-hover:opacity-80 transition-opacity" onError={(e) => { e.currentTarget.style.display = 'none'; }} />}
-                          <div className="pt-3">
-                              <h3 className="font-semibold text-theme-dark group-hover:text-theme-primary transition-colors">{item.title}</h3>
-                              <p className="text-sm text-theme-text-secondary mt-1">Transfers</p>
-                          </div>
-                      </div>
-                  </Link>
-              ))}
-          </div>
-          <div className="text-center mt-8">
-              <Link to="/media" className="inline-block bg-white text-theme-dark font-semibold px-6 py-3 rounded-full shadow hover:shadow-md transition-shadow">
-                  View More
-              </Link>
-          </div>
+        <h2 className="text-3xl font-bold text-theme-dark mb-6">Key Summer 2025 Transfers</h2>
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-5">
+          {transfers.map(item => (
+            <Link to="/media" key={item.id} className="group">
+              <div className="rounded-lg overflow-hidden bg-transparent">
+                {item.imageUrl && <img src={item.imageUrl} alt={item.title} className="w-full h-36 object-cover rounded-lg group-hover:opacity-80 transition-opacity" onError={(e) => { e.currentTarget.style.display = 'none'; }} />}
+                <div className="pt-3">
+                  <h3 className="font-semibold text-theme-dark group-hover:text-theme-primary transition-colors">{item.title}</h3>
+                  <p className="text-sm text-theme-text-secondary mt-1">Transfers</p>
+                </div>
+              </div>
+            </Link>
+          ))}
+        </div>
+        <div className="text-center mt-8">
+          <Link to="/media" className="inline-block bg-white text-theme-dark font-semibold px-6 py-3 rounded-full shadow hover:shadow-md transition-shadow">
+            View More
+          </Link>
+        </div>
       </div>
     ) : null
   );
-  
+
   const BestGoalsSection = () => (
-      bestGoals.length > 0 ? (
-        <div className="my-12 py-10 rounded-lg bg-theme-page-bg">
-          <div className="container mx-auto px-4">
-              <h2 className="text-3xl font-bold text-theme-dark mb-6">Best Goals 2024/25</h2>
-              <div className="flex overflow-x-auto space-x-6 pb-4 -mx-4 px-4 scrollbar-hide">
-                  {bestGoals.map(item => (
-                      <Link to="/media" key={item.id} className="group flex-shrink-0 w-52">
-                          <div className="relative rounded-lg overflow-hidden h-72 shadow-lg">
-                              {item.imageUrl && <img src={item.imageUrl} alt={item.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" onError={(e) => { e.currentTarget.style.display = 'none'; }} />}
-                              <div className="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent"></div>
-                              <span className="absolute top-2 left-2 bg-theme-accent text-white text-xs font-bold px-2 py-1 rounded">New</span>
-                              <div className="absolute bottom-0 left-0 p-3 text-theme-dark">
-                                  <h3 className="font-semibold leading-tight">{item.title}</h3>
-                              </div>
-                          </div>
-                      </Link>
-                  ))}
-              </div>
+    bestGoals.length > 0 ? (
+      <div className="my-12 py-10 rounded-lg bg-theme-page-bg">
+        <div className="container mx-auto px-4">
+          <h2 className="text-3xl font-bold text-theme-dark mb-6">Best Goals 2024/25</h2>
+          <div className="flex overflow-x-auto space-x-6 pb-4 -mx-4 px-4 scrollbar-hide">
+            {bestGoals.map(item => (
+              <Link to="/media" key={item.id} className="group flex-shrink-0 w-52">
+                <div className="relative rounded-lg overflow-hidden h-72 shadow-lg">
+                  {item.imageUrl && <img src={item.imageUrl} alt={item.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" onError={(e) => { e.currentTarget.style.display = 'none'; }} />}
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent"></div>
+                  <span className="absolute top-2 left-2 bg-theme-accent text-white text-xs font-bold px-2 py-1 rounded">New</span>
+                  <div className="absolute bottom-0 left-0 p-3 text-theme-dark">
+                    <h3 className="font-semibold leading-tight">{item.title}</h3>
+                  </div>
+                </div>
+              </Link>
+            ))}
           </div>
         </div>
-      ) : null
+      </div>
+    ) : null
   );
 
   const InterviewsSection = () => (
-    <div className="py-10">
-      <h2 className="text-3xl font-bold text-theme-dark mb-6">Interviews</h2>
-      <div className="flex overflow-x-auto space-x-6 pb-4 -mx-4 px-4 scrollbar-hide">
-        {/* Sample interview data - you can replace with dynamic data from your API */}
+    <div className="py-12">
+      <div className="flex justify-between items-end mb-8">
+        <h2 className="text-3xl font-extrabold text-theme-dark tracking-tight">Exclusive Interviews</h2>
+      </div>
+      <div className="flex overflow-x-auto space-x-6 pb-8 -mx-4 px-4 scrollbar-hide snap-x">
+        {/* Sample interview data combined with dynamic dynamic data */}
         {[
-          { id: 1, title: "Emery: Watkins should be ready for Spurs", imageUrl: "https://images.pexels.com/photos/6203517/pexels-photo-6203517.jpeg?auto=compress&cs=tinysrgb&w=300&h=400&dpr=1" },
-          { id: 2, title: "Amorim on catching Liverpool: I don't kno...", imageUrl: "https://images.pexels.com/photos/4065137/pexels-photo-4065137.jpeg?auto=compress&cs=tinysrgb&w=300&h=400&dpr=1" },
-          { id: 3, title: "Silva: SIX players on Fulham's injury list", imageUrl: "https://images.pexels.com/photos/7292850/pexels-photo-7292850.jpeg?auto=compress&cs=tinysrgb&w=300&h=400&dpr=1" },
-          { id: 4, title: "Ange: My story always ends with a trophy", imageUrl: "https://images.pexels.com/photos/6688537/pexels-photo-6688537.jpeg?auto=compress&cs=tinysrgb&w=300&h=400&dpr=1" },
-          { id: 5, title: "Watch: Amorim's update on Martinez a...", imageUrl: "https://images.pexels.com/photos/7991584/pexels-photo-7991584.jpeg?auto=compress&cs=tinysrgb&w=300&h=400&dpr=1" },
-          { id: 6, title: "Pereira: I don't feel pressure, I live for the...", imageUrl: "https://images.pexels.com/photos/2296277/pexels-photo-2296277.jpeg?auto=compress&cs=tinysrgb&w=300&h=400&dpr=1" },
-          { id: 7, title: "Iraola on Brooks injury and other team news", imageUrl: "https://images.pexels.com/photos/1429536/pexels-photo-1429536.jpeg?auto=compress&cs=tinysrgb&w=300&h=400&dpr=1" },
-          { id: 8, title: "Amorim: I can feel the club's support", imageUrl: "https://images.pexels.com/photos/1189955/pexels-photo-1189955.jpeg?auto=compress&cs=tinysrgb&w=300&h=400&dpr=1" },
-          { id: 9, title: "Pep issues injury latest on City quartet", imageUrl: "https://images.pexels.com/photos/6203517/pexels-photo-6203517.jpeg?auto=compress&cs=tinysrgb&w=300&h=400&dpr=1" },
-          { id: 10, title: "Hurzeler: Mitoma and Veltman could feature.", imageUrl: "https://images.pexels.com/photos/4065137/pexels-photo-4065137.jpeg?auto=compress&cs=tinysrgb&w=300&h=400&dpr=1" }
-        ].map(item => (
-          <Link to="/media" key={item.id} className="group flex-shrink-0 w-52">
-            <div className="relative rounded-lg overflow-hidden h-72 shadow-lg">
-              <img src={item.imageUrl} alt={item.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
-              <div className="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent"></div>
-              <span className="absolute top-2 left-2 bg-purple-600 text-white text-xs font-bold px-2 py-1 rounded">New</span>
-              <div className="absolute bottom-0 left-0 p-3 text-white">
-                <h3 className="font-semibold leading-tight">{item.title}</h3>
+          ...interviews,
+          ...(interviews.length < 10 ? [
+            { id: 'mock1', title: "Emery: Watkins should be ready for Spurs", imageUrl: "https://images.pexels.com/photos/6203517/pexels-photo-6203517.jpeg?auto=compress&cs=tinysrgb&w=300&h=400&dpr=1" },
+            { id: 'mock2', title: "Amorim on catching Liverpool: I don't kno...", imageUrl: "https://images.pexels.com/photos/4065137/pexels-photo-4065137.jpeg?auto=compress&cs=tinysrgb&w=300&h=400&dpr=1" },
+            { id: 'mock3', title: "Silva: SIX players on Fulham's injury list", imageUrl: "https://images.pexels.com/photos/7292850/pexels-photo-7292850.jpeg?auto=compress&cs=tinysrgb&w=300&h=400&dpr=1" },
+            { id: 'mock4', title: "Ange: My story always ends with a trophy", imageUrl: "https://images.pexels.com/photos/6688537/pexels-photo-6688537.jpeg?auto=compress&cs=tinysrgb&w=300&h=400&dpr=1" },
+            { id: 'mock5', title: "Watch: Amorim's update on Martinez a...", imageUrl: "https://images.pexels.com/photos/7991584/pexels-photo-7991584.jpeg?auto=compress&cs=tinysrgb&w=300&h=400&dpr=1" },
+            { id: 'mock6', title: "Pereira: I don't feel pressure, I live for the...", imageUrl: "https://images.pexels.com/photos/2296277/pexels-photo-2296277.jpeg?auto=compress&cs=tinysrgb&w=300&h=400&dpr=1" },
+            { id: 'mock7', title: "Iraola on Brooks injury and other team news", imageUrl: "https://images.pexels.com/photos/1429536/pexels-photo-1429536.jpeg?auto=compress&cs=tinysrgb&w=300&h=400&dpr=1" },
+            { id: 'mock8', title: "Amorim: I can feel the club's support", imageUrl: "https://images.pexels.com/photos/1189955/pexels-photo-1189955.jpeg?auto=compress&cs=tinysrgb&w=300&h=400&dpr=1" },
+            { id: 'mock9', title: "Pep issues injury latest on City quartet", imageUrl: "https://images.pexels.com/photos/6203517/pexels-photo-6203517.jpeg?auto=compress&cs=tinysrgb&w=300&h=400&dpr=1" },
+            { id: 'mock10', title: "Hurzeler: Mitoma and Veltman could feature.", imageUrl: "https://images.pexels.com/photos/4065137/pexels-photo-4065137.jpeg?auto=compress&cs=tinysrgb&w=300&h=400&dpr=1" }
+          ].slice(0, Math.max(0, 10 - interviews.length)) : [])].map(item => (
+          <div key={item.id} onClick={() => setActiveVideoUrl((item as any).videoUrl || (item.title.startsWith('http') ? item.title : 'https://www.youtube.com/watch?v=dQw4w9WgXcQ'))} className="group flex-shrink-0 w-72 snap-center cursor-pointer">
+            <div className="relative rounded-xl overflow-hidden h-96 shadow-xl ring-1 ring-black/5 group-hover:shadow-2xl group-hover:ring-theme-primary/50 transition-all duration-300 transform group-hover:-translate-y-2">
+              <img src={item.imageUrl} alt={item.title} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700 ease-out" />
+              <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/40 to-black/10 transition-opacity duration-300 group-hover:opacity-80"></div>
+
+              <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+                <div className="bg-white/20 backdrop-blur-md rounded-full p-4 transform scale-75 group-hover:scale-100 transition-transform duration-300">
+                  <svg className="w-8 h-8 text-white ml-1" fill="currentColor" viewBox="0 0 24 24">
+                    <path d="M8 5v14l11-7z" />
+                  </svg>
+                </div>
+              </div>
+
+              <span className="absolute top-4 left-4 bg-theme-accent/90 backdrop-blur-sm text-white text-xs font-black uppercase tracking-wider px-3 py-1.5 rounded-full shadow-lg">Interview</span>
+
+              <div className="absolute bottom-0 left-0 w-full p-6 transform translate-y-2 group-hover:translate-y-0 transition-transform duration-300">
+                <h3 className="text-white font-bold text-lg leading-snug drop-shadow-md mb-3 line-clamp-3">{item.title}</h3>
+                <div className="w-12 h-1 bg-theme-primary rounded-full transform origin-left scale-x-0 group-hover:scale-x-100 transition-transform duration-300 delay-100"></div>
               </div>
             </div>
-          </Link>
+          </div>
         ))}
       </div>
-      <div className="flex justify-center mt-6">
-        <Link to="/media" className="inline-block bg-white text-theme-dark font-semibold px-6 py-3 rounded-full shadow hover:shadow-md transition-shadow">
-          View More
+      <div className="flex justify-center mt-2">
+        <Link to="/media" className="inline-flex items-center justify-center bg-white text-theme-dark font-bold px-8 py-3.5 rounded-full shadow-md hover:shadow-lg hover:bg-theme-secondary-bg transition-all transform hover:-translate-y-0.5">
+          View All Interviews
         </Link>
       </div>
+      {activeVideoUrl && <VideoModal youtubeUrl={activeVideoUrl} onClose={() => setActiveVideoUrl(null)} />}
     </div>
   );
 
   const BestMomentsSection = () => (
-    <div className="py-10">
-      <h2 className="text-3xl font-bold text-theme-dark mb-6">Best moments of 2025/26</h2>
-      <div className="flex overflow-x-auto space-x-6 pb-4 -mx-4 px-4 scrollbar-hide">
+    <div className="py-12">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-end mb-8 gap-4">
+        <div>
+          <h2 className="text-3xl font-extrabold text-theme-dark tracking-tight mb-2">Best moments of 2025/26</h2>
+          <p className="text-theme-text-secondary font-medium">Relive the magic, the drama, and the unforgettable seconds.</p>
+        </div>
+        <Link to="/media" className="hidden md:flex items-center gap-2 text-theme-primary font-bold hover:text-theme-primary-dark transition-colors group">
+          Watch All <svg className="w-5 h-5 transform group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" /></svg>
+        </Link>
+      </div>
+      <div className="flex overflow-x-auto space-x-6 pb-8 -mx-4 px-4 scrollbar-hide snap-x items-center">
         {/* Sample best moments data - you can replace with dynamic data from your API */}
         {[
-          { id: 1, title: "Watch all NINE Haaland goals this season ⚽", imageUrl: "https://images.pexels.com/photos/6203517/pexels-photo-6203517.jpeg?auto=compress&cs=tinysrgb&w=300&h=400&dpr=1" },
-          { id: 2, title: "ALL ANGLES: Zubimendi's Goal of th...", imageUrl: "https://images.pexels.com/photos/4065137/pexels-photo-4065137.jpeg?auto=compress&cs=tinysrgb&w=300&h=400&dpr=1" },
-          { id: 3, title: "TEN players involved in Chelsea's goal 🤝", imageUrl: "https://images.pexels.com/photos/7292850/pexels-photo-7292850.jpeg?auto=compress&cs=tinysrgb&w=300&h=400&dpr=1" },
-          { id: 4, title: "Watch: Haaland OUTMUSCLING...", imageUrl: "https://images.pexels.com/photos/6688537/pexels-photo-6688537.jpeg?auto=compress&cs=tinysrgb&w=300&h=400&dpr=1" },
-          { id: 5, title: "Malen ORCHESTRATES Aston Villa's goal 🧠", imageUrl: "https://images.pexels.com/photos/7991584/pexels-photo-7991584.jpeg?auto=compress&cs=tinysrgb&w=300&h=400&dpr=1" },
-          { id: 6, title: "Woltemade on FIRE at St James' Park 🔥", imageUrl: "https://images.pexels.com/photos/2296277/pexels-photo-2296277.jpeg?auto=compress&cs=tinysrgb&w=300&h=400&dpr=1" },
-          { id: 7, title: "How Everton ENDED Palace's unbeaten run", imageUrl: "https://images.pexels.com/photos/1429536/pexels-photo-1429536.jpeg?auto=compress&cs=tinysrgb&w=300&h=400&dpr=1" },
-          { id: 8, title: "Watch: Johnstone's UNREAL save 🧤", imageUrl: "https://images.pexels.com/photos/1189955/pexels-photo-1189955.jpeg?auto=compress&cs=tinysrgb&w=300&h=400&dpr=1" },
-          { id: 9, title: "Come for the goal, stay for the celebration 🤪", imageUrl: "https://images.pexels.com/photos/6203517/pexels-photo-6203517.jpeg?auto=compress&cs=tinysrgb&w=300&h=400&dpr=1" },
-          { id: 10, title: "Caicedo only scores BANGERS 🚀", imageUrl: "https://images.pexels.com/photos/4065137/pexels-photo-4065137.jpeg?auto=compress&cs=tinysrgb&w=300&h=400&dpr=1" }
-        ].map(item => (
-          <Link to="/media" key={item.id} className="group flex-shrink-0 w-52">
-            <div className="relative rounded-lg overflow-hidden h-72 shadow-lg">
-              <img src={item.imageUrl} alt={item.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
-              <div className="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent"></div>
-              <span className="absolute top-2 left-2 bg-purple-600 text-white text-xs font-bold px-2 py-1 rounded">New</span>
-              <div className="absolute bottom-0 left-0 p-3 text-white">
-                <h3 className="font-semibold leading-tight">{item.title}</h3>
+          { id: 1, title: "Watch all NINE Haaland goals this season ⚽", imageUrl: "https://images.pexels.com/photos/6203517/pexels-photo-6203517.jpeg?auto=compress&cs=tinysrgb&w=600&h=400&dpr=1" },
+          { id: 2, title: "ALL ANGLES: Zubimendi's Goal of th...", imageUrl: "https://images.pexels.com/photos/4065137/pexels-photo-4065137.jpeg?auto=compress&cs=tinysrgb&w=600&h=400&dpr=1" },
+          { id: 3, title: "TEN players involved in Chelsea's goal 🤝", imageUrl: "https://images.pexels.com/photos/7292850/pexels-photo-7292850.jpeg?auto=compress&cs=tinysrgb&w=600&h=400&dpr=1" },
+          { id: 4, title: "Watch: Haaland OUTMUSCLING...", imageUrl: "https://images.pexels.com/photos/6688537/pexels-photo-6688537.jpeg?auto=compress&cs=tinysrgb&w=600&h=400&dpr=1" },
+          { id: 5, title: "Malen ORCHESTRATES Aston Villa's goal 🧠", imageUrl: "https://images.pexels.com/photos/7991584/pexels-photo-7991584.jpeg?auto=compress&cs=tinysrgb&w=600&h=400&dpr=1" },
+          { id: 6, title: "Woltemade on FIRE at St James' Park 🔥", imageUrl: "https://images.pexels.com/photos/2296277/pexels-photo-2296277.jpeg?auto=compress&cs=tinysrgb&w=600&h=400&dpr=1" },
+          { id: 7, title: "How Everton ENDED Palace's unbeaten run", imageUrl: "https://images.pexels.com/photos/1429536/pexels-photo-1429536.jpeg?auto=compress&cs=tinysrgb&w=600&h=400&dpr=1" },
+          { id: 8, title: "Watch: Johnstone's UNREAL save 🧤", imageUrl: "https://images.pexels.com/photos/1189955/pexels-photo-1189955.jpeg?auto=compress&cs=tinysrgb&w=600&h=400&dpr=1" },
+          { id: 9, title: "Come for the goal, stay for the celebration 🤪", imageUrl: "https://images.pexels.com/photos/6203517/pexels-photo-6203517.jpeg?auto=compress&cs=tinysrgb&w=600&h=400&dpr=1" },
+          { id: 10, title: "Caicedo only scores BANGERS 🚀", imageUrl: "https://images.pexels.com/photos/4065137/pexels-photo-4065137.jpeg?auto=compress&cs=tinysrgb&w=600&h=400&dpr=1" }
+        ].map((item, index) => (
+          <Link to="/media" key={item.id} className={`group flex-shrink-0 snap-center ${index % 2 === 0 ? 'w-80' : 'w-96'}`}>
+            <div className={`relative rounded-2xl overflow-hidden shadow-lg group-hover:shadow-2xl group-hover:ring-2 group-hover:ring-theme-primary/50 transition-all duration-300 ${index % 2 === 0 ? 'h-56' : 'h-72'} ${index % 2 !== 0 ? '-translate-y-2' : ''}`}>
+              <img src={item.imageUrl} alt={item.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700" />
+              <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent opacity-80 group-hover:opacity-100 transition-opacity duration-300"></div>
+
+              <div className="absolute inset-0 flex items-center justify-center">
+                <div className="w-14 h-14 rounded-full border-2 border-white/60 flex items-center justify-center bg-black/20 backdrop-blur-sm group-hover:bg-theme-primary group-hover:border-theme-primary transition-all duration-300 shadow-xl group-hover:scale-110">
+                  <svg className="w-6 h-6 text-white ml-1" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z" /></svg>
+                </div>
+              </div>
+
+              <div className="absolute bottom-0 left-0 w-full p-5 text-white transform translate-y-2 group-hover:translate-y-0 transition-transform duration-300">
+                <h3 className="font-extrabold text-lg md:text-xl leading-tight mb-2 group-hover:text-theme-primary transition-colors line-clamp-2 drop-shadow-md">{item.title}</h3>
+                <p className="text-white/80 text-xs font-semibold flex items-center gap-1.5 tracking-wide uppercase">
+                  <svg className="w-4 h-4 text-theme-primary" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zM10 16.5v-9l6 4.5-6 4.5z" /></svg>
+                  {Math.floor(Math.random() * 800 + 100)}k views
+                </p>
               </div>
             </div>
           </Link>
         ))}
       </div>
-      <div className="flex justify-center mt-6">
-        <Link to="/media" className="inline-block bg-white text-theme-dark font-semibold px-6 py-3 rounded-full shadow hover:shadow-md transition-shadow">
-          View More
+      <div className="flex justify-center mt-6 md:hidden">
+        <Link to="/media" className="inline-flex items-center justify-center bg-white text-theme-dark font-bold px-8 py-3.5 rounded-full shadow-md hover:shadow-lg transition-all">
+          Watch All Moments
         </Link>
       </div>
     </div>
@@ -442,7 +491,7 @@ const HomePage: React.FC<HomePageProps> = ({ matchesData, tableData, competition
 
   const StatisticsSection = () => {
     const [activeStat, setActiveStat] = useState('Goals');
-    
+
     // Sample statistics data - you can replace with dynamic data from your API
     const statsData = {
       Goals: [
@@ -476,88 +525,87 @@ const HomePage: React.FC<HomePageProps> = ({ matchesData, tableData, competition
         <div className="px-6">
           <div className="flex justify-between items-center mb-6">
             <h2 className="text-3xl font-bold text-theme-dark">NGL Statistics</h2>
-          <Link to="/stats" className="bg-theme-primary text-theme-dark font-semibold px-6 py-3 rounded-full shadow hover:shadow-md transition-shadow flex items-center gap-2">
-            See all stats
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-            </svg>
-          </Link>
-        </div>
-        
-        {/* Stats Categories */}
-        <div className="flex flex-wrap gap-2 mb-6">
-          {Object.keys(statsData).map((stat) => (
-            <button
-              key={stat}
-              onClick={() => setActiveStat(stat)}
-              className={`px-4 py-2 text-sm font-semibold rounded-md transition-colors ${
-                activeStat === stat
+            <Link to="/stats" className="bg-theme-primary text-theme-dark font-semibold px-6 py-3 rounded-full shadow hover:shadow-md transition-shadow flex items-center gap-2">
+              See all stats
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+              </svg>
+            </Link>
+          </div>
+
+          {/* Stats Categories */}
+          <div className="flex flex-wrap gap-2 mb-6">
+            {Object.keys(statsData).map((stat) => (
+              <button
+                key={stat}
+                onClick={() => setActiveStat(stat)}
+                className={`px-4 py-2 text-sm font-semibold rounded-md transition-colors ${activeStat === stat
                   ? 'bg-theme-primary text-theme-dark shadow-md'
                   : 'bg-theme-secondary-bg text-theme-text-secondary hover:bg-theme-page-bg'
-              }`}
-            >
-              {stat}
-            </button>
-          ))}
-        </div>
+                  }`}
+              >
+                {stat}
+              </button>
+            ))}
+          </div>
 
-        {/* Statistics Table */}
-        <div className="bg-theme-page-bg rounded-lg shadow-lg overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="min-w-full">
-              <thead className="bg-theme-secondary-bg">
-                <tr>
-                  <th className="px-6 py-4 text-left text-xs font-medium text-theme-text-secondary uppercase tracking-wider">Player</th>
-                  <th className="px-6 py-4 text-left text-xs font-medium text-theme-text-secondary uppercase tracking-wider">Team</th>
-                  <th className="px-6 py-4 text-right text-xs font-medium text-theme-text-secondary uppercase tracking-wider">{activeStat}</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-theme-border">
-                {currentStats.map((player, index) => (
-                  <tr key={player.id} className="hover:bg-theme-secondary-bg/50 transition-colors">
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="flex items-center">
-                        <div className="flex-shrink-0 h-10 w-10">
-                          <img
-                            className="h-10 w-10 rounded-full object-cover"
-                            src={player.avatar}
-                            alt={player.player}
-                            onError={(e) => { e.currentTarget.style.display = 'none'; }}
-                          />
-                        </div>
-                        <div className="ml-4">
-                          <div className="text-sm font-medium text-theme-dark">
-                            <Link to={`/players/${player.id}`} className="hover:text-theme-primary transition-colors">
-                              {player.player}
-                            </Link>
+          {/* Statistics Table */}
+          <div className="bg-theme-page-bg rounded-lg shadow-lg overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="min-w-full">
+                <thead className="bg-theme-secondary-bg">
+                  <tr>
+                    <th className="px-6 py-4 text-left text-xs font-medium text-theme-text-secondary uppercase tracking-wider">Player</th>
+                    <th className="px-6 py-4 text-left text-xs font-medium text-theme-text-secondary uppercase tracking-wider">Team</th>
+                    <th className="px-6 py-4 text-right text-xs font-medium text-theme-text-secondary uppercase tracking-wider">{activeStat}</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-theme-border">
+                  {currentStats.map((player, index) => (
+                    <tr key={player.id} className="hover:bg-theme-secondary-bg/50 transition-colors">
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="flex items-center">
+                          <div className="flex-shrink-0 h-10 w-10">
+                            <img
+                              className="h-10 w-10 rounded-full object-cover"
+                              src={player.avatar}
+                              alt={player.player}
+                              onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                            />
+                          </div>
+                          <div className="ml-4">
+                            <div className="text-sm font-medium text-theme-dark">
+                              <Link to={`/players/${player.id}`} className="hover:text-theme-primary transition-colors">
+                                {player.player}
+                              </Link>
+                            </div>
                           </div>
                         </div>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="flex items-center">
-                        <div className="flex-shrink-0 h-6 w-6">
-                          <img
-                            className="h-6 w-6 rounded-full object-cover"
-                            src={player.teamLogo}
-                            alt={player.team}
-                            onError={(e) => { e.currentTarget.style.display = 'none'; }}
-                          />
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="flex items-center">
+                          <div className="flex-shrink-0 h-6 w-6">
+                            <img
+                              className="h-6 w-6 rounded-full object-cover"
+                              src={player.teamLogo}
+                              alt={player.team}
+                              onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                            />
+                          </div>
+                          <div className="ml-3">
+                            <div className="text-sm text-theme-dark">{player.team}</div>
+                          </div>
                         </div>
-                        <div className="ml-3">
-                          <div className="text-sm text-theme-dark">{player.team}</div>
-                        </div>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-right">
-                      <div className="text-sm font-bold text-theme-primary text-lg">{player.value}</div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-right">
+                        <div className="text-sm font-bold text-theme-primary text-lg">{player.value}</div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
-        </div>
         </div>
       </div>
     );
@@ -580,19 +628,19 @@ const HomePage: React.FC<HomePageProps> = ({ matchesData, tableData, competition
                 .map(fixture => {
                   const homeTeam = typeof fixture.homeTeam === 'string' ? { name: 'Home Team', logo: undefined } : fixture.homeTeam;
                   const awayTeam = typeof fixture.awayTeam === 'string' ? { name: 'Away Team', logo: undefined } : fixture.awayTeam;
-                  
+
                   return (
                     <div key={fixture._id} className="bg-white rounded-lg shadow-lg p-6 hover:shadow-xl transition-shadow">
                       <div className="flex items-center justify-between mb-4">
                         <span className="text-sm font-semibold text-theme-text-secondary">
-                          {fixture.stage === 'final' ? 'FINAL' : 
-                           fixture.stage === 'semi' ? 'SEMIFINAL' : 'LEAGUE'}
+                          {fixture.stage === 'final' ? 'FINAL' :
+                            fixture.stage === 'semi' ? 'SEMIFINAL' : 'LEAGUE'}
                         </span>
                         <span className="text-sm text-theme-text-secondary">
                           {fixture.kickoffAt ? new Date(fixture.kickoffAt).toLocaleDateString() : 'TBD'}
                         </span>
                       </div>
-                      
+
                       <div className="flex items-center justify-between mb-4">
                         <div className="flex items-center gap-3">
                           {homeTeam?.logo && (
@@ -608,7 +656,7 @@ const HomePage: React.FC<HomePageProps> = ({ matchesData, tableData, competition
                           )}
                         </div>
                       </div>
-                      
+
                       <div className="text-center">
                         <span className="text-sm text-theme-text-secondary">
                           {fixture.venueName || 'Venue TBD'}
@@ -625,7 +673,7 @@ const HomePage: React.FC<HomePageProps> = ({ matchesData, tableData, competition
                   );
                 })}
             </div>
-            
+
             {fixtures.filter(fixture => fixture.status === 'scheduled').length === 0 && (
               <div className="text-center py-12">
                 <div className="text-6xl mb-4">⚽</div>
@@ -633,7 +681,7 @@ const HomePage: React.FC<HomePageProps> = ({ matchesData, tableData, competition
                 <p className="text-theme-text-secondary">Fixtures will appear here once the admin generates them.</p>
               </div>
             )}
-            
+
             <div className="flex justify-center mt-8">
               <Link to="/matches" className="bg-theme-primary text-theme-dark font-bold px-6 py-3 rounded-lg hover:bg-theme-primary-dark transition-colors">
                 View All Fixtures
@@ -653,24 +701,24 @@ const HomePage: React.FC<HomePageProps> = ({ matchesData, tableData, competition
                 .filter((article: any) => article.type !== 'match-report' && article.type !== 'trending' && article.authorRole === 'admin') // Only show admin-created news, exclude match reports and trending
                 .slice(0, 10)
                 .map((article, index) => (
-                <Link to={`/news/${article._id}`} key={article._id || `news-${index}`} className="group">
-                  <div className="relative h-64 rounded-lg overflow-hidden shadow-lg">
-                    {article.imageUrl && (
-                      <img 
-                        src={article.imageUrl} 
-                        alt={article.title} 
-                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" 
-                        onError={(e) => { e.currentTarget.style.display = 'none'; }}
-                      />
-                    )}
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent"></div>
-                    <div className="absolute bottom-0 left-0 right-0 p-4 text-white">
-                      <h3 className="font-semibold leading-tight drop-shadow text-sm mb-1">{article.title}</h3>
-                      <p className="text-xs opacity-90 uppercase tracking-wide">{article.category || 'Features'}</p>
+                  <Link to={`/news/${article._id}`} key={article._id || `news-${index}`} className="group">
+                    <div className="relative h-64 rounded-lg overflow-hidden shadow-lg">
+                      {article.imageUrl && (
+                        <img
+                          src={article.imageUrl}
+                          alt={article.title}
+                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                          onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                        />
+                      )}
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent"></div>
+                      <div className="absolute bottom-0 left-0 right-0 p-4 text-white">
+                        <h3 className="font-semibold leading-tight drop-shadow text-sm mb-1">{article.title}</h3>
+                        <p className="text-xs opacity-90 uppercase tracking-wide">{article.category || 'Features'}</p>
+                      </div>
                     </div>
-                  </div>
-                </Link>
-              ))}
+                  </Link>
+                ))}
             </div>
           ) : (
             <div className="text-center py-12 bg-theme-secondary-bg rounded-lg">
@@ -679,7 +727,7 @@ const HomePage: React.FC<HomePageProps> = ({ matchesData, tableData, competition
               <p className="text-theme-text-secondary">Only news created by administrators will appear in this section.</p>
             </div>
           )}
-          
+
           <div className="flex justify-center mt-8">
             <Link to="/media" className="bg-white text-theme-dark font-semibold px-6 py-3 rounded-full shadow hover:shadow-md transition-shadow">
               View More
@@ -718,77 +766,76 @@ const HomePage: React.FC<HomePageProps> = ({ matchesData, tableData, competition
 
       {/* Top Performers Section */}
       {leaderStats.length > 0 && (
-          <section className="py-20 bg-transparent">
-              <div className="container mx-auto px-4">
-                  <SectionHeader 
-                      title="Top Performers"
-                      subtitle="See who's leading the league in key stats"
-                  />
-                  
-                  <div className="flex justify-center flex-wrap gap-2 mb-8 bg-theme-page-bg p-2 rounded-lg shadow-md max-w-lg mx-auto">
-                      {leaderStats.map(stat => (
-                          <button
-                              key={stat.statUnit}
-                              onClick={() => setActiveStat(stat.statUnit)}
-                              className={`px-4 py-2 text-sm font-semibold rounded-md transition-colors ${
-                                  activeStat === stat.statUnit
-                                      ? 'bg-theme-accent text-white shadow'
-                                      : 'text-theme-text-secondary hover:bg-theme-secondary-bg'
-                              }`}
-                          >
-                              {stat.statUnit}
-                          </button>
-                      ))}
-                  </div>
+        <section className="py-20 bg-transparent">
+          <div className="container mx-auto px-4">
+            <SectionHeader
+              title="Top Performers"
+              subtitle="See who's leading the league in key stats"
+            />
 
-                  <div className="max-w-lg mx-auto bg-theme-page-bg rounded-lg shadow-lg p-4 sm:p-6">
-                      {activeLeaderStat ? (
-                          <ul className="space-y-3">
-                              {activeLeaderStat.leaderboard.map((player, index) => (
-                                  <li key={`${player.playerId}-${player.playerName}`}>
-                                    <button onClick={() => onPlayerSelect(player.playerId)} className="w-full flex items-center justify-between p-3 rounded-lg transition-colors hover:bg-theme-secondary-bg text-left">
-                                      <div className="flex items-center gap-4">
-                                          <span className="font-bold text-theme-text-secondary text-lg w-6 text-center">{index + 1}.</span>
-                                          <img src={player.clubLogo} alt="Club Logo" className="w-6 h-6" onError={(e) => { e.currentTarget.style.display = 'none'; }} />
-                                          <span className="font-semibold text-theme-dark uppercase">{player.playerName}</span>
-                                      </div>
-                                      <span className="font-bold text-xl text-theme-primary">{player.value}</span>
-                                    </button>
-                                  </li>
-                              ))}
-                          </ul>
-                      ) : (
-                          <p className="text-center text-theme-text-secondary py-4">No leader data available.</p>
-                      )}
-                  </div>
-              </div>
-          </section>
+            <div className="flex justify-center flex-wrap gap-2 mb-8 bg-theme-page-bg p-2 rounded-lg shadow-md max-w-lg mx-auto">
+              {leaderStats.map(stat => (
+                <button
+                  key={stat.statUnit}
+                  onClick={() => setActiveStat(stat.statUnit)}
+                  className={`px-4 py-2 text-sm font-semibold rounded-md transition-colors ${activeStat === stat.statUnit
+                    ? 'bg-theme-accent text-white shadow'
+                    : 'text-theme-text-secondary hover:bg-theme-secondary-bg'
+                    }`}
+                >
+                  {stat.statUnit}
+                </button>
+              ))}
+            </div>
+
+            <div className="max-w-lg mx-auto bg-theme-page-bg rounded-lg shadow-lg p-4 sm:p-6">
+              {activeLeaderStat ? (
+                <ul className="space-y-3">
+                  {activeLeaderStat.leaderboard.map((player, index) => (
+                    <li key={`${player.playerId}-${player.playerName}`}>
+                      <button onClick={() => onPlayerSelect(player.playerId)} className="w-full flex items-center justify-between p-3 rounded-lg transition-colors hover:bg-theme-secondary-bg text-left">
+                        <div className="flex items-center gap-4">
+                          <span className="font-bold text-theme-text-secondary text-lg w-6 text-center">{index + 1}.</span>
+                          <img src={player.clubLogo} alt="Club Logo" className="w-6 h-6" onError={(e) => { e.currentTarget.style.display = 'none'; }} />
+                          <span className="font-semibold text-theme-dark uppercase">{player.playerName}</span>
+                        </div>
+                        <span className="font-bold text-xl text-theme-primary">{player.value}</span>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="text-center text-theme-text-secondary py-4">No leader data available.</p>
+              )}
+            </div>
+          </div>
+        </section>
       )}
 
       {/* New Themed Section for Trending and Transfers */}
       <section className="bg-transparent">
-          <div className="container mx-auto px-4">
-             <div className="divide-y divide-theme-border">
-                <TrendingNowSection />
-                <StatisticsSection />
-                <InterviewsSection />
-                <BestMomentsSection />
-                <KeyTransfersSection />
-             </div>
-             <BestGoalsSection />
+        <div className="container mx-auto px-4">
+          <div className="divide-y divide-theme-border">
+            <TrendingNowSection />
+            <StatisticsSection />
+            <InterviewsSection />
+            <BestMomentsSection />
+            <KeyTransfersSection />
           </div>
+          <BestGoalsSection />
+        </div>
       </section>
 
       {/* Road to the Final Section */}
       {competitionStage !== 'League Stage' &&
         <section className="py-16 bg-theme-page-bg/50">
           <div className="container mx-auto px-4">
-             <h2 className="text-3xl font-extrabold text-theme-dark mb-8 text-center uppercase tracking-wider">Road to the Final</h2>
-             <RoadToFinal matches={matchesData} />
+            <h2 className="text-3xl font-extrabold text-theme-dark mb-8 text-center uppercase tracking-wider">Road to the Final</h2>
+            <RoadToFinal matches={matchesData} />
           </div>
         </section>
       }
-      
+
 
       {/* League Standings section intentionally removed from Home page */}
 
